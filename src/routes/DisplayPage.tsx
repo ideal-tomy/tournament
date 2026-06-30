@@ -51,6 +51,7 @@ export default function DisplayPage() {
           {event && (
             <p className="text-slate-400 text-sm mt-0.5">
               {event.name}
+              <span className="ml-2 text-cyan-500/80 text-xs">ダブルイリミ</span>
               {eventStatus === 'finished' && (
                 <span className="ml-2 text-fuchsia-400 font-bold">— 終了</span>
               )}

@@ -28,8 +28,8 @@ function assertLayout(data: Awaited<ReturnType<typeof buildSnapshotForTeamCount>
       for (let j = i + 1; j < ms.length; j++) {
         const a = ms[i].box;
         const b = ms[j].box;
-        const overlapY = a.y < b.y + b.h && b.y < a.y + a.h;
-        expect(overlapY).toBe(false);
+        const overlapX = a.x < b.x + b.w && b.x < a.x + a.w;
+        expect(overlapX).toBe(false);
       }
     }
   }
@@ -59,6 +59,25 @@ describe('drop connectors', () => {
     const L = computeBracketLayout(toStageData(data));
     const drops = L.connectors.filter((c) => c.kind === 'drop');
     expect(drops.length).toBeGreaterThan(0);
+  });
+
+  it('6 チームで advance + drop が両方存在', async () => {
+    const data = await buildSnapshotForTeamCount(6);
+    const L = computeBracketLayout(toStageData(data));
+    expect(L.connectors.some((c) => c.kind === 'advance')).toBe(true);
+    expect(L.connectors.some((c) => c.kind === 'drop')).toBe(true);
+  });
+
+  it('下位ラウンドほど Y が大きい（下→上）', async () => {
+    const data = await buildSnapshotForTeamCount(8);
+    const L = computeBracketLayout(toStageData(data));
+    const wb = L.matches.filter((m) => m.bracket === 'winner');
+    const r1 = wb.filter((m) => m.round === 1);
+    const r2 = wb.filter((m) => m.round === 2);
+    if (r1.length && r2.length) {
+      const avg = (ms: typeof r1) => ms.reduce((s, m) => s + m.box.y, 0) / ms.length;
+      expect(avg(r1)).toBeGreaterThan(avg(r2));
+    }
   });
 });
 

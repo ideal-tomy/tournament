@@ -1,29 +1,19 @@
 import { Status } from 'brackets-model';
-// 配置: src/features/bracket/layout.ts
-//
-// 役割:
-//   brackets-manager の stageData(JSON) を入力に、各試合(match)と
-//   各チーム枠(slot)の画面座標を計算して返す純粋関数。
-//   演出(線の衝突/爆発/VS表示)はこの戻り値の座標だけを参照する。
-//   → 当日の人数・配置が変わっても演出が自動追従する。
-//
-// 重要原則:
-//   - 座標をハードコードしない。すべてここで計算する。
-//   - これは「純粋関数」。副作用なし＝Vitestで単体テストする(Phase2のDone条件)。
-// =====================================================================
 
-// ---- 入力: brackets-manager stageData の必要部分 ----------------------
-// ※ brackets-model の型に対応。プロジェクトでは brackets-manager の
-//   get.stageData() の戻り値をそのまま渡す想定。
 export interface BMGroup { id: number; number: number; stage_id: number }
 export interface BMRound { id: number; number: number; group_id: number; stage_id: number }
-export interface BMOpponent { id: number | null; position?: number; score?: number; result?: 'win' | 'loss' | 'draw' }
+export interface BMOpponent {
+  id: number | null;
+  position?: number;
+  score?: number;
+  result?: 'win' | 'loss' | 'draw';
+}
 export interface BMMatch {
   id: number;
   number: number;
   group_id: number;
   round_id: number;
-  status: number;            // brackets-manager の Status enum 値
+  status: number;
   opponent1: BMOpponent | null;
   opponent2: BMOpponent | null;
 }
@@ -35,15 +25,12 @@ export interface StageData {
   participant: BMParticipant[];
 }
 
-// ---- 出力: 演出が参照するレイアウト ----------------------------------
 export type BracketKind = 'winner' | 'loser' | 'grand_final';
 export interface Point { x: number; y: number }
 export interface Rect { x: number; y: number; w: number; h: number }
 
 export interface SlotLayout {
   slot: 0 | 1;
-  /** brackets-manager participant.id。null は未確定/BYE。
-   *  顔写真解決: participant.id → participant.name(=team.id uuid) → teams → team_members → faces */
   teamRef: number | null;
   rect: Rect;
   center: Point;
@@ -51,233 +38,330 @@ export interface SlotLayout {
 export interface MatchLayout {
   matchId: number;
   bracket: BracketKind;
-  round: number;             // そのbracket内のラウンド番号(1始まり)
-  col: number;               // 列インデックス(0始まり)
-  row: number;               // 列内の行インデックス(0始まり)
-  box: Rect;                 // 試合ボックス全体
-  center: Point;             // ボックス中心（衝突点の基準）
+  round: number;
+  col: number;
+  row: number;
+  box: Rect;
+  center: Point;
   slots: [SlotLayout, SlotLayout];
 }
 export interface Connector {
   fromMatchId: number;
   toMatchId: number;
-  kind: 'advance' | 'drop';  // advance=同bracket内の勝ち上がり / drop=WB敗者→LB(TODO)
-  from: Point;               // 線の始点(fromボックス右端中央)
-  to: Point;                 // 線の終点(toボックス左端中央)
+  kind: 'advance' | 'drop';
+  from: Point;
+  to: Point;
 }
 export interface BracketLayout {
   matches: MatchLayout[];
   connectors: Connector[];
-  /** SVG viewBox 用 */
   width: number;
   height: number;
   byId: Record<number, MatchLayout>;
 }
 
-// ---- レイアウト設定 ---------------------------------------------------
 export interface LayoutConfig {
-  boxW: number;       // 試合ボックス幅
-  boxH: number;       // 試合ボックス高さ(2スロット分)
-  colGap: number;     // 列間の余白
-  sectionGap: number; // WBセクションとLBセクションの縦間隔
-  padding: number;    // 全体マージン
-  wbSectionH: number; // WBセクションの高さ(縦の描画領域)
-  lbSectionH: number; // LBセクションの高さ
+  boxW: number;
+  boxH: number;
+  roundGap: number;
+  matchGap: number;
+  sectionGap: number;
+  padding: number;
 }
 export const DEFAULT_LAYOUT: LayoutConfig = {
-  boxW: 240,
-  boxH: 96,
-  colGap: 80,
-  sectionGap: 80,
-  padding: 48,
-  wbSectionH: 720,
-  lbSectionH: 480,
+  boxW: 220,
+  boxH: 88,
+  roundGap: 72,
+  matchGap: 24,
+  sectionGap: 48,
+  padding: 56,
 };
 
-// =====================================================================
-// 本体
-// =====================================================================
-export function computeBracketLayout(
-  data: StageData,
-  cfg: LayoutConfig = DEFAULT_LAYOUT,
-): BracketLayout {
-  const groupNumberById = new Map<number, number>();
-  for (const g of data.group) groupNumberById.set(g.id, g.number);
+interface MatchMeta {
+  match: BMMatch;
+  bracket: BracketKind;
+  round: number;
+  row: number;
+  groupNumber: number;
+}
 
-  const roundInfoById = new Map<number, { groupNumber: number; roundNumber: number }>();
-  for (const r of data.round) {
-    const groupNumber = groupNumberById.get(r.group_id) ?? 1;
-    roundInfoById.set(r.id, { groupNumber, roundNumber: r.number });
-  }
+function kindOf(groupNumber: number): BracketKind {
+  if (groupNumber === 1) return 'winner';
+  if (groupNumber === 2) return 'loser';
+  return 'grand_final';
+}
 
-  // bracket 種別判定: group.number 1=WB / 2=LB / 3=GF（double_elimination の標準）
-  const kindOf = (groupNumber: number): BracketKind =>
-    groupNumber === 1 ? 'winner' : groupNumber === 2 ? 'loser' : 'grand_final';
+function buildMatchMetas(data: StageData): MatchMeta[] {
+  const groupNumberById = new Map(data.group.map((g) => [g.id, g.number]));
+  const roundInfoById = new Map(
+    data.round.map((r) => [
+      r.id,
+      { groupNumber: groupNumberById.get(r.group_id) ?? 1, roundNumber: r.number },
+    ]),
+  );
 
-  // (bracket, round) ごとに match をまとめる
   type Bucket = { bracket: BracketKind; round: number; matches: BMMatch[] };
   const buckets = new Map<string, Bucket>();
   for (const m of data.match) {
     const info = roundInfoById.get(m.round_id);
     if (!info) continue;
     const bracket = kindOf(info.groupNumber);
-    const round = info.roundNumber;
-    const key = `${bracket}:${round}`;
-    if (!buckets.has(key)) buckets.set(key, { bracket, round, matches: [] });
+    const key = `${bracket}:${info.roundNumber}`;
+    if (!buckets.has(key)) buckets.set(key, { bracket, round: info.roundNumber, matches: [] });
     buckets.get(key)!.matches.push(m);
   }
-  // 各 round 内は match.number 昇順
   for (const b of buckets.values()) b.matches.sort((a, z) => a.number - z.number);
 
-  // 列インデックスの割り当て
-  //  WB: round-1
-  //  GF: WBの最大列の右隣から
-  //  LB: round-1（縦はWBの下のバンド）
-  const wbRounds = [...buckets.values()].filter(b => b.bracket === 'winner').map(b => b.round);
-  const wbMaxRound = wbRounds.length ? Math.max(...wbRounds) : 0;
-
-  const colOf = (bracket: BracketKind, round: number): number => {
-    if (bracket === 'winner') return round - 1;
-    if (bracket === 'grand_final') return wbMaxRound + (round - 1); // WBの右へ
-    return round - 1; // loser
-  };
-
-  const xOfCol = (col: number) => cfg.padding + col * (cfg.boxW + cfg.colGap);
-
-  const wbTop = cfg.padding;
-  const maxMatchesInBracket = (kind: BracketKind) =>
-    Math.max(
-      1,
-      ...[...buckets.values()]
-        .filter((b) => b.bracket === kind)
-        .map((b) => b.matches.length),
-    );
-  const wbSectionH = Math.max(cfg.wbSectionH, maxMatchesInBracket('winner') * cfg.boxH);
-  const lbSectionH = Math.max(cfg.lbSectionH, maxMatchesInBracket('loser') * cfg.boxH);
-  const lbTop = cfg.padding + wbSectionH + cfg.sectionGap;
-  const sectionTopOf = (bracket: BracketKind) =>
-    bracket === 'loser' ? lbTop : wbTop;
-  const sectionHOf = (bracket: BracketKind) =>
-    bracket === 'loser' ? lbSectionH : wbSectionH;
-
-  const matches: MatchLayout[] = [];
-  const byId: Record<number, MatchLayout> = {};
-
+  const metas: MatchMeta[] = [];
   for (const b of buckets.values()) {
-    const col = colOf(b.bracket, b.round);
-    const x = xOfCol(col);
-    const top = sectionTopOf(b.bracket);
-    const sectionH = sectionHOf(b.bracket);
-    const n = b.matches.length;
-
     b.matches.forEach((m, row) => {
-      // 列内で均等配置（中心を等間隔に置く）
-      const centerY = top + ((row + 0.5) * sectionH) / n;
-      const boxY = centerY - cfg.boxH / 2;
-      const box: Rect = { x, y: boxY, w: cfg.boxW, h: cfg.boxH };
-
-      const slotH = cfg.boxH / 2;
-      const mkSlot = (slot: 0 | 1, op: BMOpponent | null): SlotLayout => {
-        const rect: Rect = { x, y: boxY + slot * slotH, w: cfg.boxW, h: slotH };
-        return {
-          slot,
-          teamRef: op?.id ?? null,
-          rect,
-          center: { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 },
-        };
-      };
-
-      const ml: MatchLayout = {
-        matchId: m.id,
+      const info = roundInfoById.get(m.round_id)!;
+      metas.push({
+        match: m,
         bracket: b.bracket,
         round: b.round,
-        col,
         row,
-        box,
-        center: { x: box.x + box.w / 2, y: box.y + box.h / 2 },
-        slots: [mkSlot(0, m.opponent1), mkSlot(1, m.opponent2)],
-      };
-      matches.push(ml);
-      byId[ml.matchId] = ml;
+        groupNumber: info.groupNumber,
+      });
+    });
+  }
+  return metas;
+}
+
+/** WB 勝者: 次ラウンド row */
+function wbAdvanceRow(fromRow: number): number {
+  return Math.floor(fromRow / 2);
+}
+
+/** LB 勝者: major→minor は同 row、minor→major は半分 */
+function lbAdvanceRow(fromRound: number, fromRow: number): number {
+  return fromRound % 2 === 1 ? fromRow : Math.floor(fromRow / 2);
+}
+
+function findMeta(
+  metas: MatchMeta[],
+  bracket: BracketKind,
+  round: number,
+  row: number,
+): MatchMeta | null {
+  return metas.find((m) => m.bracket === bracket && m.round === round && m.row === row) ?? null;
+}
+
+function lastMeta(metas: MatchMeta[], bracket: BracketKind): MatchMeta | null {
+  const filtered = metas.filter((m) => m.bracket === bracket);
+  if (!filtered.length) return null;
+  return filtered.reduce((a, b) => (a.round > b.round || (a.round === b.round && a.row < b.row) ? a : b));
+}
+
+function buildAdvanceConnectors(metas: MatchMeta[]): Array<{ from: number; to: number }> {
+  const links: Array<{ from: number; to: number }> = [];
+  const seen = new Set<string>();
+
+  function add(from: MatchMeta, to: MatchMeta) {
+    const key = `${from.match.id}->${to.match.id}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    links.push({ from: from.match.id, to: to.match.id });
+  }
+
+  for (const m of metas) {
+    if (m.bracket === 'winner') {
+      const next = findMeta(metas, 'winner', m.round + 1, wbAdvanceRow(m.row));
+      if (next) add(m, next);
+    } else if (m.bracket === 'loser') {
+      const next = findMeta(metas, 'loser', m.round + 1, lbAdvanceRow(m.round, m.row));
+      if (next) add(m, next);
+    } else if (m.bracket === 'grand_final') {
+      const next = findMeta(metas, 'grand_final', m.round + 1, 0);
+      if (next) add(m, next);
+    }
+  }
+
+  const wbFinal = lastMeta(metas, 'winner');
+  const lbFinal = lastMeta(metas, 'loser');
+  const gfFirst = findMeta(metas, 'grand_final', 1, 0);
+  if (wbFinal && gfFirst) add(wbFinal, gfFirst);
+  if (lbFinal && gfFirst) add(lbFinal, gfFirst);
+
+  return links;
+}
+
+function buildDropConnectors(metas: MatchMeta[]): Array<{ from: number; to: number }> {
+  const links: Array<{ from: number; to: number }> = [];
+  const seen = new Set<string>();
+
+  for (const lb of metas.filter((m) => m.bracket === 'loser')) {
+    for (const opp of [lb.match.opponent1, lb.match.opponent2]) {
+      if (opp?.position == null) continue;
+      const wb = findWbFeeder(metas, lb, opp.position);
+      if (!wb) continue;
+      const key = `${wb.match.id}->${lb.match.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      links.push({ from: wb.match.id, to: lb.match.id });
+    }
+  }
+
+  return links;
+}
+
+function findWbFeeder(metas: MatchMeta[], lb: MatchMeta, position: number): MatchMeta | null {
+  if (lb.round === 1) {
+    const row = Math.floor((position - 1) / 2);
+    return findMeta(metas, 'winner', 1, row);
+  }
+  const wbRound = lb.round % 2 === 0 ? lb.round : lb.round - 1;
+  const wb = metas.find(
+    (m) => m.bracket === 'winner' && m.round === wbRound && m.match.number === position,
+  );
+  return wb ?? null;
+}
+
+function connectorPoints(
+  from: MatchLayout,
+  to: MatchLayout,
+  kind: 'advance' | 'drop',
+): { from: Point; to: Point } {
+  if (kind === 'drop') {
+    return {
+      from: { x: from.center.x, y: from.box.y + from.box.h },
+      to: { x: to.center.x, y: to.box.y },
+    };
+  }
+  return {
+    from: { x: from.center.x, y: from.box.y },
+    to: { x: to.center.x, y: to.box.y + to.box.h },
+  };
+}
+
+export function computeBracketLayout(
+  data: StageData,
+  cfg: LayoutConfig = DEFAULT_LAYOUT,
+): BracketLayout {
+  const metas = buildMatchMetas(data);
+  const wbMetas = metas.filter((m) => m.bracket === 'winner');
+  const lbMetas = metas.filter((m) => m.bracket === 'loser');
+  const gfMetas = metas.filter((m) => m.bracket === 'grand_final');
+
+  const wbMaxRound = wbMetas.reduce((mx, m) => Math.max(mx, m.round), 0);
+  const lbMaxRound = lbMetas.reduce((mx, m) => Math.max(mx, m.round), 0);
+  const gfMaxRound = gfMetas.reduce((mx, m) => Math.max(mx, m.round), 0);
+  const maxRound = Math.max(wbMaxRound, lbMaxRound, gfMaxRound, 1);
+
+  const maxInRound = (items: MatchMeta[]) => {
+    const rounds = groupByRound(items);
+    if (!rounds.length) return 1;
+    return Math.max(1, ...rounds.map((g) => g.items.length));
+  };
+
+  const wbWidth = maxInRound(wbMetas) * (cfg.boxW + cfg.matchGap);
+  const lbWidth = maxInRound(lbMetas) * (cfg.boxW + cfg.matchGap);
+  const gfWidth = cfg.boxW + cfg.matchGap;
+  const totalW = wbWidth + cfg.sectionGap + lbWidth;
+  const wbLeft = cfg.padding + Math.max(0, (totalW - wbWidth - cfg.sectionGap - lbWidth) / 2);
+  const lbLeft = wbLeft + wbWidth + cfg.sectionGap;
+  const gfLeft = cfg.padding + (totalW - gfWidth) / 2;
+
+  const baseBottom =
+    cfg.padding + (maxRound + gfMaxRound + 1) * (cfg.boxH + cfg.roundGap);
+
+  function placeSection(
+    items: MatchMeta[],
+    sectionLeft: number,
+    sectionWidth: number,
+    roundOffset: (round: number) => number,
+  ): MatchLayout[] {
+    const layouts: MatchLayout[] = [];
+    const byRound = groupByRound(items);
+
+    for (const { round, items: roundItems } of byRound) {
+      const rowFromBottom = roundOffset(round);
+      const boxY = baseBottom - rowFromBottom * (cfg.boxH + cfg.roundGap);
+      const n = roundItems.length;
+      const rowWidth = n * cfg.boxW + (n - 1) * cfg.matchGap;
+      const startX = sectionLeft + (sectionWidth - rowWidth) / 2;
+
+      roundItems.forEach((meta, row) => {
+        const boxX = startX + row * (cfg.boxW + cfg.matchGap);
+        const box: Rect = { x: boxX, y: boxY, w: cfg.boxW, h: cfg.boxH };
+        const slotH = cfg.boxH / 2;
+        const mkSlot = (slot: 0 | 1, op: BMOpponent | null): SlotLayout => {
+          const rect: Rect = { x: boxX, y: boxY + slot * slotH, w: cfg.boxW, h: slotH };
+          return {
+            slot,
+            teamRef: op?.id ?? null,
+            rect,
+            center: { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 },
+          };
+        };
+        layouts.push({
+          matchId: meta.match.id,
+          bracket: meta.bracket,
+          round: meta.round,
+          col: round - 1,
+          row,
+          box,
+          center: { x: box.x + box.w / 2, y: box.y + box.h / 2 },
+          slots: [mkSlot(0, meta.match.opponent1), mkSlot(1, meta.match.opponent2)],
+        });
+      });
+    }
+    return layouts;
+  }
+
+  const matches: MatchLayout[] = [
+    ...placeSection(wbMetas, wbLeft, wbWidth, (r) => r),
+    ...placeSection(lbMetas, lbLeft, lbWidth, (r) => r),
+    ...placeSection(gfMetas, gfLeft, gfWidth, (r) => maxRound + r),
+  ];
+
+  const byId: Record<number, MatchLayout> = {};
+  for (const m of matches) byId[m.matchId] = m;
+
+  const connectors: Connector[] = [];
+  for (const link of buildAdvanceConnectors(metas)) {
+    const from = byId[link.from];
+    const to = byId[link.to];
+    if (!from || !to) continue;
+    const pts = connectorPoints(from, to, 'advance');
+    connectors.push({
+      fromMatchId: link.from,
+      toMatchId: link.to,
+      kind: 'advance',
+      ...pts,
+    });
+  }
+  for (const link of buildDropConnectors(metas)) {
+    const from = byId[link.from];
+    const to = byId[link.to];
+    if (!from || !to) continue;
+    const pts = connectorPoints(from, to, 'drop');
+    connectors.push({
+      fromMatchId: link.from,
+      toMatchId: link.to,
+      kind: 'drop',
+      ...pts,
     });
   }
 
-  // -------------------------------------------------------------------
-  // コネクタ（線）
-  //   advance: 同bracket内 round r の row p → round r+1 の row floor(p/2)
-  //     → WBはこの規則で正しい。LB/GFは構造が不規則なため要検証(下のTODO)。
-  //   drop: WB敗者 → LB への落下線。brackets-manager の構造から導出が必要。
-  // -------------------------------------------------------------------
-  const connectors: Connector[] = [];
-  const findMatch = (bracket: BracketKind, round: number, row: number) =>
-    matches.find(m => m.bracket === bracket && m.round === round && m.row === row);
 
-  for (const m of matches) {
-    const next = findMatch(m.bracket, m.round + 1, Math.floor(m.row / 2));
-    if (next) {
-      connectors.push({
-        fromMatchId: m.matchId,
-        toMatchId: next.matchId,
-        kind: 'advance',
-        from: { x: m.box.x + m.box.w, y: m.center.y },
-        to: { x: next.box.x, y: next.center.y },
-      });
-    }
-  }
-
-  const dropKeys = new Set<string>();
-  for (const lb of matches.filter((m) => m.bracket === 'loser')) {
-    const bm = data.match.find((x) => x.id === lb.matchId);
-    if (!bm) continue;
-
-    for (const opp of [bm.opponent1, bm.opponent2]) {
-      if (opp?.position == null) continue;
-      const wb = findWbMatchForDrop(data, matches, lb.round, opp.position);
-      if (!wb) continue;
-      const key = `${wb.matchId}->${lb.matchId}`;
-      if (dropKeys.has(key)) continue;
-      dropKeys.add(key);
-      connectors.push({
-        fromMatchId: wb.matchId,
-        toMatchId: lb.matchId,
-        kind: 'drop',
-        from: { x: wb.center.x, y: wb.box.y + wb.box.h },
-        to: { x: lb.center.x, y: lb.box.y },
-      });
-    }
-  }
-
-  // -------------------------------------------------------------------
-  // 全体サイズ（viewBox）
-  // -------------------------------------------------------------------
   const maxRight = matches.reduce((mx, m) => Math.max(mx, m.box.x + m.box.w), 0);
-  const maxBottom = matches.reduce((mx, m) => Math.max(mx, m.box.y + m.box.h), 0);
+  const minTop = matches.reduce((mn, m) => Math.min(mn, m.box.y), baseBottom);
   const width = maxRight + cfg.padding;
-  const height = Math.max(maxBottom + cfg.padding, lbTop + lbSectionH + cfg.padding);
+  const height = baseBottom + cfg.boxH + cfg.padding - minTop + cfg.padding;
 
   return { matches, connectors, width, height, byId };
 }
 
-/** WB 敗者 → LB 試合の drop 線用: brackets-manager の opponent.position から導出 */
-function findWbMatchForDrop(
-  data: StageData,
-  layouts: MatchLayout[],
-  lbRound: number,
-  position: number,
-): MatchLayout | null {
-  if (lbRound === 1) {
-    const row = Math.floor((position - 1) / 2);
-    return layouts.find((m) => m.bracket === 'winner' && m.round === 1 && m.row === row) ?? null;
+function groupByRound(metas: MatchMeta[]): { round: number; items: MatchMeta[] }[] {
+  const map = new Map<number, MatchMeta[]>();
+  for (const m of metas) {
+    if (!map.has(m.round)) map.set(m.round, []);
+    map.get(m.round)!.push(m);
   }
-
-  const wbRound = lbRound % 2 === 0 ? lbRound : lbRound - 1;
-  const bm = data.match.find((m) => {
-    const info = data.round.find((r) => r.id === m.round_id);
-    const group = info ? data.group.find((g) => g.id === info.group_id) : null;
-    return group?.number === 1 && info?.number === wbRound && m.number === position;
-  });
-  if (!bm) return null;
-  return layouts.find((m) => m.matchId === bm.id) ?? null;
+  return [...map.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([round, items]) => ({ round, items }));
 }
 
 export function getWinnerParticipantId(m: BMMatch): number | null {
@@ -292,7 +376,6 @@ export function getLoserParticipantId(m: BMMatch): number | null {
   return null;
 }
 
-/** 確定済み勝ち上がり / 落下経路か */
 export function isConnectorHighlighted(connector: Connector, data: StageData): boolean {
   const from = data.match.find((m) => m.id === connector.fromMatchId);
   const to = data.match.find((m) => m.id === connector.toMatchId);
@@ -304,19 +387,14 @@ export function isConnectorHighlighted(connector: Connector, data: StageData): b
   if (connector.kind === 'advance') {
     return participantInTo(getWinnerParticipantId(from));
   }
-
   return participantInTo(getLoserParticipantId(from));
 }
 
-// =====================================================================
-// 顔写真解決ヘルパ（参照のみ。実データ取得はSupabase側で行う）
-//   teamRef(participant.id) → participant.name(=team.id uuid) → team を引く。
-// =====================================================================
 export function resolveTeamId(
   teamRef: number | null,
   participants: BMParticipant[],
 ): string | null {
   if (teamRef == null) return null;
-  const p = participants.find(pp => pp.id === teamRef);
-  return p ? p.name : null; // seeding に team.id(uuid) を name として渡している前提
+  const p = participants.find((pp) => pp.id === teamRef);
+  return p ? p.name : null;
 }

@@ -29,23 +29,36 @@ export default function BracketView({
   const lbMatches = L.matches.filter((m) => m.bracket === 'loser');
   const gfMatches = L.matches.filter((m) => m.bracket === 'grand_final');
 
+  const bottomY = (ms: typeof L.matches) =>
+    ms.length ? Math.max(...ms.map((m) => m.box.y + m.box.h)) : 0;
+  const topY = (ms: typeof L.matches) =>
+    ms.length ? Math.min(...ms.map((m) => m.box.y)) : 0;
+
   const sectionLabels = [
     wbMatches.length > 0 && {
       kind: 'winner' as BracketKind,
       x: wbMatches[0].box.x,
-      y: wbMatches[0].box.y - 28,
+      y: bottomY(wbMatches) + 20,
+      anchor: 'start' as const,
     },
     lbMatches.length > 0 && {
       kind: 'loser' as BracketKind,
       x: lbMatches[0].box.x,
-      y: lbMatches[0].box.y - 28,
+      y: bottomY(lbMatches) + 20,
+      anchor: 'start' as const,
     },
     gfMatches.length > 0 && {
       kind: 'grand_final' as BracketKind,
-      x: gfMatches[0].box.x,
-      y: gfMatches[0].box.y - 28,
+      x: gfMatches[0].box.x + gfMatches[0].box.w / 2,
+      y: topY(gfMatches) - 12,
+      anchor: 'middle' as const,
     },
-  ].filter(Boolean) as { kind: BracketKind; x: number; y: number }[];
+  ].filter(Boolean) as {
+    kind: BracketKind;
+    x: number;
+    y: number;
+    anchor: 'start' | 'middle';
+  }[];
 
   return (
     <svg
@@ -79,6 +92,7 @@ export default function BracketView({
             key={s.kind}
             x={s.x}
             y={s.y}
+            textAnchor={s.anchor}
             fill={t.labelColor}
             fontSize={14}
             fontWeight="800"
