@@ -1,8 +1,8 @@
-/** 02_DESIGN §6 — 演出尺（秒）。合計 ≈ 4.5s */
+/** 演出尺（秒）。棒の上昇 ≈ 3s */
 export const EFFECT_TIMING = {
   dim: 0.4,
-  lineExtend: 0.6,
-  collisionFlash: 0.1,
+  lineExtend: 3.0,
+  collisionFlash: 0.15,
   explosion: 0.8,
   vsShow: 2.0,
   close: 0.6,

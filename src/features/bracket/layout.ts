@@ -540,3 +540,41 @@ export function resolveTeamId(
   const p = participants.find((pp) => pp.id === teamRef);
   return p ? p.name : null;
 }
+
+/** 勝ち上がり先（親）試合。存在しなければ null（決勝など） */
+export function findParentMatch(data: StageData, matchId: number): BMMatch | null {
+  const metas = buildMatchMetas(data);
+  const child = metas.find((m) => m.match.id === matchId);
+  if (!child) return null;
+
+  if (child.bracket === 'winner') {
+    const parent = findMeta(metas, 'winner', child.round + 1, wbAdvanceRow(child.row));
+    return parent?.match ?? null;
+  }
+  if (child.bracket === 'loser') {
+    const parent = findMeta(
+      metas,
+      'loser',
+      child.round + 1,
+      lbAdvanceRow(child.round, child.row),
+    );
+    return parent?.match ?? null;
+  }
+  if (child.bracket === 'grand_final') {
+    const parent = findMeta(metas, 'grand_final', child.round + 1, 0);
+    return parent?.match ?? null;
+  }
+  return null;
+}
+
+/** 親試合へ進む下位試合（フィーダー）一覧 */
+export function findFeederMatches(data: StageData, parentMatchId: number): BMMatch[] {
+  const metas = buildMatchMetas(data);
+  const parent = metas.find((m) => m.match.id === parentMatchId);
+  if (!parent) return [];
+  return feedersForAdvance(parent, metas).map((f) => f.match);
+}
+
+export function isMatchCompleted(m: BMMatch): boolean {
+  return m.status >= Status.Completed;
+}

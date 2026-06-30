@@ -45,10 +45,10 @@ export default function EffectOrchestrator({
     dimmed,
     startEffect,
     handleSkip,
-    winnerLabel,
-    loserLabel,
-    winnerFaces,
-    loserFaces,
+    teamALabel,
+    teamBLabel,
+    teamAFaces,
+    teamBFaces,
     bracketLabel,
     vsClosing,
   } = useMatchEffect({
@@ -126,10 +126,10 @@ export default function EffectOrchestrator({
       <VsScreen
         visible={vsVisible}
         closing={vsClosing}
-        winnerLabel={winnerLabel}
-        loserLabel={loserLabel}
-        winnerFaces={winnerFaces}
-        loserFaces={loserFaces}
+        teamALabel={teamALabel}
+        teamBLabel={teamBLabel}
+        teamAFaces={teamAFaces}
+        teamBFaces={teamBFaces}
         bracketLabel={bracketLabel}
       />
     </>

@@ -8,6 +8,7 @@ import {
   type BracketSnapshot,
 } from '../bracket/manager';
 import type { StageData } from '../bracket/layout';
+import { detectAdvanceEffect } from '../presentation/advanceEffect';
 import {
   applyResult,
   deriveEventStatus,
@@ -129,12 +130,15 @@ export async function confirmMatchResult(
 
   if (updateError) throw updateError;
 
+  const advanceEffect = detectAdvanceEffect(updatedView, matchId) ?? undefined;
+
   await broadcast(eventId, {
     type: 'match:confirmed',
     eventId,
     matchId,
     winnerTeamId,
     loserTeamId: loserTeamId ?? '',
+    ...(advanceEffect ? { advanceEffect } : {}),
   });
 
   if (status === 'finished') {

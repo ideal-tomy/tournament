@@ -4,7 +4,7 @@ import type { RealtimeEvent } from '../../types';
 import { BRACKET_LABELS } from './effectConstants';
 import { ensurePresentationPreloaded } from './preloadPresentation';
 import {
-  resolveMatchEffectLayout,
+  resolveAdvanceEffectLayout,
   viewBoxToPercent,
   type MatchEffectLayout,
 } from './resolveEffectLayout';
@@ -27,9 +27,9 @@ interface UseMatchEffectOptions {
 }
 
 interface ActiveEffect {
-  matchId: number;
-  winnerTeamId: string;
-  loserTeamId: string;
+  nextMatchId: number;
+  teamAId: string;
+  teamBId: string;
   layout: MatchEffectLayout;
 }
 
@@ -60,16 +60,22 @@ export function useMatchEffect({
     async (payload: Extract<RealtimeEvent, { type: 'match:confirmed' }>) => {
       if (!snapshot || playingRef.current) return;
 
-      const layout = resolveMatchEffectLayout(snapshot, payload.matchId);
+      const advance = payload.advanceEffect;
+      if (!advance) {
+        onComplete();
+        return;
+      }
+
+      const layout = resolveAdvanceEffectLayout(snapshot, advance);
       if (!layout) {
-        console.warn('[presentation] layout not found for match', payload.matchId);
+        console.warn('[presentation] advance layout not found', advance.nextMatchId);
         onComplete();
         return;
       }
 
       const faceUrls = [
-        ...(faceUrlByTeamId[payload.winnerTeamId] ?? []),
-        ...(faceUrlByTeamId[payload.loserTeamId] ?? []),
+        ...(faceUrlByTeamId[advance.teamAId] ?? []),
+        ...(faceUrlByTeamId[advance.teamBId] ?? []),
       ];
       const preloaded = await ensurePresentationPreloaded(faceUrls);
       if (!preloaded) {
@@ -80,9 +86,9 @@ export function useMatchEffect({
 
       playingRef.current = true;
       setActive({
-        matchId: payload.matchId,
-        winnerTeamId: payload.winnerTeamId,
-        loserTeamId: payload.loserTeamId,
+        nextMatchId: advance.nextMatchId,
+        teamAId: advance.teamAId,
+        teamBId: advance.teamBId,
         layout,
       });
       setLineProgress(0);
@@ -139,10 +145,10 @@ export function useMatchEffect({
     dimmed: phase !== 'idle' && phase !== 'closing',
     startEffect,
     handleSkip,
-    winnerLabel: active ? (labelByTeamId[active.winnerTeamId] ?? 'Winner') : '',
-    loserLabel: active ? (labelByTeamId[active.loserTeamId] ?? 'Loser') : '',
-    winnerFaces: active ? (faceUrlByTeamId[active.winnerTeamId] ?? []) : [],
-    loserFaces: active ? (faceUrlByTeamId[active.loserTeamId] ?? []) : [],
+    teamALabel: active ? (labelByTeamId[active.teamAId] ?? 'Team A') : '',
+    teamBLabel: active ? (labelByTeamId[active.teamBId] ?? 'Team B') : '',
+    teamAFaces: active ? (faceUrlByTeamId[active.teamAId] ?? []) : [],
+    teamBFaces: active ? (faceUrlByTeamId[active.teamBId] ?? []) : [],
     bracketLabel: active ? BRACKET_LABELS[active.layout.bracket] : '',
     vsClosing: phase === 'closing',
   };

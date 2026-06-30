@@ -40,6 +40,7 @@ export default function DisplayPage() {
   } = useBracketDisplay(event?.id);
 
   const [matchConfirmed, setMatchConfirmed] = useState<MatchConfirmed | null>(null);
+  const [pendingEffect, setPendingEffect] = useState<MatchConfirmed | null>(null);
   const [skipSignal, setSkipSignal] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
   const [mediaReady, setMediaReady] = useState(false);
@@ -64,6 +65,12 @@ export default function DisplayPage() {
     }
   }, [reloadBracket]);
 
+  useEffect(() => {
+    if (!pendingEffect || bracketLoading || !snapshot) return;
+    setMatchConfirmed(pendingEffect);
+    setPendingEffect(null);
+  }, [pendingEffect, snapshot, bracketLoading]);
+
   const handleReconnect = useCallback(() => {
     reload();
     reloadBracket();
@@ -81,8 +88,13 @@ export default function DisplayPage() {
           }
         }
         if (payload.type === 'match:confirmed') {
-          effectPlayingRef.current = true;
-          setMatchConfirmed(payload);
+          if (payload.advanceEffect) {
+            effectPlayingRef.current = true;
+            setPendingEffect(payload);
+            reloadBracket();
+          } else {
+            reloadBracket();
+          }
         }
         if (payload.type === 'event:finished') {
           reload();

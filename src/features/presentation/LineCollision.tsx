@@ -7,15 +7,20 @@ interface LineCollisionProps {
 }
 
 export default function LineCollision({ layout, progress, flash }: LineCollisionProps) {
-  const { slotA, slotB, collision } = layout;
+  const { slotA, slotB, collision, junctionY } = layout;
+
   const endA = {
-    x: slotA.x + (collision.x - slotA.x) * progress,
-    y: slotA.y + (collision.y - slotA.y) * progress,
+    x: slotA.x,
+    y: slotA.y + (junctionY - slotA.y) * progress,
   };
   const endB = {
-    x: slotB.x + (collision.x - slotB.x) * progress,
-    y: slotB.y + (collision.y - slotB.y) * progress,
+    x: slotB.x,
+    y: slotB.y + (junctionY - slotB.y) * progress,
   };
+
+  const bridgeProgress = Math.min(1, Math.max(0, (progress - 0.92) / 0.08));
+  const bridgeLeft = endA.x + (collision.x - endA.x) * bridgeProgress;
+  const bridgeRight = endB.x + (collision.x - endB.x) * bridgeProgress;
 
   return (
     <g className={flash ? 'effect-collision-flash' : undefined}>
@@ -48,6 +53,18 @@ export default function LineCollision({ layout, progress, flash }: LineCollision
         strokeLinecap="round"
         filter="url(#effect-line-glow)"
       />
+      {bridgeProgress > 0 && (
+        <line
+          x1={bridgeLeft}
+          y1={junctionY}
+          x2={bridgeRight}
+          y2={junctionY}
+          stroke="#fde047"
+          strokeWidth={3}
+          strokeLinecap="round"
+          filter="url(#effect-line-glow)"
+        />
+      )}
     </g>
   );
 }

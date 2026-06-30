@@ -6,20 +6,20 @@ import { EFFECT_EASING } from './effectConstants';
 interface VsScreenProps {
   visible: boolean;
   closing: boolean;
-  winnerLabel: string;
-  loserLabel: string;
-  winnerFaces: string[];
-  loserFaces: string[];
+  teamALabel: string;
+  teamBLabel: string;
+  teamAFaces: string[];
+  teamBFaces: string[];
   bracketLabel: string;
 }
 
 export default function VsScreen({
   visible,
   closing,
-  winnerLabel,
-  loserLabel,
-  winnerFaces,
-  loserFaces,
+  teamALabel,
+  teamBLabel,
+  teamAFaces,
+  teamBFaces,
   bracketLabel,
 }: VsScreenProps) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -63,14 +63,14 @@ export default function VsScreen({
       </p>
 
       <div className="flex items-center justify-center gap-6 md:gap-16 w-full max-w-5xl px-6">
-        <TeamPanel label={winnerLabel} faces={winnerFaces} accent="cyan" side="left" />
+        <TeamPanel label={teamALabel} faces={teamAFaces} accent="cyan" side="left" />
         <div
           ref={vsRef}
           className="text-7xl md:text-9xl font-black text-yellow-300 drop-shadow-[0_0_24px_rgba(250,204,21,0.8)] shrink-0"
         >
           VS
         </div>
-        <TeamPanel label={loserLabel} faces={loserFaces} accent="rose" side="right" />
+        <TeamPanel label={teamBLabel} faces={teamBFaces} accent="rose" side="right" />
       </div>
     </div>
   );

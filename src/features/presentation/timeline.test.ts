@@ -3,10 +3,10 @@ import { effectTotalDuration, EFFECT_TIMING } from './effectConstants';
 import { buildMatchTimeline } from './timeline';
 
 describe('effectConstants', () => {
-  it('合計尺が 4〜7 秒', () => {
+  it('合計尺が 6〜10 秒', () => {
     const total = effectTotalDuration();
-    expect(total).toBeGreaterThanOrEqual(4);
-    expect(total).toBeLessThanOrEqual(7);
+    expect(total).toBeGreaterThanOrEqual(6);
+    expect(total).toBeLessThanOrEqual(10);
   });
 
   it('各ステップが正の値', () => {

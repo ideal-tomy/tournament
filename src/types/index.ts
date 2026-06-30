@@ -6,6 +6,13 @@ export type RealtimeEvent =
       matchId: number;
       winnerTeamId: string;
       loserTeamId: string;
+      /** 同エリア2試合が揃い次の対戦が確定したときのみ付与 */
+      advanceEffect?: {
+        nextMatchId: number;
+        teamAId: string;
+        teamBId: string;
+        feederMatchIds: [number, number];
+      };
     }
   | { type: 'effect:skip'; eventId: string }
   | { type: 'event:finished'; eventId: string };
