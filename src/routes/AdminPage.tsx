@@ -3,10 +3,12 @@ import { Link } from 'react-router-dom';
 import RegistrationPanel from '../features/registration/RegistrationPanel';
 import DrawPanel from '../features/draw/DrawPanel';
 import MatchControl from '../features/progression/MatchControl';
+import EventIdBadge from '../components/EventIdBadge';
 import { fetchBracketSnapshot } from '../features/bracket/bracketApi';
 import { useActiveEvent } from '../hooks/useActiveEvent';
 import { useAdminPasscode } from '../hooks/useAdminPasscode';
 import { finishAndPurgePortraitData } from '../lib/eventCleanup';
+import { displayUrlForEvent } from '../lib/displayUrl';
 import { broadcast } from '../lib/realtime';
 
 type AdminTab = 'registration' | 'draw' | 'progression' | 'finish' | 'debug';
@@ -107,18 +109,28 @@ export default function AdminPage() {
       <div className="max-w-2xl mx-auto">
         <header className="mb-6">
           <h1 className="text-2xl font-bold">運営</h1>
-          <p className="text-sm text-slate-600 mt-1">
-            <Link
-              to={event ? `/display?eventId=${event.id}` : '/display'}
-              className="text-blue-600 underline"
-              target="_blank"
-            >
-              表示端末を開く
-            </Link>
-            {' · '}
+          {event && (
+            <p className="text-sm text-slate-600 mt-1">
+              <EventIdBadge eventId={event.id} className="text-slate-500" />
+            </p>
+          )}
+          <p className="text-sm text-slate-600 mt-2 flex flex-wrap gap-x-3 gap-y-1">
+            {event && (
+              <a
+                href={displayUrlForEvent(event.id, { kiosk: true })}
+                target="_blank"
+                rel="noreferrer"
+                className="text-fuchsia-700 font-bold underline"
+              >
+                Display を開く（同一イベント）
+              </a>
+            )}
             <Link to="/rehearsal" className="text-blue-600 underline">
               リハーサル
             </Link>
+          </p>
+          <p className="text-xs text-amber-700 mt-2 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+            Admin と Display の <strong>ID（先頭8文字）</strong> が一致している必要があります。一致しないと表も演出も更新されません。
           </p>
         </header>
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import EffectOrchestrator from '../features/presentation/EffectOrchestrator';
+import EventIdBadge from '../components/EventIdBadge';
 import { useBracketDisplay } from '../features/bracket/useBracketDisplay';
 import { useActiveEvent } from '../hooks/useActiveEvent';
 import { displayMediaPreloader } from '../lib/media';
@@ -29,6 +30,7 @@ export default function DisplayPage() {
     snapshot,
     faceUrlByTeamId,
     labelByTeamId,
+    memberNamesByTeamId,
     currentMatchId,
     eventStatus,
     hasBracket,
@@ -115,6 +117,9 @@ export default function DisplayPage() {
               {eventStatus === 'running' && (
                 <span className="ml-2 text-amber-300 font-medium">— 進行中</span>
               )}
+              <span className="ml-3">
+                <EventIdBadge eventId={event.id} />
+              </span>
             </p>
           )}
         </div>
@@ -176,6 +181,7 @@ export default function DisplayPage() {
                 snapshot={snapshot}
                 faceUrlByTeamId={faceUrlByTeamId}
                 labelByTeamId={labelByTeamId}
+                memberNamesByTeamId={memberNamesByTeamId}
                 currentMatchId={currentMatchId}
                 matchConfirmed={matchConfirmed}
                 skipSignal={skipSignal}

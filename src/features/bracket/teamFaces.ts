@@ -5,6 +5,7 @@ import type { ParticipantRow } from '../../types';
 export interface TeamVisuals {
   faceUrlByTeamId: Record<string, string[]>;
   labelByTeamId: Record<string, string>;
+  memberNamesByTeamId: Record<string, string[]>;
 }
 
 export async function buildTeamVisuals(eventId: string): Promise<TeamVisuals> {
@@ -14,7 +15,9 @@ export async function buildTeamVisuals(eventId: string): Promise<TeamVisuals> {
     .eq('event_id', eventId);
 
   if (teamsError) throw teamsError;
-  if (!teams?.length) return { faceUrlByTeamId: {}, labelByTeamId: {} };
+  if (!teams?.length) {
+    return { faceUrlByTeamId: {}, labelByTeamId: {}, memberNamesByTeamId: {} };
+  }
 
   const teamIds = teams.map((t) => t.id);
   const { data: members, error: membersError } = await supabase
@@ -38,6 +41,7 @@ export async function buildTeamVisuals(eventId: string): Promise<TeamVisuals> {
   const participantById = new Map(participants.map((p) => [p.id, p]));
   const faceUrlByTeamId: Record<string, string[]> = {};
   const labelByTeamId: Record<string, string> = {};
+  const memberNamesByTeamId: Record<string, string[]> = {};
 
   for (const team of teams) {
     const pids = (members ?? [])
@@ -55,11 +59,12 @@ export async function buildTeamVisuals(eventId: string): Promise<TeamVisuals> {
     }
 
     faceUrlByTeamId[team.id] = urls;
+    memberNamesByTeamId[team.id] = names;
     labelByTeamId[team.id] =
       team.display_name ?? names.join(' & ') ?? 'チーム';
   }
 
-  return { faceUrlByTeamId, labelByTeamId };
+  return { faceUrlByTeamId, labelByTeamId, memberNamesByTeamId };
 }
 
 export async function buildFaceUrlMap(eventId: string): Promise<Record<string, string[]>> {

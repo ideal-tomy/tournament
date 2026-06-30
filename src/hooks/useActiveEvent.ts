@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
-  getEventIdFromUrl,
   getOrCreateActiveEvent,
   syncEventIdToUrl,
   type ActiveEvent,
@@ -14,6 +14,9 @@ interface UseActiveEventResult {
 }
 
 export function useActiveEvent(): UseActiveEventResult {
+  const [searchParams] = useSearchParams();
+  const urlEventId = searchParams.get('eventId');
+
   const [event, setEvent] = useState<ActiveEvent | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +31,7 @@ export function useActiveEvent(): UseActiveEventResult {
       setLoading(true);
       setError(null);
       try {
-        const active = await getOrCreateActiveEvent(getEventIdFromUrl());
+        const active = await getOrCreateActiveEvent(urlEventId);
         if (cancelled) return;
         syncEventIdToUrl(active.id);
         setEvent(active);
@@ -41,6 +44,7 @@ export function useActiveEvent(): UseActiveEventResult {
               ? String((e as { message: unknown }).message)
               : 'イベント取得に失敗しました';
         setError(msg);
+        setEvent(null);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -50,7 +54,7 @@ export function useActiveEvent(): UseActiveEventResult {
     return () => {
       cancelled = true;
     };
-  }, [tick]);
+  }, [tick, urlEventId]);
 
   return { event, loading, error, reload };
 }

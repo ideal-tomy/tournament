@@ -31,6 +31,20 @@ async function fetchEventById(eventId: string): Promise<ActiveEvent | null> {
   return data;
 }
 
+async function fetchLatestRehearsalEvent(): Promise<ActiveEvent | null> {
+  const { data, error } = await supabase
+    .from('events')
+    .select('id, name, status')
+    .ilike('name', '[REHEARSAL]%')
+    .neq('status', 'finished')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
 async function fetchLatestActiveEvent(): Promise<ActiveEvent | null> {
   const { data, error } = await supabase
     .from('events')
@@ -58,8 +72,9 @@ async function createEvent(): Promise<ActiveEvent> {
 }
 
 /**
- * アクティブイベント取得。なければ status='setup' で新規作成。
- * URL の eventId を優先し、無ければ未終了の最新 1 件 → 新規作成。
+ * アクティブイベント取得。
+ * URL の eventId を最優先（見つからなければエラー）。
+ * 無指定時: ?rehearsal=1 → 最新リハーサル → 最新本番 → 新規作成。
  */
 export async function getOrCreateActiveEvent(
   urlEventId?: string | null,
@@ -68,6 +83,15 @@ export async function getOrCreateActiveEvent(
   if (fromUrl) {
     const existing = await fetchEventById(fromUrl);
     if (existing) return existing;
+    throw new Error(
+      `イベントが見つかりません（ID: ${fromUrl.slice(0, 8)}…）。URL の eventId を確認してください。`,
+    );
+  }
+
+  const rehearsalMode = new URLSearchParams(window.location.search).get('rehearsal');
+  if (rehearsalMode === '1' || rehearsalMode === 'latest') {
+    const latestRehearsal = await fetchLatestRehearsalEvent();
+    if (latestRehearsal) return latestRehearsal;
   }
 
   const latest = await fetchLatestActiveEvent();

@@ -12,6 +12,7 @@ interface EffectOrchestratorProps {
   snapshot: StageData | null;
   faceUrlByTeamId: Record<string, string[]>;
   labelByTeamId: Record<string, string>;
+  memberNamesByTeamId?: Record<string, string[]>;
   currentMatchId: number | null;
   matchConfirmed: Extract<RealtimeEvent, { type: 'match:confirmed' }> | null;
   skipSignal: number;
@@ -23,6 +24,7 @@ export default function EffectOrchestrator({
   snapshot,
   faceUrlByTeamId,
   labelByTeamId,
+  memberNamesByTeamId = {},
   currentMatchId,
   matchConfirmed,
   skipSignal,
@@ -84,6 +86,7 @@ export default function EffectOrchestrator({
             data={snapshot}
             faceUrlByTeamId={faceUrlByTeamId}
             labelByTeamId={labelByTeamId}
+            memberNamesByTeamId={memberNamesByTeamId}
             currentMatchId={isPlaying ? null : currentMatchId}
           />
         )}

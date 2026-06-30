@@ -11,7 +11,11 @@ interface BracketState {
   status: 'setup' | 'running' | 'finished';
 }
 
-const EMPTY_VISUALS: TeamVisuals = { faceUrlByTeamId: {}, labelByTeamId: {} };
+const EMPTY_VISUALS: TeamVisuals = {
+  faceUrlByTeamId: {},
+  labelByTeamId: {},
+  memberNamesByTeamId: {},
+};
 
 export function useBracketDisplay(eventId: string | undefined) {
   const [state, setState] = useState<BracketState>({
@@ -79,6 +83,7 @@ export function useBracketDisplay(eventId: string | undefined) {
     snapshot: state.snapshot,
     faceUrlByTeamId: state.visuals.faceUrlByTeamId,
     labelByTeamId: state.visuals.labelByTeamId,
+    memberNamesByTeamId: state.visuals.memberNamesByTeamId,
     currentMatchId: state.currentMatchId,
     eventStatus: state.status,
     hasBracket: hasBracket(state.snapshot),

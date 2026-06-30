@@ -5,9 +5,11 @@ import {
   type RehearsalProgress,
   type RehearsalResult,
 } from '../features/rehearsal/runRehearsal';
+import { adminUrlForEvent, displayUrlForEvent } from '../lib/displayUrl';
 
 export default function RehearsalPage() {
   const [running, setRunning] = useState(false);
+  const [autoMatches, setAutoMatches] = useState(false);
   const [logs, setLogs] = useState<RehearsalProgress[]>([]);
   const [result, setResult] = useState<RehearsalResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +25,7 @@ export default function RehearsalPage() {
     setError(null);
 
     try {
-      const res = await runRehearsal(appendLog);
+      const res = await runRehearsal(appendLog, autoMatches ? 3 : 0);
       setResult(res);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'リハーサルに失敗しました');
@@ -32,26 +34,45 @@ export default function RehearsalPage() {
     }
   }
 
-  const displayUrl = result
-    ? `/display?eventId=${result.eventId}&kiosk=1`
-    : null;
+  const displayUrl = result ? displayUrlForEvent(result.eventId, { kiosk: true }) : null;
+  const adminUrl = result ? adminUrlForEvent(result.eventId) : null;
 
   return (
     <div className="min-h-screen bg-slate-900 text-white p-8">
       <div className="max-w-xl mx-auto">
         <h1 className="text-2xl font-bold">リハーサルモード</h1>
         <p className="text-slate-400 mt-2 text-sm">
-          本番イベントとは別の [REHEARSAL] イベントを作成し、8 名登録 → 抽選 → 3 試合確定まで自動実行します。
+          [REHEARSAL] イベントを作成し、8 名登録 → 抽選まで自動実行します。
+          演出確認は <strong className="text-white">Display を先に開いてから</strong> Admin
+          で試合を進めてください。
         </p>
+
+        <label className="mt-4 flex items-center gap-2 text-sm text-slate-300">
+          <input
+            type="checkbox"
+            checked={autoMatches}
+            onChange={(e) => setAutoMatches(e.target.checked)}
+            disabled={running}
+          />
+          自動で 3 試合進める（Display 未接続時・演出確認不可）
+        </label>
 
         <button
           type="button"
           onClick={() => void handleStart()}
           disabled={running}
-          className="mt-6 w-full rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 py-4 text-lg font-bold"
+          className="mt-4 w-full rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 py-4 text-lg font-bold"
         >
           {running ? '実行中…' : 'リハーサル開始'}
         </button>
+
+        <ol className="mt-6 text-sm text-slate-400 space-y-1 list-decimal list-inside">
+          <li>リハーサル開始</li>
+          <li>
+            <strong className="text-white">Display を開く</strong>（下のボタン）
+          </li>
+          <li>Admin で試合進行 → Display に表更新 + 演出</li>
+        </ol>
 
         {error && (
           <div className="mt-4 rounded border border-red-500/50 bg-red-950/50 p-4 text-red-300 text-sm">
@@ -77,28 +98,35 @@ export default function RehearsalPage() {
             <p className="text-emerald-300 font-medium">リハーサル完了</p>
             <p className="text-sm text-slate-300">
               {result.eventName}
-              <span className="text-slate-500 ml-2">({result.matchesPlayed} 試合)</span>
+              {result.matchesPlayed > 0 && (
+                <span className="text-slate-500 ml-2">({result.matchesPlayed} 試合自動確定済)</span>
+              )}
             </p>
             <p className="text-xs text-slate-500 font-mono break-all">{result.eventId}</p>
             <div className="flex flex-col gap-2 pt-2">
               {displayUrl && (
-                <Link
-                  to={displayUrl}
+                <a
+                  href={displayUrl}
                   target="_blank"
+                  rel="noreferrer"
                   className="text-center rounded bg-fuchsia-700 hover:bg-fuchsia-600 py-3 font-bold"
                 >
-                  Display を開く（キオスク URL）
-                </Link>
+                  ① Display を開く（同一 eventId）
+                </a>
               )}
-              <Link
-                to={`/admin?eventId=${result.eventId}`}
-                className="text-center rounded border border-slate-600 py-3 text-slate-300 hover:bg-slate-800"
-              >
-                運営画面（このイベント）
-              </Link>
+              {adminUrl && (
+                <a
+                  href={adminUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-center rounded bg-slate-700 hover:bg-slate-600 py-3 font-bold"
+                >
+                  ② Admin を開く（試合進行）
+                </a>
+              )}
             </div>
-            <p className="text-xs text-slate-500 pt-2">
-              Display を先に開いてからリハーサルを再実行すると、試合確定の演出を確認できます。
+            <p className="text-xs text-amber-300/90 pt-2">
+              両画面の ID（先頭8文字）が一致していることを確認してから試合を進めてください。
             </p>
           </div>
         )}

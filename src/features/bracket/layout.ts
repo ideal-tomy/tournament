@@ -69,12 +69,12 @@ export interface LayoutConfig {
   padding: number;
 }
 export const DEFAULT_LAYOUT: LayoutConfig = {
-  boxW: 220,
-  boxH: 88,
-  roundGap: 72,
-  matchGap: 24,
-  sectionGap: 48,
-  padding: 56,
+  boxW: 108,
+  boxH: 152,
+  roundGap: 64,
+  matchGap: 10,
+  sectionGap: 36,
+  padding: 44,
 };
 
 interface MatchMeta {
@@ -284,9 +284,14 @@ export function computeBracketLayout(
       roundItems.forEach((meta, row) => {
         const boxX = startX + row * (cfg.boxW + cfg.matchGap);
         const box: Rect = { x: boxX, y: boxY, w: cfg.boxW, h: cfg.boxH };
-        const slotH = cfg.boxH / 2;
+        const slotW = cfg.boxW / 2;
         const mkSlot = (slot: 0 | 1, op: BMOpponent | null): SlotLayout => {
-          const rect: Rect = { x: boxX, y: boxY + slot * slotH, w: cfg.boxW, h: slotH };
+          const rect: Rect = {
+            x: boxX + slot * slotW,
+            y: boxY,
+            w: slotW,
+            h: cfg.boxH,
+          };
           return {
             slot,
             teamRef: op?.id ?? null,

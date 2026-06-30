@@ -16,7 +16,7 @@ export interface RehearsalResult {
   matchesPlayed: number;
 }
 
-const DEFAULT_MATCH_COUNT = 3;
+const DEFAULT_MATCH_COUNT = 0;
 const DRAW_STRATEGY: DrawStrategy = 'trio';
 
 function delay(ms: number): Promise<void> {
@@ -64,7 +64,7 @@ export async function runRehearsal(
     await delay(400);
   }
 
-  onProgress({ step: '完了', detail: `${matchesPlayed} 試合 + 演出 broadcast 済み` });
+  onProgress({ step: '完了', detail: `${matchesPlayed} 試合確定 + broadcast` });
 
   return {
     eventId: event.id,

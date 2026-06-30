@@ -25,6 +25,7 @@ export default function MatchControl({ eventId, onStatusChange }: MatchControlPr
     useProgression(eventId);
   const [labels, setLabels] = useState<Record<string, string>>({});
   const [faces, setFaces] = useState<Record<string, string[]>>({});
+  const [memberNames, setMemberNames] = useState<Record<string, string[]>>({});
   const [pendingSlot, setPendingSlot] = useState<0 | 1 | null>(null);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
@@ -32,6 +33,7 @@ export default function MatchControl({ eventId, onStatusChange }: MatchControlPr
     void buildTeamVisuals(eventId).then((v) => {
       setLabels(v.labelByTeamId);
       setFaces(v.faceUrlByTeamId);
+      setMemberNames(v.memberNamesByTeamId);
     });
   }, [eventId, state?.snapshot]);
 
@@ -202,6 +204,7 @@ export default function MatchControl({ eventId, onStatusChange }: MatchControlPr
             data={state.stageView}
             faceUrlByTeamId={faces}
             labelByTeamId={labels}
+            memberNamesByTeamId={memberNames}
             currentMatchId={state.currentMatchId}
             compact
           />

@@ -12,6 +12,7 @@ interface BracketViewProps {
   data: StageData;
   faceUrlByTeamId: Record<string, string[]>;
   labelByTeamId: Record<string, string>;
+  memberNamesByTeamId?: Record<string, string[]>;
   currentMatchId?: number | null;
   compact?: boolean;
 }
@@ -20,6 +21,7 @@ export default function BracketView({
   data,
   faceUrlByTeamId,
   labelByTeamId,
+  memberNamesByTeamId = {},
   currentMatchId = null,
   compact = false,
 }: BracketViewProps) {
@@ -157,16 +159,28 @@ export default function BracketView({
               width={m.box.w}
               height={m.box.h}
               fill={theme.fill}
-              fillOpacity={isDone ? 0.85 : 0.65}
+              fillOpacity={isDone ? 0.9 : 0.75}
               stroke={isCurrent ? bracketTheme.current.stroke : theme.stroke}
-              strokeWidth={isCurrent ? 3 : 2}
-              rx={6}
+              strokeWidth={isCurrent ? 2.5 : 1.5}
+              rx={3}
               filter={isCurrent ? 'url(#bracket-glow-strong)' : undefined}
+            />
+            <line
+              x1={m.box.x + m.box.w / 2}
+              y1={m.box.y + 2}
+              x2={m.box.x + m.box.w / 2}
+              y2={m.box.y + m.box.h - 2}
+              stroke={theme.stroke}
+              strokeOpacity={0.35}
+              strokeWidth={1}
             />
             {m.slots.map((s) => {
               const teamId = resolveTeamId(s.teamRef, data.participant);
               const faces = teamId ? faceUrlByTeamId[teamId] ?? [] : [];
               const label = teamId ? labelByTeamId[teamId] ?? '' : '';
+              const memberNames = teamId
+                ? memberNamesByTeamId[teamId] ?? parseMemberNames(label)
+                : [];
               const isBye = teamId == null && s.teamRef == null;
               const slotWon =
                 bm &&
@@ -183,27 +197,30 @@ export default function BracketView({
                   data-slot={s.slot}
                   data-center-x={s.center.x}
                   data-center-y={s.center.y}
-                  opacity={slotLost ? 0.45 : 1}
+                  opacity={slotLost ? 0.4 : 1}
                 >
-                  <rect
-                    x={s.rect.x}
-                    y={s.rect.y}
-                    width={s.rect.w}
-                    height={s.rect.h}
-                    fill={slotWon ? theme.stroke : 'none'}
-                    fillOpacity={slotWon ? 0.12 : 0}
-                    stroke={theme.stroke}
-                    strokeOpacity={0.35}
-                  />
-                  <SlotContent
+                  {slotWon && (
+                    <rect
+                      x={s.rect.x + 1}
+                      y={s.rect.y + 1}
+                      width={s.rect.w - 2}
+                      height={s.rect.h - 2}
+                      fill={theme.stroke}
+                      fillOpacity={0.15}
+                      rx={2}
+                    />
+                  )}
+                  <VerticalSlotContent
                     x={s.rect.x}
                     y={s.rect.y}
                     w={s.rect.w}
                     h={s.rect.h}
                     faces={faces}
+                    memberNames={memberNames}
                     label={label}
                     isEmpty={isBye || (!teamId && s.teamRef == null)}
                     accent={theme.stroke}
+                    compact={compact}
                   />
                 </g>
               );
@@ -215,156 +232,173 @@ export default function BracketView({
   );
 }
 
-function SlotContent({
+/** 縦長スロット: 顔写真 + 縦書き名前（2人組は列を分割） */
+function VerticalSlotContent({
   x,
   y,
   w,
   h,
   faces,
+  memberNames,
   label,
   isEmpty,
   accent,
+  compact,
 }: {
   x: number;
   y: number;
   w: number;
   h: number;
   faces: string[];
+  memberNames: string[];
   label: string;
   isEmpty: boolean;
   accent: string;
+  compact: boolean;
 }) {
-  const pad = 4;
-  const faceCount = Math.max(faces.length, isEmpty ? 1 : 0);
-  const gap = faces.length >= 3 ? 2 : 4;
-  const faceSize = Math.min(
-    faces.length >= 3 ? 28 : 36,
-    h - pad * 2 - 14,
-    (w - pad * 2 - gap * (faceCount - 1)) / Math.max(faceCount, 1),
-  );
+  const pad = compact ? 2 : 3;
 
   if (isEmpty) {
+    const faceSize = Math.min(w - pad * 2, 28);
     return (
       <g>
         <image
           href={placeholderFace}
           x={x + w / 2 - faceSize / 2}
-          y={y + pad}
+          y={y + pad + 4}
           width={faceSize}
           height={faceSize}
+          opacity={0.35}
         />
-        <text
+        <VerticalText
           x={x + w / 2}
-          y={y + pad + faceSize / 2 + 4}
-          textAnchor="middle"
-          fill="#94a3b8"
-          fontSize={14}
-          fontWeight="bold"
-        >
-          ?
-        </text>
-        <text x={x + pad} y={y + h - 4} fill="#64748b" fontSize={10} fontWeight="600">
-          BYE
-        </text>
+          y={y + pad + faceSize + 14}
+          text="BYE"
+          fontSize={compact ? 8 : 9}
+          fill="#64748b"
+          maxHeight={h - faceSize - pad * 2 - 10}
+        />
       </g>
     );
   }
 
-  const facesTotalW = faces.length * faceSize + (faces.length - 1) * gap;
-  let fx = x + (w - facesTotalW) / 2;
+  const names =
+    memberNames.length > 0
+      ? memberNames
+      : parseMemberNames(label).length > 0
+        ? parseMemberNames(label)
+        : [label || '?'];
 
-  const { line1, line2 } = splitLabel(label, w - pad * 2);
+  const count = Math.max(names.length, faces.length, 1);
+  const colW = (w - pad * 2) / count;
+  const fontSize = compact ? 7 : 9;
+  const faceSize = Math.min(colW - 4, compact ? 22 : 28);
 
   return (
     <g>
-      {faces.length > 0
-        ? faces.map((url) => {
-            const cx = fx;
-            fx += faceSize + gap;
-            return (
-              <g key={url}>
-                <rect
-                  x={cx - 1}
-                  y={y + pad - 1}
-                  width={faceSize + 2}
-                  height={faceSize + 2}
-                  fill="none"
-                  stroke={accent}
-                  strokeOpacity={0.5}
-                  rx={4}
-                />
-                <image
-                  href={url}
-                  x={cx}
-                  y={y + pad}
-                  width={faceSize}
-                  height={faceSize}
-                  preserveAspectRatio="xMidYMid slice"
-                />
-              </g>
-            );
-          })
-        : (
-          <image
-            href={placeholderFace}
-            x={x + pad}
-            y={y + pad}
-            width={faceSize}
-            height={faceSize}
-          />
-        )}
-      <text
-        x={x + w / 2}
-        y={y + h - (line2 ? 16 : 6)}
-        textAnchor="middle"
-        fill="#f1f5f9"
-        fontSize={10}
-        fontWeight="600"
-        stroke="#0f172a"
-        strokeWidth={2}
-        paintOrder="stroke"
-      >
-        <title>{label}</title>
-        {line1}
-      </text>
-      {line2 && (
-        <text
-          x={x + w / 2}
-          y={y + h - 4}
-          textAnchor="middle"
-          fill="#f1f5f9"
-          fontSize={10}
-          fontWeight="600"
-          stroke="#0f172a"
-          strokeWidth={2}
-          paintOrder="stroke"
-        >
-          {line2}
-        </text>
-      )}
+      <title>{label}</title>
+      {Array.from({ length: count }, (_, i) => {
+        const colX = x + pad + i * colW + colW / 2;
+        const faceUrl = faces[i] ?? placeholderFace;
+        const name = names[i] ?? '';
+        const faceY = y + pad + 2;
+        const nameY = faceY + faceSize + (compact ? 6 : 8);
+        const nameMaxH = y + h - pad - nameY;
+
+        return (
+          <g key={`${colX}-${i}`}>
+            <rect
+              x={colX - faceSize / 2 - 1}
+              y={faceY - 1}
+              width={faceSize + 2}
+              height={faceSize + 2}
+              fill="none"
+              stroke={accent}
+              strokeOpacity={0.55}
+              rx={2}
+            />
+            <image
+              href={faceUrl}
+              x={colX - faceSize / 2}
+              y={faceY}
+              width={faceSize}
+              height={faceSize}
+              preserveAspectRatio="xMidYMid slice"
+            />
+            {name && (
+              <VerticalText
+                x={colX}
+                y={nameY}
+                text={name}
+                fontSize={fontSize}
+                fill="#f1f5f9"
+                maxHeight={nameMaxH}
+                stroke="#0f172a"
+                strokeWidth={2}
+              />
+            )}
+          </g>
+        );
+      })}
     </g>
   );
 }
 
-function splitLabel(label: string, maxWidth: number): { line1: string; line2: string | null } {
-  const maxChars = Math.max(8, Math.floor(maxWidth / 6));
-  if (label.length <= maxChars) return { line1: label, line2: null };
+/** SVG 縦書き（1 文字ずつ下方向） */
+function VerticalText({
+  x,
+  y,
+  text,
+  fontSize,
+  fill,
+  maxHeight,
+  stroke,
+  strokeWidth,
+}: {
+  x: number;
+  y: number;
+  text: string;
+  fontSize: number;
+  fill: string;
+  maxHeight: number;
+  stroke?: string;
+  strokeWidth?: number;
+}) {
+  const lineHeight = fontSize * 1.12;
+  const maxChars = Math.max(1, Math.floor(maxHeight / lineHeight));
+  const chars = [...text].slice(0, maxChars);
+  const truncated = text.length > maxChars;
 
-  const sep = label.includes(' & ') ? ' & ' : label.includes('、') ? '、' : ' ';
-  const parts = label.split(sep);
-  if (parts.length >= 2) {
-    const half = Math.ceil(parts.length / 2);
-    const line1 = parts.slice(0, half).join(sep);
-    const line2 = parts.slice(half).join(sep);
-    if (line1.length <= maxChars + 4 && line2.length <= maxChars + 4) {
-      return { line1, line2 };
-    }
-  }
-
-  const line1 = truncate(label, maxChars);
-  return { line1, line2: null };
+  return (
+    <text
+      x={x}
+      y={y}
+      textAnchor="middle"
+      fill={fill}
+      fontSize={fontSize}
+      fontWeight="600"
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+      paintOrder={stroke ? 'stroke' : undefined}
+    >
+      {chars.map((ch, i) => (
+        <tspan key={`${ch}-${i}`} x={x} dy={i === 0 ? 0 : lineHeight}>
+          {ch}
+        </tspan>
+      ))}
+      {truncated && (
+        <tspan x={x} dy={lineHeight}>
+          …
+        </tspan>
+      )}
+    </text>
+  );
 }
 
-function truncate(s: string, max: number): string {
-  return s.length <= max ? s : `${s.slice(0, max - 1)}…`;
+function parseMemberNames(label: string): string[] {
+  if (!label) return [];
+  if (label.includes(' & ')) return label.split(' & ').map((s) => s.trim());
+  if (label.includes('・')) return label.split('・').map((s) => s.trim());
+  if (label.includes('、')) return label.split('、').map((s) => s.trim());
+  return [label];
 }
