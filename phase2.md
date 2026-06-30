@@ -8,11 +8,11 @@
 
 ## ゴール（Done の定義）
 
-- [ ] 「抽選」でランダムペアが組まれ、奇数も `odd_strategy` どおり処理される
-- [ ] ダブルイリミのブラケットが生成され `bracket_snapshot` に保存される
-- [ ] `computeBracketLayout` が WB/LB/GF を含む座標を返す（**Vitest 単体テスト**）
-- [ ] `/display` に顔写真付きの **静的**トーナメント表（演出ナシ）が描画される
-- [ ] 表示端末リロードで `bracket_snapshot` から同じ表が復元される
+- [x] 「抽選」でランダムペアが組まれ、奇数も `odd_strategy` どおり処理される
+- [x] ダブルイリミのブラケットが生成され `bracket_snapshot` に保存される
+- [x] `computeBracketLayout` が WB/LB/GF を含む座標を返す（**Vitest 単体テスト**）
+- [x] `/display` に顔写真付きの **静的**トーナメント表（演出ナシ）が描画される
+- [x] 表示端末リロードで `bracket_snapshot` から同じ表が復元される
 
 ---
 

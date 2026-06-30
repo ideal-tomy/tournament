@@ -1,8 +1,11 @@
-/** Phase 2 以降: 演出素材・顔写真のプリロード */
+/** 演出素材・顔写真のプリロード */
 
 export async function preloadImages(urls: string[]): Promise<void> {
+  const unique = [...new Set(urls.filter(Boolean))];
+  if (unique.length === 0) return;
+
   await Promise.all(
-    urls.map(
+    unique.map(
       (url) =>
         new Promise<void>((resolve, reject) => {
           const img = new Image();

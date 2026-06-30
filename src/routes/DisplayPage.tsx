@@ -1,52 +1,59 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import BracketView from '../features/bracket/BracketView';
+import { useBracketDisplay } from '../features/bracket/useBracketDisplay';
 import { useActiveEvent } from '../hooks/useActiveEvent';
 import { subscribe } from '../lib/realtime';
-import type { RealtimeEvent } from '../types';
-
-interface PingLog {
-  at: string;
-  type: RealtimeEvent['type'];
-}
 
 export default function DisplayPage() {
   const { event, loading, error, reload } = useActiveEvent();
-  const [count, setCount] = useState(0);
-  const [lastAt, setLastAt] = useState<string | null>(null);
-  const [logs, setLogs] = useState<PingLog[]>([]);
+  const {
+    snapshot,
+    faceUrlByTeamId,
+    labelByTeamId,
+    hasBracket,
+    loading: bracketLoading,
+    error: bracketError,
+    reload: reloadBracket,
+  } = useBracketDisplay(event?.id);
 
   useEffect(() => {
     if (!event) return;
-
     return subscribe(event.id, (payload) => {
-      const now = new Date().toLocaleTimeString('ja-JP');
-      setCount((c) => c + 1);
-      setLastAt(now);
-      setLogs((prev) => [{ at: now, type: payload.type }, ...prev].slice(0, 20));
+      if (payload.type === 'bracket:updated') reloadBracket();
     });
-  }, [event?.id]);
+  }, [event?.id, reloadBracket]);
+
+  const isLoading = loading || bracketLoading;
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white p-8">
-      <div className="max-w-2xl mx-auto">
-        <header className="mb-8">
-          <h1 className="text-3xl font-black tracking-tight">表示端末 — Phase 0</h1>
-          <p className="text-slate-400 mt-2 text-sm">
-            Realtime 受信デバッグ
-            {' · '}
-            <Link to="/admin" className="text-cyan-400 underline">
-              運営画面
-            </Link>
-          </p>
-        </header>
+    <div className="min-h-screen bg-slate-950 text-white">
+      <header className="px-6 py-4 border-b border-slate-800 flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-black tracking-tight">トーナメント表</h1>
+          {event && (
+            <p className="text-slate-400 text-sm mt-1">{event.name}</p>
+          )}
+        </div>
+        <Link to="/admin" className="text-cyan-400 text-sm underline shrink-0">
+          運営画面
+        </Link>
+      </header>
 
-        {loading && <p className="text-slate-400">イベント読み込み中…</p>}
-        {error && (
-          <div className="rounded border border-red-500/50 bg-red-950/50 p-4 mb-6">
-            <p className="text-red-300">{error}</p>
+      <main className="p-4 md:p-6">
+        {isLoading && (
+          <p className="text-slate-400 text-center py-12">読み込み中…</p>
+        )}
+
+        {(error || bracketError) && (
+          <div className="rounded border border-red-500/50 bg-red-950/50 p-4 mb-6 max-w-lg mx-auto">
+            <p className="text-red-300">{error ?? bracketError}</p>
             <button
               type="button"
-              onClick={reload}
+              onClick={() => {
+                reload();
+                reloadBracket();
+              }}
               className="mt-3 rounded bg-red-800 px-4 py-2 text-sm"
             >
               再試行
@@ -54,43 +61,27 @@ export default function DisplayPage() {
           </div>
         )}
 
-        {event && (
-          <div className="space-y-6">
-            <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-6">
-              <p className="text-slate-400 text-sm">イベント</p>
-              <p className="text-xl font-bold mt-1">{event.name}</p>
-              <p className="text-xs text-slate-500 font-mono mt-2 break-all">
-                {event.id}
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/20 p-8 text-center">
-              <p className="text-cyan-300/80 text-sm uppercase tracking-widest">
-                Realtime 受信数
-              </p>
-              <p className="text-7xl font-black text-cyan-400 tabular-nums mt-2">
-                {count}
-              </p>
-              {lastAt && (
-                <p className="text-slate-400 mt-4">最終受信: {lastAt}</p>
-              )}
-            </div>
-
-            {logs.length > 0 && (
-              <div className="rounded-xl border border-slate-700 p-4">
-                <p className="text-sm text-slate-400 mb-3">受信ログ（最新20件）</p>
-                <ul className="space-y-1 text-sm font-mono">
-                  {logs.map((log, i) => (
-                    <li key={`${log.at}-${i}`} className="text-slate-300">
-                      [{log.at}] {log.type}
-                    </li>
-                  ))}
-                </ul>
+        {event && !isLoading && !error && !bracketError && (
+          <>
+            {!hasBracket && (
+              <div className="text-center py-24 text-slate-500">
+                <p className="text-lg">ブラケット未生成</p>
+                <p className="text-sm mt-2">運営画面で抽選・ブラケット生成を実行してください</p>
               </div>
             )}
-          </div>
+
+            {hasBracket && snapshot && (
+              <div className="overflow-x-auto">
+                <BracketView
+                  data={snapshot}
+                  faceUrlByTeamId={faceUrlByTeamId}
+                  labelByTeamId={labelByTeamId}
+                />
+              </div>
+            )}
+          </>
         )}
-      </div>
+      </main>
     </div>
   );
 }

@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import RegistrationPanel from '../features/registration/RegistrationPanel';
+import DrawPanel from '../features/draw/DrawPanel';
 import { useActiveEvent } from '../hooks/useActiveEvent';
 import { useAdminPasscode } from '../hooks/useAdminPasscode';
 import { broadcast } from '../lib/realtime';
 
-type AdminTab = 'registration' | 'debug';
+type AdminTab = 'registration' | 'draw' | 'debug';
 
 export default function AdminPage() {
   const { authorized, passcodeInput, setPasscodeInput, submit, error: passError } =
@@ -14,6 +15,7 @@ export default function AdminPage() {
   const [tab, setTab] = useState<AdminTab>('registration');
   const [pingStatus, setPingStatus] = useState<string | null>(null);
   const [pinging, setPinging] = useState(false);
+  const [drawKey, setDrawKey] = useState(0);
 
   async function handlePing() {
     if (!event) return;
@@ -58,6 +60,12 @@ export default function AdminPage() {
     );
   }
 
+  const tabs: { id: AdminTab; label: string }[] = [
+    { id: 'registration', label: '参加者登録' },
+    { id: 'draw', label: '抽選' },
+    { id: 'debug', label: '疎通' },
+  ];
+
   return (
     <div className="min-h-screen bg-slate-100 p-6">
       <div className="max-w-2xl mx-auto">
@@ -98,32 +106,32 @@ export default function AdminPage() {
             </div>
 
             <div className="flex gap-2 mb-4">
-              <button
-                type="button"
-                onClick={() => setTab('registration')}
-                className={`flex-1 rounded-lg py-3 font-medium ${
-                  tab === 'registration'
-                    ? 'bg-slate-800 text-white'
-                    : 'bg-white text-slate-700 border border-slate-200'
-                }`}
-              >
-                参加者登録
-              </button>
-              <button
-                type="button"
-                onClick={() => setTab('debug')}
-                className={`flex-1 rounded-lg py-3 font-medium ${
-                  tab === 'debug'
-                    ? 'bg-slate-800 text-white'
-                    : 'bg-white text-slate-700 border border-slate-200'
-                }`}
-              >
-                疎通テスト
-              </button>
+              {tabs.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTab(t.id)}
+                  className={`flex-1 rounded-lg py-3 font-medium text-sm ${
+                    tab === t.id
+                      ? 'bg-slate-800 text-white'
+                      : 'bg-white text-slate-700 border border-slate-200'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
             </div>
 
             <div className="rounded-lg bg-white p-6 shadow">
               {tab === 'registration' && <RegistrationPanel eventId={event.id} />}
+
+              {tab === 'draw' && (
+                <DrawPanel
+                  key={drawKey}
+                  eventId={event.id}
+                  onBracketCreated={() => setDrawKey((k) => k + 1)}
+                />
+              )}
 
               {tab === 'debug' && (
                 <div className="space-y-4">
