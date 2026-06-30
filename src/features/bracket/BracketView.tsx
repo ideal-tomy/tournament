@@ -1,4 +1,5 @@
 import {
+  buildOrthogonalConnectorPath,
   computeBracketLayout,
   isConnectorHighlighted,
   resolveTeamId,
@@ -7,6 +8,7 @@ import {
 } from './layout';
 import { bracketTheme, themeForBracket } from '../../styles/bracketTheme';
 import placeholderFace from '../../assets/placeholder_face.svg';
+import { toVerticalDisplayChars } from './verticalText';
 
 interface BracketViewProps {
   data: StageData;
@@ -123,12 +125,10 @@ export default function BracketView({
           : bracketTheme.pending.connectorWidth;
 
         return (
-          <line
+          <path
             key={`${c.kind}-${c.fromMatchId}-${c.toMatchId}`}
-            x1={c.from.x}
-            y1={c.from.y}
-            x2={c.to.x}
-            y2={c.to.y}
+            d={buildOrthogonalConnectorPath(c.from, c.to)}
+            fill="none"
             stroke={stroke}
             strokeOpacity={opacity}
             strokeWidth={width}
@@ -173,6 +173,7 @@ export default function BracketView({
               stroke={theme.stroke}
               strokeOpacity={0.35}
               strokeWidth={1}
+              visibility={m.isLeafRound ? undefined : 'hidden'}
             />
             {m.slots.map((s) => {
               const teamId = resolveTeamId(s.teamRef, data.participant);
@@ -221,6 +222,7 @@ export default function BracketView({
                     isEmpty={isBye || (!teamId && s.teamRef == null)}
                     accent={theme.stroke}
                     compact={compact}
+                    facesOnly={!m.isLeafRound}
                   />
                 </g>
               );
@@ -232,7 +234,7 @@ export default function BracketView({
   );
 }
 
-/** 1 チーム分の縦長柱: 顔写真を縦2枚 + 名前を縦1列 */
+/** 1 チーム分の縦長柱: 最下段=顔+名前 / 上段=顔のみ */
 function VerticalSlotContent({
   x,
   y,
@@ -244,6 +246,7 @@ function VerticalSlotContent({
   isEmpty,
   accent,
   compact,
+  facesOnly = false,
 }: {
   x: number;
   y: number;
@@ -255,14 +258,19 @@ function VerticalSlotContent({
   isEmpty: boolean;
   accent: string;
   compact: boolean;
+  facesOnly?: boolean;
 }) {
-  const pad = compact ? 2 : 3;
+  const pad = compact || facesOnly ? 2 : 3;
   const cx = x + w / 2;
   const fontSize = compact ? 7 : 8;
-  const faceSize = Math.min(w - pad * 2, compact ? 16 : 20);
-  const faceGap = 2;
+  const faceSize = Math.min(
+    w - pad * 2,
+    facesOnly ? (compact ? 12 : 14) : compact ? 16 : 20,
+  );
+  const faceGap = facesOnly ? 1 : 2;
 
   if (isEmpty) {
+    if (facesOnly) return null;
     return (
       <g>
         <image
@@ -301,7 +309,7 @@ function VerticalSlotContent({
   );
   const nameColumn = names.join('・');
 
-  let faceBottom = y + pad + 2;
+  let faceBottom = y + pad + (facesOnly ? 1 : 2);
   const faceNodes = displayFaces.map((faceUrl, i) => {
     const faceY = faceBottom + i * (faceSize + faceGap);
     return (
@@ -313,7 +321,7 @@ function VerticalSlotContent({
           height={faceSize + 2}
           fill="none"
           stroke={accent}
-          strokeOpacity={0.55}
+          strokeOpacity={facesOnly ? 0.75 : 0.55}
           rx={2}
         />
         <image
@@ -328,6 +336,16 @@ function VerticalSlotContent({
     );
   });
   faceBottom += count * faceSize + Math.max(0, count - 1) * faceGap;
+
+  if (facesOnly) {
+    return (
+      <g>
+        <title>{label}</title>
+        {faceNodes}
+      </g>
+    );
+  }
+
   const nameY = faceBottom + (compact ? 4 : 6);
   const nameMaxH = y + h - pad - nameY;
 
@@ -373,8 +391,9 @@ function VerticalText({
 }) {
   const lineHeight = fontSize * 1.12;
   const maxChars = Math.max(1, Math.floor(maxHeight / lineHeight));
-  const chars = [...text].slice(0, maxChars);
-  const truncated = text.length > maxChars;
+  const allChars = toVerticalDisplayChars(text);
+  const chars = allChars.slice(0, maxChars);
+  const truncated = allChars.length > maxChars;
 
   return (
     <text

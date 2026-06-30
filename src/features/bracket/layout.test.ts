@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildSnapshotForTeamCount, toStageData } from './manager';
-import { computeBracketLayout } from './layout';
+import { computeBracketLayout, buildOrthogonalConnectorPath } from './layout';
 
 const BRACKET_KINDS = ['winner', 'loser', 'grand_final'] as const;
 
@@ -104,5 +104,26 @@ describe('computeBracketLayout', () => {
     expect(L.matches.filter((m) => m.bracket === 'loser').length).toBe(0);
     expect(L.matches.filter((m) => m.bracket === 'grand_final').length).toBe(0);
     expect(L.connectors.filter((c) => c.kind === 'drop').length).toBe(0);
+  });
+
+  it('コネクタは直角パス（縦→横→縦）', () => {
+    const d = buildOrthogonalConnectorPath({ x: 10, y: 100 }, { x: 50, y: 40 });
+    expect(d).toContain('V 70');
+    expect(d).toContain('H 50');
+    expect(d).not.toMatch(/L.*L.*L/);
+  });
+
+  it('2 回戦の試合は 1 回戦 2 試合の中央に配置される', async () => {
+    const data = await buildSnapshotForTeamCount(16);
+    const L = computeBracketLayout(toStageData(data));
+    const wb = L.matches.filter((m) => m.bracket === 'winner');
+    const r1 = wb.filter((m) => m.round === 1);
+    const r2 = wb.filter((m) => m.round === 2);
+    expect(r1.length).toBe(8);
+    expect(r2.length).toBe(4);
+    const m0 = r1.find((m) => m.row === 0)!;
+    const m1 = r1.find((m) => m.row === 1)!;
+    const parent = r2.find((m) => m.row === 0)!;
+    expect(parent.center.x).toBeCloseTo((m0.center.x + m1.center.x) / 2, 0);
   });
 });

@@ -44,6 +44,8 @@ export interface MatchLayout {
   box: Rect;
   center: Point;
   slots: [SlotLayout, SlotLayout];
+  /** 最下段（フル表示: 顔+名前） */
+  isLeafRound: boolean;
 }
 export interface Connector {
   fromMatchId: number;
@@ -63,6 +65,9 @@ export interface BracketLayout {
 export interface LayoutConfig {
   boxW: number;
   boxH: number;
+  /** 2 回戦以降（顔のみ） */
+  compactBoxW: number;
+  compactBoxH: number;
   roundGap: number;
   matchGap: number;
   sectionGap: number;
@@ -71,6 +76,8 @@ export interface LayoutConfig {
 export const DEFAULT_LAYOUT: LayoutConfig = {
   boxW: 56,
   boxH: 172,
+  compactBoxW: 28,
+  compactBoxH: 52,
   roundGap: 52,
   matchGap: 6,
   sectionGap: 28,
@@ -248,6 +255,149 @@ function connectorPoints(
   };
 }
 
+/** トーナメント表の直角コネクタ（縦→横→縦）。midY は sibling 共通の接合高さ */
+export function buildOrthogonalConnectorPath(from: Point, to: Point, midY?: number): string {
+  const y = midY ?? (from.y + to.y) / 2;
+  return `M ${from.x} ${from.y} V ${y} H ${to.x} V ${to.y}`;
+}
+
+function feedersForAdvance(
+  meta: MatchMeta,
+  allMetas: MatchMeta[],
+): MatchMeta[] {
+  if (meta.bracket === 'winner') {
+    const r = meta.round - 1;
+    if (r < 1) return [];
+    return [
+      findMeta(allMetas, 'winner', r, meta.row * 2),
+      findMeta(allMetas, 'winner', r, meta.row * 2 + 1),
+    ].filter((m): m is MatchMeta => m != null);
+  }
+  if (meta.bracket === 'loser') {
+    return allMetas.filter((m) => {
+      if (m.bracket !== 'loser') return false;
+      const next = findMeta(allMetas, 'loser', m.round + 1, lbAdvanceRow(m.round, m.row));
+      return next?.match.id === meta.match.id;
+    });
+  }
+  if (meta.bracket === 'grand_final' && meta.round === 1) {
+    const wbFinal = lastMeta(allMetas, 'winner');
+    const lbFinal = lastMeta(allMetas, 'loser');
+    return [wbFinal, lbFinal].filter((m): m is MatchMeta => m != null);
+  }
+  return allMetas.filter((m) => {
+    if (m.bracket !== 'grand_final') return false;
+    const next = findMeta(allMetas, 'grand_final', m.round + 1, 0);
+    return next?.match.id === meta.match.id;
+  });
+}
+
+function computeCenterXMap(
+  items: MatchMeta[],
+  allMetas: MatchMeta[],
+  cfg: LayoutConfig,
+  offsetX: number,
+): Map<number, number> {
+  const centerXByMatchId = new Map<number, number>();
+  if (items.length === 0) return centerXByMatchId;
+
+  const minRound = Math.min(...items.map((m) => m.round));
+  const byRound = groupByRound(items);
+  const leafItems = byRound.find((b) => b.round === minRound)?.items ?? [];
+  const leafStep = cfg.boxW + cfg.matchGap;
+
+  for (const meta of leafItems) {
+    centerXByMatchId.set(meta.match.id, offsetX + meta.row * leafStep + cfg.boxW / 2);
+  }
+
+  const maxRound = Math.max(...items.map((m) => m.round));
+  for (let round = minRound + 1; round <= maxRound; round++) {
+    const roundItems = byRound.find((b) => b.round === round)?.items ?? [];
+    for (const meta of roundItems) {
+      const feeders = feedersForAdvance(meta, allMetas).filter((f) =>
+        items.some((i) => i.match.id === f.match.id),
+      );
+      const xs = feeders
+        .map((f) => centerXByMatchId.get(f.match.id))
+        .filter((x): x is number => x != null);
+
+      let cx: number;
+      if (xs.length >= 2) {
+        cx = (xs[0] + xs[1]) / 2;
+      } else if (xs.length === 1) {
+        cx = xs[0];
+      } else {
+        cx = offsetX + meta.row * leafStep + cfg.boxW / 2;
+      }
+      centerXByMatchId.set(meta.match.id, cx);
+    }
+  }
+
+  return centerXByMatchId;
+}
+
+function buildMatchLayout(
+  meta: MatchMeta,
+  cx: number,
+  boxY: number,
+  cfg: LayoutConfig,
+  isLeafRound: boolean,
+): MatchLayout {
+  const boxW = isLeafRound ? cfg.boxW : cfg.compactBoxW;
+  const boxH = isLeafRound ? cfg.boxH : cfg.compactBoxH;
+  const boxX = cx - boxW / 2;
+  const box: Rect = { x: boxX, y: boxY, w: boxW, h: boxH };
+  const slotW = boxW / 2;
+  const mkSlot = (slot: 0 | 1, op: BMOpponent | null): SlotLayout => {
+    const rect: Rect = { x: boxX + slot * slotW, y: boxY, w: slotW, h: boxH };
+    return {
+      slot,
+      teamRef: op?.id ?? null,
+      rect,
+      center: { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 },
+    };
+  };
+  return {
+    matchId: meta.match.id,
+    bracket: meta.bracket,
+    round: meta.round,
+    col: meta.round - 1,
+    row: meta.row,
+    box,
+    center: { x: cx, y: box.y + box.h / 2 },
+    slots: [mkSlot(0, meta.match.opponent1), mkSlot(1, meta.match.opponent2)],
+    isLeafRound,
+  };
+}
+
+function placeTreeSection(
+  items: MatchMeta[],
+  allMetas: MatchMeta[],
+  cfg: LayoutConfig,
+  baseBottom: number,
+  roundOffset: (round: number) => number,
+  offsetX: number,
+): MatchLayout[] {
+  if (items.length === 0) return [];
+
+  const minRound = Math.min(...items.map((m) => m.round));
+  const centerXByMatchId = computeCenterXMap(items, allMetas, cfg, offsetX);
+  const tierStep = cfg.boxH + cfg.roundGap;
+  const layouts: MatchLayout[] = [];
+
+  for (const meta of items) {
+    const cx = centerXByMatchId.get(meta.match.id);
+    if (cx == null) continue;
+    const isLeaf = meta.round === minRound;
+    const tierBottom = baseBottom - (roundOffset(meta.round) - 1) * tierStep;
+    const boxH = isLeaf ? cfg.boxH : cfg.compactBoxH;
+    const boxY = tierBottom - boxH;
+    layouts.push(buildMatchLayout(meta, cx, boxY, cfg, isLeaf));
+  }
+
+  return layouts;
+}
+
 export function computeBracketLayout(
   data: StageData,
   cfg: LayoutConfig = DEFAULT_LAYOUT,
@@ -266,77 +416,25 @@ export function computeBracketLayout(
   const gfMaxRound = gfMetas.reduce((mx, m) => Math.max(mx, m.round), 0);
   const maxRound = Math.max(wbMaxRound, lbMaxRound, gfMaxRound, 1);
 
-  const maxInRound = (items: MatchMeta[]) => {
-    const rounds = groupByRound(items);
-    if (!rounds.length) return 1;
-    return Math.max(1, ...rounds.map((g) => g.items.length));
-  };
+  const wbLeafCount = wbMetas.filter((m) => m.round === 1).length || 1;
+  const lbLeafCount =
+    lbMetas.length > 0
+      ? Math.max(...groupByRound(lbMetas).map((g) => g.items.length), 1)
+      : 0;
 
-  const wbWidth = maxInRound(wbMetas) * (cfg.boxW + cfg.matchGap);
+  const wbWidth = wbLeafCount * cfg.boxW + (wbLeafCount - 1) * cfg.matchGap;
   const lbWidth =
-    lbMetas.length > 0 ? maxInRound(lbMetas) * (cfg.boxW + cfg.matchGap) : 0;
-  const gfWidth = gfMetas.length > 0 ? cfg.boxW + cfg.matchGap : 0;
-  const totalW = wbWidth + (lbWidth > 0 ? cfg.sectionGap + lbWidth : 0);
-  const wbLeft = cfg.padding + Math.max(0, (totalW - wbWidth - (lbWidth > 0 ? cfg.sectionGap + lbWidth : 0)) / 2);
+    lbLeafCount > 0 ? lbLeafCount * cfg.boxW + (lbLeafCount - 1) * cfg.matchGap : 0;
+  const wbLeft = cfg.padding;
   const lbLeft = wbLeft + wbWidth + (lbWidth > 0 ? cfg.sectionGap : 0);
-  const gfLeft = cfg.padding + Math.max(0, (totalW - gfWidth) / 2);
 
   const baseBottom =
     cfg.padding + (maxRound + gfMaxRound + 1) * (cfg.boxH + cfg.roundGap);
 
-  function placeSection(
-    items: MatchMeta[],
-    sectionLeft: number,
-    sectionWidth: number,
-    roundOffset: (round: number) => number,
-  ): MatchLayout[] {
-    const layouts: MatchLayout[] = [];
-    const byRound = groupByRound(items);
-
-    for (const { round, items: roundItems } of byRound) {
-      const rowFromBottom = roundOffset(round);
-      const boxY = baseBottom - rowFromBottom * (cfg.boxH + cfg.roundGap);
-      const n = roundItems.length;
-      const rowWidth = n * cfg.boxW + (n - 1) * cfg.matchGap;
-      const startX = sectionLeft + (sectionWidth - rowWidth) / 2;
-
-      roundItems.forEach((meta, row) => {
-        const boxX = startX + row * (cfg.boxW + cfg.matchGap);
-        const box: Rect = { x: boxX, y: boxY, w: cfg.boxW, h: cfg.boxH };
-        const slotW = cfg.boxW / 2;
-        const mkSlot = (slot: 0 | 1, op: BMOpponent | null): SlotLayout => {
-          const rect: Rect = {
-            x: boxX + slot * slotW,
-            y: boxY,
-            w: slotW,
-            h: cfg.boxH,
-          };
-          return {
-            slot,
-            teamRef: op?.id ?? null,
-            rect,
-            center: { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 },
-          };
-        };
-        layouts.push({
-          matchId: meta.match.id,
-          bracket: meta.bracket,
-          round: meta.round,
-          col: round - 1,
-          row,
-          box,
-          center: { x: box.x + box.w / 2, y: box.y + box.h / 2 },
-          slots: [mkSlot(0, meta.match.opponent1), mkSlot(1, meta.match.opponent2)],
-        });
-      });
-    }
-    return layouts;
-  }
-
   const matches: MatchLayout[] = [
-    ...placeSection(wbMetas, wbLeft, wbWidth, (r) => r),
-    ...placeSection(lbMetas, lbLeft, lbWidth, (r) => r),
-    ...placeSection(gfMetas, gfLeft, gfWidth, (r) => maxRound + r),
+    ...placeTreeSection(wbMetas, metas, cfg, baseBottom, (r) => r, wbLeft),
+    ...placeTreeSection(lbMetas, metas, cfg, baseBottom, (r) => r, lbLeft),
+    ...placeTreeSection(gfMetas, metas, cfg, baseBottom, (r) => maxRound + r, wbLeft),
   ];
 
   const byId: Record<number, MatchLayout> = {};
@@ -373,8 +471,26 @@ export function computeBracketLayout(
 
   const maxRight = matches.reduce((mx, m) => Math.max(mx, m.box.x + m.box.w), 0);
   const minTop = matches.reduce((mn, m) => Math.min(mn, m.box.y), baseBottom);
+  const maxBottom = matches.reduce((mx, m) => Math.max(mx, m.box.y + m.box.h), baseBottom);
+  const yShift = minTop - cfg.padding;
+
+  if (yShift !== 0) {
+    for (const m of matches) {
+      m.box.y -= yShift;
+      m.center.y -= yShift;
+      for (const s of m.slots) {
+        s.rect.y -= yShift;
+        s.center.y -= yShift;
+      }
+    }
+    for (const c of connectors) {
+      c.from.y -= yShift;
+      c.to.y -= yShift;
+    }
+  }
+
   const width = maxRight + cfg.padding;
-  const height = baseBottom + cfg.boxH + cfg.padding - minTop + cfg.padding;
+  const height = maxBottom - minTop + cfg.padding * 2;
 
   return { matches, connectors, width, height, byId };
 }
