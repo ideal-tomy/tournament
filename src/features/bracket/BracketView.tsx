@@ -232,7 +232,7 @@ export default function BracketView({
   );
 }
 
-/** 縦長スロット: 顔写真 + 縦書き名前（2人組は列を分割） */
+/** 1 チーム分の縦長柱: 顔写真を縦2枚 + 名前を縦1列 */
 function VerticalSlotContent({
   x,
   y,
@@ -257,26 +257,29 @@ function VerticalSlotContent({
   compact: boolean;
 }) {
   const pad = compact ? 2 : 3;
+  const cx = x + w / 2;
+  const fontSize = compact ? 7 : 8;
+  const faceSize = Math.min(w - pad * 2, compact ? 16 : 20);
+  const faceGap = 2;
 
   if (isEmpty) {
-    const faceSize = Math.min(w - pad * 2, 28);
     return (
       <g>
         <image
           href={placeholderFace}
-          x={x + w / 2 - faceSize / 2}
+          x={cx - faceSize / 2}
           y={y + pad + 4}
           width={faceSize}
           height={faceSize}
           opacity={0.35}
         />
         <VerticalText
-          x={x + w / 2}
-          y={y + pad + faceSize + 14}
+          x={cx}
+          y={y + pad + faceSize + 12}
           text="BYE"
-          fontSize={compact ? 8 : 9}
+          fontSize={fontSize}
           fill="#64748b"
-          maxHeight={h - faceSize - pad * 2 - 10}
+          maxHeight={h - faceSize - pad * 2 - 14}
         />
       </g>
     );
@@ -289,57 +292,61 @@ function VerticalSlotContent({
         ? parseMemberNames(label)
         : [label || '?'];
 
-  const count = Math.max(names.length, faces.length, 1);
-  const colW = (w - pad * 2) / count;
-  const fontSize = compact ? 7 : 9;
-  const faceSize = Math.min(colW - 4, compact ? 22 : 28);
+  const faceUrls =
+    faces.length > 0 ? faces : names.map(() => placeholderFace);
+  const count = Math.max(faceUrls.length, names.length);
+  const displayFaces = Array.from(
+    { length: count },
+    (_, i) => faceUrls[i] ?? placeholderFace,
+  );
+  const nameColumn = names.join('・');
+
+  let faceBottom = y + pad + 2;
+  const faceNodes = displayFaces.map((faceUrl, i) => {
+    const faceY = faceBottom + i * (faceSize + faceGap);
+    return (
+      <g key={`face-${i}-${faceUrl}`}>
+        <rect
+          x={cx - faceSize / 2 - 1}
+          y={faceY - 1}
+          width={faceSize + 2}
+          height={faceSize + 2}
+          fill="none"
+          stroke={accent}
+          strokeOpacity={0.55}
+          rx={2}
+        />
+        <image
+          href={faceUrl}
+          x={cx - faceSize / 2}
+          y={faceY}
+          width={faceSize}
+          height={faceSize}
+          preserveAspectRatio="xMidYMid slice"
+        />
+      </g>
+    );
+  });
+  faceBottom += count * faceSize + Math.max(0, count - 1) * faceGap;
+  const nameY = faceBottom + (compact ? 4 : 6);
+  const nameMaxH = y + h - pad - nameY;
 
   return (
     <g>
       <title>{label}</title>
-      {Array.from({ length: count }, (_, i) => {
-        const colX = x + pad + i * colW + colW / 2;
-        const faceUrl = faces[i] ?? placeholderFace;
-        const name = names[i] ?? '';
-        const faceY = y + pad + 2;
-        const nameY = faceY + faceSize + (compact ? 6 : 8);
-        const nameMaxH = y + h - pad - nameY;
-
-        return (
-          <g key={`${colX}-${i}`}>
-            <rect
-              x={colX - faceSize / 2 - 1}
-              y={faceY - 1}
-              width={faceSize + 2}
-              height={faceSize + 2}
-              fill="none"
-              stroke={accent}
-              strokeOpacity={0.55}
-              rx={2}
-            />
-            <image
-              href={faceUrl}
-              x={colX - faceSize / 2}
-              y={faceY}
-              width={faceSize}
-              height={faceSize}
-              preserveAspectRatio="xMidYMid slice"
-            />
-            {name && (
-              <VerticalText
-                x={colX}
-                y={nameY}
-                text={name}
-                fontSize={fontSize}
-                fill="#f1f5f9"
-                maxHeight={nameMaxH}
-                stroke="#0f172a"
-                strokeWidth={2}
-              />
-            )}
-          </g>
-        );
-      })}
+      {faceNodes}
+      {nameColumn && (
+        <VerticalText
+          x={cx}
+          y={nameY}
+          text={nameColumn}
+          fontSize={fontSize}
+          fill="#f1f5f9"
+          maxHeight={nameMaxH}
+          stroke="#0f172a"
+          strokeWidth={2}
+        />
+      )}
     </g>
   );
 }

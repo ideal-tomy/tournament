@@ -3,7 +3,11 @@ import { addParticipant } from '../registration/registrationApi';
 import { confirmDrawAndBuildBracket } from '../draw/drawApi';
 import { makeBalancedTeams, type DrawStrategy } from '../draw/draw';
 import { confirmMatchResult, fetchProgressionState } from '../progression/progressionApi';
-import { DUMMY_PARTICIPANTS, createDummyFaceBlob } from './dummyData';
+import {
+  DUMMY_PARTICIPANTS,
+  loadRehearsalFaceBlob,
+  REHEARSAL_PARTICIPANT_COUNT,
+} from './dummyData';
 
 export interface RehearsalProgress {
   step: string;
@@ -14,6 +18,8 @@ export interface RehearsalResult {
   eventId: string;
   eventName: string;
   matchesPlayed: number;
+  participantCount: number;
+  teamCount: number;
 }
 
 const DEFAULT_MATCH_COUNT = 0;
@@ -33,15 +39,19 @@ export async function runRehearsal(
   const participantIds: string[] = [];
   const nameById = new Map<string, string>();
 
-  for (const spec of DUMMY_PARTICIPANTS) {
-    onProgress({ step: '参加者登録', detail: spec.name });
-    const blob = await createDummyFaceBlob(spec.label, spec.color);
+  for (let i = 0; i < DUMMY_PARTICIPANTS.length; i++) {
+    const spec = DUMMY_PARTICIPANTS[i];
+    onProgress({
+      step: `参加者登録 (${i + 1}/${REHEARSAL_PARTICIPANT_COUNT})`,
+      detail: `${spec.name} ← ${spec.imageFile}.png`,
+    });
+    const blob = await loadRehearsalFaceBlob(spec.imageFile);
     const id = await addParticipant(event.id, spec.name, spec.rating, blob, blob);
     participantIds.push(id);
     nameById.set(id, spec.name);
   }
 
-  onProgress({ step: '抽選・ブラケット生成' });
+  onProgress({ step: '抽選・ブラケット生成（16 チーム）' });
   const rated = DUMMY_PARTICIPANTS.map((spec, i) => ({
     id: participantIds[i],
     rating: spec.rating,
@@ -64,11 +74,16 @@ export async function runRehearsal(
     await delay(400);
   }
 
-  onProgress({ step: '完了', detail: `${matchesPlayed} 試合確定 + broadcast` });
+  onProgress({
+    step: '完了',
+    detail: `${REHEARSAL_PARTICIPANT_COUNT} 名 / ${teams.length} チーム · ${matchesPlayed} 試合確定`,
+  });
 
   return {
     eventId: event.id,
     eventName: event.name,
     matchesPlayed,
+    participantCount: REHEARSAL_PARTICIPANT_COUNT,
+    teamCount: teams.length,
   };
 }

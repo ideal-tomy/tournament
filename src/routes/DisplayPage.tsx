@@ -117,6 +117,9 @@ export default function DisplayPage() {
               {eventStatus === 'running' && (
                 <span className="ml-2 text-amber-300 font-medium">— 進行中</span>
               )}
+              <span className="ml-2 text-slate-500 text-xs">
+                1 柱 = 1 チーム（2 名）
+              </span>
               <span className="ml-3">
                 <EventIdBadge eventId={event.id} />
               </span>

@@ -69,12 +69,12 @@ export interface LayoutConfig {
   padding: number;
 }
 export const DEFAULT_LAYOUT: LayoutConfig = {
-  boxW: 108,
-  boxH: 152,
-  roundGap: 64,
-  matchGap: 10,
-  sectionGap: 36,
-  padding: 44,
+  boxW: 56,
+  boxH: 172,
+  roundGap: 52,
+  matchGap: 6,
+  sectionGap: 28,
+  padding: 36,
 };
 
 interface MatchMeta {
@@ -217,6 +217,20 @@ function findWbFeeder(metas: MatchMeta[], lb: MatchMeta, position: number): Matc
   return wb ?? null;
 }
 
+function isSlotFilled(op: BMOpponent | null | undefined): boolean {
+  return op?.id != null;
+}
+
+/** Losers / GF は参加者が入った試合のみ表示（WB は全ラウンド表示） */
+export function isMatchVisibleForDisplay(meta: MatchMeta): boolean {
+  if (meta.bracket === 'winner') return true;
+  return isSlotFilled(meta.match.opponent1) || isSlotFilled(meta.match.opponent2);
+}
+
+export function filterVisibleMetas(metas: MatchMeta[]): MatchMeta[] {
+  return metas.filter(isMatchVisibleForDisplay);
+}
+
 function connectorPoints(
   from: MatchLayout,
   to: MatchLayout,
@@ -238,10 +252,14 @@ export function computeBracketLayout(
   data: StageData,
   cfg: LayoutConfig = DEFAULT_LAYOUT,
 ): BracketLayout {
-  const metas = buildMatchMetas(data);
+  const allMetas = buildMatchMetas(data);
+  const visibleIds = new Set(filterVisibleMetas(allMetas).map((m) => m.match.id));
+  const metas = allMetas;
   const wbMetas = metas.filter((m) => m.bracket === 'winner');
-  const lbMetas = metas.filter((m) => m.bracket === 'loser');
-  const gfMetas = metas.filter((m) => m.bracket === 'grand_final');
+  const lbMetas = metas.filter((m) => m.bracket === 'loser' && visibleIds.has(m.match.id));
+  const gfMetas = metas.filter(
+    (m) => m.bracket === 'grand_final' && visibleIds.has(m.match.id),
+  );
 
   const wbMaxRound = wbMetas.reduce((mx, m) => Math.max(mx, m.round), 0);
   const lbMaxRound = lbMetas.reduce((mx, m) => Math.max(mx, m.round), 0);
@@ -255,12 +273,13 @@ export function computeBracketLayout(
   };
 
   const wbWidth = maxInRound(wbMetas) * (cfg.boxW + cfg.matchGap);
-  const lbWidth = maxInRound(lbMetas) * (cfg.boxW + cfg.matchGap);
-  const gfWidth = cfg.boxW + cfg.matchGap;
-  const totalW = wbWidth + cfg.sectionGap + lbWidth;
-  const wbLeft = cfg.padding + Math.max(0, (totalW - wbWidth - cfg.sectionGap - lbWidth) / 2);
-  const lbLeft = wbLeft + wbWidth + cfg.sectionGap;
-  const gfLeft = cfg.padding + (totalW - gfWidth) / 2;
+  const lbWidth =
+    lbMetas.length > 0 ? maxInRound(lbMetas) * (cfg.boxW + cfg.matchGap) : 0;
+  const gfWidth = gfMetas.length > 0 ? cfg.boxW + cfg.matchGap : 0;
+  const totalW = wbWidth + (lbWidth > 0 ? cfg.sectionGap + lbWidth : 0);
+  const wbLeft = cfg.padding + Math.max(0, (totalW - wbWidth - (lbWidth > 0 ? cfg.sectionGap + lbWidth : 0)) / 2);
+  const lbLeft = wbLeft + wbWidth + (lbWidth > 0 ? cfg.sectionGap : 0);
+  const gfLeft = cfg.padding + Math.max(0, (totalW - gfWidth) / 2);
 
   const baseBottom =
     cfg.padding + (maxRound + gfMaxRound + 1) * (cfg.boxH + cfg.roundGap);
@@ -325,6 +344,7 @@ export function computeBracketLayout(
 
   const connectors: Connector[] = [];
   for (const link of buildAdvanceConnectors(metas)) {
+    if (!visibleIds.has(link.from) || !visibleIds.has(link.to)) continue;
     const from = byId[link.from];
     const to = byId[link.to];
     if (!from || !to) continue;
@@ -337,6 +357,7 @@ export function computeBracketLayout(
     });
   }
   for (const link of buildDropConnectors(metas)) {
+    if (!visibleIds.has(link.from) || !visibleIds.has(link.to)) continue;
     const from = byId[link.from];
     const to = byId[link.to];
     if (!from || !to) continue;

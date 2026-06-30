@@ -12,7 +12,8 @@ function assertLayout(data: Awaited<ReturnType<typeof buildSnapshotForTeamCount>
 
   for (const kind of BRACKET_KINDS) {
     if (kind === 'grand_final') {
-      expect(L.matches.some((m) => m.bracket === 'grand_final')).toBe(true);
+      // GF は参加者確定後に表示（初期は非表示）
+      continue;
     }
   }
 
@@ -54,18 +55,17 @@ function assertLayout(data: Awaited<ReturnType<typeof buildSnapshotForTeamCount>
 }
 
 describe('drop connectors', () => {
-  it('8 チームで WB→LB drop 線が生成される', async () => {
+  it('初期状態では drop 線は非表示（Losers 参加者確定後に表示）', async () => {
     const data = await buildSnapshotForTeamCount(8);
     const L = computeBracketLayout(toStageData(data));
     const drops = L.connectors.filter((c) => c.kind === 'drop');
-    expect(drops.length).toBeGreaterThan(0);
+    expect(drops.length).toBe(0);
   });
 
-  it('6 チームで advance + drop が両方存在', async () => {
+  it('6 チームで advance 線は存在', async () => {
     const data = await buildSnapshotForTeamCount(6);
     const L = computeBracketLayout(toStageData(data));
     expect(L.connectors.some((c) => c.kind === 'advance')).toBe(true);
-    expect(L.connectors.some((c) => c.kind === 'drop')).toBe(true);
   });
 
   it('下位ラウンドほど Y が大きい（下→上）', async () => {
@@ -95,5 +95,14 @@ describe('computeBracketLayout', () => {
   it.each([4, 8, 16])('%i チームで WB/LB/GF を含むレイアウト', async (n) => {
     const data = await buildSnapshotForTeamCount(n);
     assertLayout(data);
+  });
+
+  it('初期状態では Losers / GF を非表示（参加者が入るまで）', async () => {
+    const data = await buildSnapshotForTeamCount(16);
+    const L = computeBracketLayout(toStageData(data));
+    expect(L.matches.filter((m) => m.bracket === 'winner').length).toBeGreaterThan(0);
+    expect(L.matches.filter((m) => m.bracket === 'loser').length).toBe(0);
+    expect(L.matches.filter((m) => m.bracket === 'grand_final').length).toBe(0);
+    expect(L.connectors.filter((c) => c.kind === 'drop').length).toBe(0);
   });
 });

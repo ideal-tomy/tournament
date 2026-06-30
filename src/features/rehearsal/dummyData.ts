@@ -1,24 +1,67 @@
-/** リハーサル用 8 名分のダミー参加者定義 */
+/** リハーサル用 32 名（16 チーム）のダミー参加者定義 */
 
 export interface DummyParticipantSpec {
   name: string;
   rating: number;
-  color: string;
-  label: string;
+  /** public/images/test01.png など（拡張子なし） */
+  imageFile: string;
 }
 
-export const DUMMY_PARTICIPANTS: DummyParticipantSpec[] = [
-  { name: '赤井 太郎', rating: 2100, color: '#e11d48', label: '赤' },
-  { name: '青木 次郎', rating: 2050, color: '#2563eb', label: '青' },
-  { name: '緑川 三郎', rating: 1980, color: '#16a34a', label: '緑' },
-  { name: '黄田 四郎', rating: 1920, color: '#ca8a04', label: '黄' },
-  { name: '紫原 五郎', rating: 1880, color: '#9333ea', label: '紫' },
-  { name: '橙本 六郎', rating: 1820, color: '#ea580c', label: '橙' },
-  { name: '白井 七郎', rating: 1760, color: '#64748b', label: '白' },
-  { name: '黒田 八郎', rating: 1700, color: '#1e293b', label: '黒' },
-];
+export const REHEARSAL_IMAGE_DIR = '/images';
 
-/** Canvas で単色 + 文字の顔 JPEG を生成 */
+export const REHEARSAL_PARTICIPANT_COUNT = 32;
+
+/** 登録名（2 人 1 組でペア表示される） */
+const REHEARSAL_NAMES = [
+  'トミー', 'サトー', 'ケン', 'ユウキ', 'リョウ', 'ハルト', 'ソウタ', 'ダイキ',
+  'アキラ', 'ショウ', 'タクミ', 'コウキ', 'ナオキ', 'マサト', 'ヒロキ', 'レン',
+  'ミサキ', 'アヤカ', 'ユイ', 'サクラ', 'ヒナ', 'リナ', 'モモ', 'アオイ',
+  'カナ', 'メイ', 'ノゾミ', 'ユナ', 'マイ', 'ココ', 'レイ', 'ナナ',
+] as const;
+
+export const DUMMY_PARTICIPANTS: DummyParticipantSpec[] = REHEARSAL_NAMES.map(
+  (name, i) => ({
+    name,
+    rating: 2200 - i * 12,
+    imageFile: `test${String(i + 1).padStart(2, '0')}`,
+  }),
+);
+
+export function rehearsalImageUrl(imageFile: string): string {
+  return `${REHEARSAL_IMAGE_DIR}/${imageFile}.png`;
+}
+
+/** public/images の PNG を顔 JPEG に変換して Blob 化 */
+export async function loadRehearsalFaceBlob(imageFile: string): Promise<Blob> {
+  const url = rehearsalImageUrl(imageFile);
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`画像が見つかりません: ${url}（public/images に ${imageFile}.png を配置してください）`);
+  }
+
+  const bitmap = await createImageBitmap(await res.blob());
+  const canvas = document.createElement('canvas');
+  canvas.width = 240;
+  canvas.height = 240;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas が利用できません');
+
+  const size = Math.min(bitmap.width, bitmap.height);
+  const sx = (bitmap.width - size) / 2;
+  const sy = (bitmap.height - size) / 2;
+  ctx.drawImage(bitmap, sx, sy, size, size, 0, 0, 240, 240);
+  bitmap.close();
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error(`画像変換失敗: ${imageFile}`))),
+      'image/jpeg',
+      0.92,
+    );
+  });
+}
+
+/** 画像未配置時の Canvas フォールバック */
 export function createDummyFaceBlob(label: string, color: string): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const canvas = document.createElement('canvas');

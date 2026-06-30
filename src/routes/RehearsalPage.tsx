@@ -42,9 +42,10 @@ export default function RehearsalPage() {
       <div className="max-w-xl mx-auto">
         <h1 className="text-2xl font-bold">リハーサルモード</h1>
         <p className="text-slate-400 mt-2 text-sm">
-          [REHEARSAL] イベントを作成し、8 名登録 → 抽選まで自動実行します。
-          演出確認は <strong className="text-white">Display を先に開いてから</strong> Admin
-          で試合を進めてください。
+          [REHEARSAL] イベントを作成し、<strong className="text-white">32 名（16 チーム）</strong>
+          を <code className="text-cyan-300">public/images/test01.png</code> 〜{' '}
+          <code className="text-cyan-300">test32.png</code> で登録 → 抽選まで自動実行します。
+          演出確認は Display を先に開いてから Admin で試合を進めてください。
         </p>
 
         <label className="mt-4 flex items-center gap-2 text-sm text-slate-300">
@@ -98,9 +99,10 @@ export default function RehearsalPage() {
             <p className="text-emerald-300 font-medium">リハーサル完了</p>
             <p className="text-sm text-slate-300">
               {result.eventName}
-              {result.matchesPlayed > 0 && (
-                <span className="text-slate-500 ml-2">({result.matchesPlayed} 試合自動確定済)</span>
-              )}
+              <span className="text-slate-500 ml-2">
+                ({result.participantCount} 名 · {result.teamCount} チーム
+                {result.matchesPlayed > 0 ? ` · ${result.matchesPlayed} 試合自動確定` : ''})
+              </span>
             </p>
             <p className="text-xs text-slate-500 font-mono break-all">{result.eventId}</p>
             <div className="flex flex-col gap-2 pt-2">
