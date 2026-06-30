@@ -1,0 +1,28 @@
+---
+description: ダーツ大会ライブ進行システム — Cursor プロジェクトルール
+globs:
+alwaysApply: true
+---
+
+# 03. Cursor プロジェクトルール
+
+> 目的: ライブ進行を壊す実装・演出破綻・状態崩壊を**未然に防ぐ**ためのガードレール。
+> AIアシスタント(Cursor)は本ルールを最優先で遵守すること。
+
+## 1. プロジェクトの絶対原則
+
+1. **ライブ進行を絶対に止めない。** 演出は「事前固定テンプレ＋実行時差し込み」。
+2. **演出は座標駆動。** 座標やレイアウトをハードコードしない。
+3. **全メディアはプリロード後に再生。**
+4. **真実源は Supabase の `bracket_snapshot`。**
+5. **ダブルイリミ進行を手書きしない。** → `brackets-manager`
+
+## 2. 技術スタック（固定）
+
+React 18 + Vite + TS(strict) + Tailwind + Supabase + brackets-manager + GSAP/Pixi/Lottie + Vitest
+
+## 3. フェーズ遵守
+
+`00_REQUIREMENTS.md` の Phase 順に実装。**演出(Phase5)を土台より先に作らない。**
+
+詳細はリポジトリ直下 `03_CURSOR_PROJECT_RULES.md` を参照。
