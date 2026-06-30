@@ -10,17 +10,18 @@ export function useAdminPasscode(): {
   error: string | null;
 } {
   const expected = import.meta.env.VITE_ADMIN_PASSCODE ?? '';
+  const demoMode = import.meta.env.VITE_DEMO_MODE === '1';
   const [authorized, setAuthorized] = useState(
-    () => sessionStorage.getItem(STORAGE_KEY) === '1',
+    () => demoMode || sessionStorage.getItem(STORAGE_KEY) === '1',
   );
   const [passcodeInput, setPasscodeInput] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!expected) {
+    if (!expected || demoMode) {
       setAuthorized(true);
     }
-  }, [expected]);
+  }, [expected, demoMode]);
 
   function submit() {
     if (!expected || passcodeInput === expected) {

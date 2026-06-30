@@ -4,7 +4,9 @@ import type { StageData } from '../bracket/layout';
 import type { RealtimeEvent } from '../../types';
 import ClashPopup from './ClashPopup';
 import ExplosionLayer from './ExplosionLayer';
+import FlameBurstOverlay from './FlameBurstOverlay';
 import LineCollision from './LineCollision';
+import VsAnticipationOverlay from './VsAnticipationOverlay';
 import VsScreen from './VsScreen';
 import WinnerCelebratePopup from './WinnerCelebratePopup';
 import { useMatchEffect } from './useMatchEffect';
@@ -37,6 +39,7 @@ export default function EffectOrchestrator({
 
   const {
     isPlaying,
+    phase,
     lineProgress,
     active,
     hasAdvance,
@@ -44,10 +47,12 @@ export default function EffectOrchestrator({
     winnerVisible,
     winnerClosing,
     clashPhase,
+    vsAnticipationVisible,
+    vsFlameBurstVisible,
     vsVisible,
     vsClosing,
     showBracketOverlay,
-    showExplosion,
+    showBracketExplosion,
     showFlash,
     dimmed,
     startEffect,
@@ -81,14 +86,18 @@ export default function EffectOrchestrator({
   }, [skipSignal, handleSkip]);
 
   const layout = active?.layout;
+  const suspenseShake =
+    isPlaying &&
+    hasAdvance &&
+    (phase === 'flash' || phase === 'vsAnticipation' || phase === 'vsFlameBurst');
 
   return (
     <>
       <div
         ref={containerRef}
-        className={`relative flex-1 min-h-0 w-full overflow-hidden flex items-center justify-center transition-opacity duration-300 ${
+        className={`relative flex-1 min-h-0 w-full overflow-hidden flex items-center justify-center transition-opacity duration-700 ${
           dimmed ? 'opacity-25 scale-[0.98]' : ''
-        } ${isPlaying && hasAdvance ? 'effect-shake' : ''}`}
+        } ${suspenseShake ? 'effect-shake' : ''}`}
       >
         {snapshot && (
           <BracketView
@@ -123,14 +132,18 @@ export default function EffectOrchestrator({
           </svg>
         )}
 
-        {layout && showExplosion && (
+        {layout && showBracketExplosion && (
           <ExplosionLayer
             xPercent={explosionPercent.x}
             yPercent={explosionPercent.y}
-            active={showExplosion}
+            active={showBracketExplosion}
+            variant="flame"
           />
         )}
       </div>
+
+      <VsAnticipationOverlay active={vsAnticipationVisible} />
+      <FlameBurstOverlay active={vsFlameBurstVisible} />
 
       <WinnerCelebratePopup
         visible={winnerVisible}

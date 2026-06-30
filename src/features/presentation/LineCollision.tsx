@@ -18,7 +18,7 @@ export default function LineCollision({ layout, progress, flash }: LineCollision
     y: slotB.y + (junctionY - slotB.y) * progress,
   };
 
-  const bridgeProgress = Math.min(1, Math.max(0, (progress - 0.92) / 0.08));
+  const bridgeProgress = Math.min(1, Math.max(0, (progress - 0.82) / 0.18));
   const bridgeLeft = endA.x + (collision.x - endA.x) * bridgeProgress;
   const bridgeRight = endB.x + (collision.x - endB.x) * bridgeProgress;
 

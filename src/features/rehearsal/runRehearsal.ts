@@ -1,89 +1,27 @@
-import { createRehearsalEvent } from '../../lib/event';
-import { addParticipant } from '../registration/registrationApi';
-import { confirmDrawAndBuildBracket } from '../draw/drawApi';
-import { makeBalancedTeams, type DrawStrategy } from '../draw/draw';
-import { confirmMatchResult, fetchProgressionState } from '../progression/progressionApi';
 import {
-  DUMMY_PARTICIPANTS,
-  loadRehearsalFaceBlob,
-  REHEARSAL_PARTICIPANT_COUNT,
-} from './dummyData';
+  createFreshRehearsal,
+  reuseRehearsal,
+  type RehearsalProgress,
+  type RehearsalResult,
+} from './rehearsalActions';
 
-export interface RehearsalProgress {
-  step: string;
-  detail?: string;
+export type { RehearsalProgress, RehearsalResult };
+
+export interface RunRehearsalOptions {
+  /** true: 最新 [REHEARSAL] の参加者を維持してブラケットだけ再生成 */
+  reuseExisting?: boolean;
+  matchCount?: number;
 }
 
-export interface RehearsalResult {
-  eventId: string;
-  eventName: string;
-  matchesPlayed: number;
-  participantCount: number;
-  teamCount: number;
-}
-
-const DEFAULT_MATCH_COUNT = 0;
-const DRAW_STRATEGY: DrawStrategy = 'trio';
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
+/** @deprecated rehearsalActions を直接利用 */
 export async function runRehearsal(
   onProgress: (p: RehearsalProgress) => void,
-  matchCount = DEFAULT_MATCH_COUNT,
+  matchCount = 0,
+  options?: RunRehearsalOptions,
 ): Promise<RehearsalResult> {
-  onProgress({ step: 'リハーサルイベント作成' });
-  const event = await createRehearsalEvent();
-
-  const participantIds: string[] = [];
-  const nameById = new Map<string, string>();
-
-  for (let i = 0; i < DUMMY_PARTICIPANTS.length; i++) {
-    const spec = DUMMY_PARTICIPANTS[i];
-    onProgress({
-      step: `参加者登録 (${i + 1}/${REHEARSAL_PARTICIPANT_COUNT})`,
-      detail: `${spec.name} ← ${spec.imageFile}.png`,
-    });
-    const blob = await loadRehearsalFaceBlob(spec.imageFile);
-    const id = await addParticipant(event.id, spec.name, spec.rating, blob, blob);
-    participantIds.push(id);
-    nameById.set(id, spec.name);
+  const count = options?.matchCount ?? matchCount;
+  if (options?.reuseExisting) {
+    return reuseRehearsal(onProgress, count);
   }
-
-  onProgress({ step: '抽選・ブラケット生成（16 チーム）' });
-  const rated = DUMMY_PARTICIPANTS.map((spec, i) => ({
-    id: participantIds[i],
-    rating: spec.rating,
-  }));
-  const teams = makeBalancedTeams(rated, DRAW_STRATEGY);
-  await confirmDrawAndBuildBracket(event.id, teams, DRAW_STRATEGY, nameById);
-
-  let matchesPlayed = 0;
-  for (let i = 0; i < matchCount; i++) {
-    const state = await fetchProgressionState(event.id);
-    if (!state?.currentMatchId) {
-      onProgress({ step: '試合進行', detail: '次の試合がありません（終了）' });
-      break;
-    }
-
-    const matchId = state.currentMatchId;
-    onProgress({ step: `試合 ${i + 1} 確定`, detail: `match #${matchId}` });
-    await confirmMatchResult(event.id, matchId, 0, state.currentMatchId);
-    matchesPlayed += 1;
-    await delay(400);
-  }
-
-  onProgress({
-    step: '完了',
-    detail: `${REHEARSAL_PARTICIPANT_COUNT} 名 / ${teams.length} チーム · ${matchesPlayed} 試合確定`,
-  });
-
-  return {
-    eventId: event.id,
-    eventName: event.name,
-    matchesPlayed,
-    participantCount: REHEARSAL_PARTICIPANT_COUNT,
-    teamCount: teams.length,
-  };
+  return createFreshRehearsal(onProgress, count);
 }

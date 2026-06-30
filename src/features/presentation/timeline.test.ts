@@ -3,20 +3,18 @@ import { effectTotalDuration, EFFECT_TIMING } from './effectConstants';
 import { buildAdvanceTimeline, buildPresentationTimeline, buildWinnerTimeline } from './timeline';
 
 describe('effectConstants', () => {
-  it('勝利のみ ≈ 2.6 秒', () => {
-    expect(effectTotalDuration(false)).toBeCloseTo(2.6, 1);
+  it('勝利のみ ≈ 5.8 秒', () => {
+    expect(effectTotalDuration(false)).toBeCloseTo(5.8, 1);
   });
 
-  it('フル演出 ≈ 10 秒', () => {
+  it('フル演出 ≈ 20 秒', () => {
     const total = effectTotalDuration(true);
-    expect(total).toBeGreaterThanOrEqual(9);
-    expect(total).toBeLessThanOrEqual(12);
+    expect(total).toBeGreaterThanOrEqual(18);
+    expect(total).toBeLessThanOrEqual(24);
   });
 
-  it('各ステップが正の値', () => {
-    for (const v of Object.values(EFFECT_TIMING)) {
-      expect(v).toBeGreaterThan(0);
-    }
+  it('予感 + 炎の合計が従来の爆発尺', () => {
+    expect(EFFECT_TIMING.vsAnticipation + EFFECT_TIMING.vsFlameBurst).toBeCloseTo(2.2, 1);
   });
 });
 
@@ -40,7 +38,7 @@ describe('buildPresentationTimeline', () => {
     vi.useRealTimers();
   });
 
-  it('フル演出 — 衝突までのコールバック', () => {
+  it('フル演出 — 予感 → 炎 → VS', () => {
     vi.useFakeTimers();
     const calls: string[] = [];
     const tl = buildPresentationTimeline(
@@ -55,7 +53,8 @@ describe('buildPresentationTimeline', () => {
         onLineProgress: () => {},
         onClashStart: () => calls.push('clash'),
         onCollision: () => calls.push('collision'),
-        onExplosion: () => calls.push('explosion'),
+        onVsAnticipation: () => calls.push('anticipation'),
+        onVsFlameBurst: () => calls.push('flame'),
         onVsShow: () => calls.push('vs'),
         onClose: () => calls.push('close'),
       },
@@ -63,11 +62,10 @@ describe('buildPresentationTimeline', () => {
     );
 
     tl.progress(1);
-    expect(calls).toContain('winner');
-    expect(calls).toContain('clash');
-    expect(calls).toContain('collision');
-    expect(calls).toContain('vs');
-    expect(calls).toContain('complete');
+    expect(calls).toContain('anticipation');
+    expect(calls).toContain('flame');
+    expect(calls.indexOf('anticipation')).toBeLessThan(calls.indexOf('flame'));
+    expect(calls.indexOf('flame')).toBeLessThan(calls.indexOf('vs'));
     tl.kill();
     vi.useRealTimers();
   });
@@ -87,7 +85,7 @@ describe('buildWinnerTimeline', () => {
 });
 
 describe('buildAdvanceTimeline', () => {
-  it('clash を含む', () => {
+  it('予感 → 炎 → VS の順', () => {
     const calls: string[] = [];
     const tl = buildAdvanceTimeline({
       onDimStart: () => calls.push('dim'),
@@ -95,12 +93,22 @@ describe('buildAdvanceTimeline', () => {
       onLineProgress: () => {},
       onClashStart: () => calls.push('clash'),
       onCollision: () => calls.push('collision'),
-      onExplosion: () => calls.push('explosion'),
+      onVsAnticipation: () => calls.push('anticipation'),
+      onVsFlameBurst: () => calls.push('flame'),
       onVsShow: () => calls.push('vs'),
       onClose: () => calls.push('close'),
     });
     tl.progress(1);
-    expect(calls).toEqual(['dim', 'lines', 'clash', 'collision', 'explosion', 'vs', 'close']);
+    expect(calls).toEqual([
+      'dim',
+      'lines',
+      'clash',
+      'collision',
+      'anticipation',
+      'flame',
+      'vs',
+      'close',
+    ]);
     tl.kill();
   });
 });

@@ -26,33 +26,33 @@ export default function WinnerCelebratePopup({
   useEffect(() => {
     if (!visible || !rootRef.current) return;
 
-    gsap.fromTo(rootRef.current, { opacity: 0 }, { opacity: 1, duration: 0.2 });
+    gsap.fromTo(rootRef.current, { opacity: 0 }, { opacity: 1, duration: 0.5 });
     if (raysRef.current) {
       gsap.fromTo(
         raysRef.current,
-        { scale: 0.5, opacity: 0, rotation: -30 },
-        { scale: 1, opacity: 1, rotation: 0, duration: 0.8, ease: 'power2.out' },
+        { scale: 0.4, opacity: 0, rotation: -30 },
+        { scale: 1, opacity: 1, rotation: 0, duration: 1.2, ease: 'power2.out' },
       );
     }
     if (badgeRef.current) {
       gsap.fromTo(
         badgeRef.current,
         { scale: 0, opacity: 0 },
-        { scale: 1, opacity: 1, duration: 0.55, ease: EFFECT_EASING.vsIn, delay: 0.05 },
+        { scale: 1, opacity: 1, duration: 0.9, ease: EFFECT_EASING.vsIn, delay: 0.15 },
       );
     }
     if (teamRef.current) {
       gsap.fromTo(
         teamRef.current,
-        { scale: 0.4, opacity: 0, y: 40 },
-        { scale: 1, opacity: 1, y: 0, duration: 0.65, ease: EFFECT_EASING.vsIn, delay: 0.15 },
+        { scale: 0.35, opacity: 0, y: 50 },
+        { scale: 1, opacity: 1, y: 0, duration: 1.0, ease: EFFECT_EASING.vsIn, delay: 0.3 },
       );
     }
   }, [visible]);
 
   useEffect(() => {
     if (!closing || !rootRef.current) return;
-    gsap.to(rootRef.current, { opacity: 0, duration: 0.35, ease: EFFECT_EASING.vsOut });
+    gsap.to(rootRef.current, { opacity: 0, duration: 0.8, ease: EFFECT_EASING.vsOut });
   }, [closing]);
 
   if (!visible) return null;

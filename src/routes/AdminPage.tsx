@@ -7,7 +7,9 @@ import EventIdBadge from '../components/EventIdBadge';
 import { fetchBracketSnapshot } from '../features/bracket/bracketApi';
 import { useActiveEvent } from '../hooks/useActiveEvent';
 import { useAdminPasscode } from '../hooks/useAdminPasscode';
-import { finishAndPurgePortraitData } from '../lib/eventCleanup';
+import { finishAndPurgePortraitData, finishRehearsalSoft } from '../lib/eventCleanup';
+import { isRehearsalEventName } from '../lib/event';
+import { resetRehearsalMatches } from '../features/rehearsal/rehearsalActions';
 import { displayUrlForEvent } from '../lib/displayUrl';
 import { broadcast } from '../lib/realtime';
 
@@ -25,6 +27,8 @@ export default function AdminPage() {
   const [purgeConfirm, setPurgeConfirm] = useState('');
   const [purging, setPurging] = useState(false);
   const [purgeStatus, setPurgeStatus] = useState<string | null>(null);
+  const [resetting, setResetting] = useState(false);
+  const [resetStatus, setResetStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (!event) return;
@@ -64,6 +68,40 @@ export default function AdminPage() {
       );
     } finally {
       setPurging(false);
+    }
+  }, [event, reload]);
+
+  const isRehearsal = event != null && isRehearsalEventName(event.name);
+
+  const handleResetRehearsal = useCallback(async () => {
+    if (!event) return;
+    setResetting(true);
+    setResetStatus(null);
+    try {
+      await resetRehearsalMatches(event.id);
+      setResetStatus('試合を最初からにリセットしました（参加者・写真は維持）');
+      setDrawKey((k) => k + 1);
+      reload();
+    } catch (e) {
+      setResetStatus(e instanceof Error ? e.message : 'リセットに失敗しました');
+    } finally {
+      setResetting(false);
+    }
+  }, [event, reload]);
+
+  const handleRehearsalSoftFinish = useCallback(async () => {
+    if (!event) return;
+    setResetting(true);
+    setResetStatus(null);
+    try {
+      await finishRehearsalSoft(event.id);
+      setResetStatus('リハーサルを終了しました（参加者・写真は維持）');
+      setDrawKey((k) => k + 1);
+      reload();
+    } catch (e) {
+      setResetStatus(e instanceof Error ? e.message : '終了処理に失敗しました');
+    } finally {
+      setResetting(false);
     }
   }, [event, reload]);
 
@@ -125,6 +163,9 @@ export default function AdminPage() {
                 Display を開く（同一イベント）
               </a>
             )}
+            <Link to="/" className="text-slate-500 underline">
+              トップ
+            </Link>
             <Link to="/rehearsal" className="text-blue-600 underline">
               リハーサル
             </Link>
@@ -199,36 +240,68 @@ export default function AdminPage() {
 
               {tab === 'finish' && (
                 <div className="space-y-4">
-                  <div className="rounded border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                    <p className="font-bold">不可逆操作</p>
-                    <p className="mt-2">
-                      大会を終了し、参加者の顔写真・Storage データ・チーム情報をすべて削除します。
-                      ブラケット snapshot もクリアされます。
-                    </p>
-                  </div>
-                  <label className="block text-sm text-slate-600">
-                    確認のため「削除する」と入力
-                    <input
-                      type="text"
-                      value={purgeConfirm}
-                      onChange={(e) => setPurgeConfirm(e.target.value)}
-                      className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-                      placeholder="削除する"
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => void handlePurge()}
-                    disabled={!purgeEnabled || purging}
-                    className="w-full rounded-lg bg-red-700 text-white py-4 text-lg font-bold disabled:opacity-40"
-                  >
-                    {purging ? '削除中…' : '大会終了・肖像データ削除'}
-                  </button>
-                  {purgeStatus && (
+                  {isRehearsal ? (
+                    <>
+                      <div className="rounded border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+                        <p className="font-bold">リハーサルイベント</p>
+                        <p className="mt-2">
+                          参加者 32 名・顔写真は<strong>削除されません</strong>。
+                          演出確認のため、試合だけ最初からやり直せます。
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void handleResetRehearsal()}
+                        disabled={resetting}
+                        className="w-full rounded-lg bg-emerald-700 text-white py-4 text-lg font-bold disabled:opacity-40"
+                      >
+                        {resetting ? '処理中…' : '試合を最初から（参加者維持）'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleRehearsalSoftFinish()}
+                        disabled={resetting}
+                        className="w-full rounded-lg bg-slate-700 text-white py-3 font-bold disabled:opacity-40"
+                      >
+                        リハーサル終了（データ維持）
+                      </button>
+                      <p className="text-xs text-slate-500">
+                        完全削除は本番イベントのみ。リハーサルは /rehearsal から再利用してください。
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="rounded border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                        <p className="font-bold">不可逆操作（本番用）</p>
+                        <p className="mt-2">
+                          大会を終了し、参加者の顔写真・Storage データ・チーム情報をすべて削除します。
+                        </p>
+                      </div>
+                      <label className="block text-sm text-slate-600">
+                        確認のため「削除する」と入力
+                        <input
+                          type="text"
+                          value={purgeConfirm}
+                          onChange={(e) => setPurgeConfirm(e.target.value)}
+                          className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                          placeholder="削除する"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => void handlePurge()}
+                        disabled={!purgeEnabled || purging}
+                        className="w-full rounded-lg bg-red-700 text-white py-4 text-lg font-bold disabled:opacity-40"
+                      >
+                        {purging ? '削除中…' : '大会終了・肖像データ削除'}
+                      </button>
+                    </>
+                  )}
+                  {(resetStatus || purgeStatus) && (
                     <p
-                      className={`text-sm ${purgeStatus.includes('失敗') ? 'text-red-600' : 'text-emerald-700'}`}
+                      className={`text-sm ${(resetStatus ?? purgeStatus ?? '').includes('失敗') ? 'text-red-600' : 'text-emerald-700'}`}
                     >
-                      {purgeStatus}
+                      {resetStatus ?? purgeStatus}
                     </p>
                   )}
                 </div>

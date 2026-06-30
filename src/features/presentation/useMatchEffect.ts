@@ -20,7 +20,8 @@ export type EffectPhase =
   | 'lines'
   | 'clash'
   | 'flash'
-  | 'explosion'
+  | 'vsAnticipation'
+  | 'vsFlameBurst'
   | 'vs'
   | 'closing';
 
@@ -120,7 +121,8 @@ export function useMatchEffect({
               onLineProgress: (p) => setLineProgress(p),
               onClashStart: () => setPhase('clash'),
               onCollision: () => setPhase('flash'),
-              onExplosion: () => setPhase('explosion'),
+              onVsAnticipation: () => setPhase('vsAnticipation'),
+              onVsFlameBurst: () => setPhase('vsFlameBurst'),
               onVsShow: () => setPhase('vs'),
               onClose: () => setPhase('closing'),
             }
@@ -155,19 +157,15 @@ export function useMatchEffect({
   const winnerClosing = phase === 'winnerClosing';
   const vsVisible = phase === 'vs' || phase === 'closing';
   const vsClosing = phase === 'closing';
+  const vsAnticipationVisible = phase === 'vsAnticipation';
+  const vsFlameBurstVisible = phase === 'vsFlameBurst';
 
   const clashPhase: ClashPhase =
-    phase === 'clash'
-      ? 'approach'
-      : phase === 'flash'
-        ? 'impact'
-        : phase === 'explosion'
-          ? 'explosion'
-          : 'hidden';
+    phase === 'clash' ? 'approach' : phase === 'flash' ? 'impact' : 'hidden';
 
   const showBracketOverlay =
-    hasAdvance && (phase === 'lines' || phase === 'flash' || phase === 'explosion');
-  const showExplosion = phase === 'explosion' && hasAdvance;
+    hasAdvance && (phase === 'lines' || phase === 'clash' || phase === 'flash');
+  const showBracketExplosion = phase === 'flash' && hasAdvance;
   const showFlash = phase === 'flash';
   const dimmed =
     hasAdvance &&
@@ -190,10 +188,12 @@ export function useMatchEffect({
     winnerVisible,
     winnerClosing,
     clashPhase,
+    vsAnticipationVisible,
+    vsFlameBurstVisible,
     vsVisible,
     vsClosing,
     showBracketOverlay,
-    showExplosion,
+    showBracketExplosion,
     showFlash,
     dimmed,
     startEffect,

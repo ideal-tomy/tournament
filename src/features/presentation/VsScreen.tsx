@@ -32,19 +32,26 @@ export default function VsScreen({
     gsap.fromTo(
       rootRef.current,
       { opacity: 0 },
-      { opacity: 1, duration: 0.3, ease: 'power2.out' },
+      { opacity: 1, duration: 0.7, ease: 'power2.out' },
     );
     if (rowRef.current) {
       gsap.fromTo(
         rowRef.current,
-        { scale: 0.85, opacity: 0 },
-        { scale: 1, opacity: 1, duration: 0.55, ease: EFFECT_EASING.vsIn, delay: 0.05 },
+        { scale: 0.15, opacity: 0 },
+        { scale: 1, opacity: 1, duration: 0.95, ease: EFFECT_EASING.vsIn, delay: 0.15 },
       );
     }
     gsap.fromTo(
       vsRef.current,
-      { scale: 0.2, opacity: 0, rotation: -12 },
-      { scale: 1, opacity: 1, rotation: 0, duration: 0.55, ease: EFFECT_EASING.vsIn, delay: 0.15 },
+      { scale: 0, opacity: 0, rotation: -20 },
+      {
+        scale: 1,
+        opacity: 1,
+        rotation: 0,
+        duration: 0.85,
+        ease: EFFECT_EASING.vsIn,
+        delay: 0.35,
+      },
     );
   }, [visible]);
 
@@ -52,7 +59,7 @@ export default function VsScreen({
     if (!closing || !rootRef.current) return;
     gsap.to(rootRef.current, {
       opacity: 0,
-      duration: 0.4,
+      duration: 0.7,
       ease: EFFECT_EASING.vsOut,
     });
   }, [closing]);
@@ -62,7 +69,7 @@ export default function VsScreen({
   return (
     <div
       ref={rootRef}
-      className="fixed inset-0 z-40 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm"
+      className="fixed inset-0 z-40 flex flex-col items-center justify-center bg-black/92 backdrop-blur-sm"
       role="dialog"
       aria-label="対戦画面"
     >
@@ -77,7 +84,7 @@ export default function VsScreen({
         <TeamShowcase label={teamALabel} faces={teamAFaces} accent="cyan" size="lg" />
         <div
           ref={vsRef}
-          className="text-7xl md:text-9xl font-black text-yellow-300 drop-shadow-[0_0_24px_rgba(250,204,21,0.8)] shrink-0"
+          className="text-7xl md:text-9xl font-black text-yellow-300 drop-shadow-[0_0_32px_rgba(250,204,21,0.95)] shrink-0"
         >
           VS
         </div>

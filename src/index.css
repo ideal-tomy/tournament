@@ -60,7 +60,7 @@ body {
   height: 80px;
   border-radius: 50%;
   background: radial-gradient(circle, #fef08a 0%, #f97316 40%, transparent 70%);
-  animation: effect-burst-core 0.8s ease-out forwards;
+  animation: effect-burst-core 1.2s ease-out forwards;
 }
 
 .effect-explosion-ring {
@@ -68,7 +68,7 @@ body {
   inset: -20px;
   border-radius: 50%;
   border: 3px solid rgba(250, 204, 21, 0.8);
-  animation: effect-burst-ring 0.8s ease-out forwards;
+  animation: effect-burst-ring 1.2s ease-out forwards;
 }
 
 .effect-explosion-ring-delay {
@@ -169,4 +169,300 @@ body {
   border-radius: 50%;
   background: radial-gradient(circle, #fef08a 0%, #f97316 35%, transparent 70%);
   box-shadow: 0 0 60px rgba(250, 204, 21, 0.8);
+}
+
+/* ── 予感（衝突 → 炎） ── */
+.effect-anticipation-vignette {
+  background: radial-gradient(ellipse at center, transparent 20%, rgba(0, 0, 0, 0.85) 75%);
+  animation: effect-vignette-close 1.2s ease-in forwards;
+}
+
+@keyframes effect-vignette-close {
+  from {
+    opacity: 0.3;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.effect-anticipation-sparks {
+  background-image:
+    radial-gradient(circle, rgba(251, 191, 36, 0.9) 1px, transparent 2px),
+    radial-gradient(circle, rgba(249, 115, 22, 0.8) 1px, transparent 2px);
+  background-size: 120px 120px, 180px 180px;
+  animation: effect-sparks-inward 1.2s linear forwards;
+  opacity: 0.7;
+}
+
+@keyframes effect-sparks-inward {
+  from {
+    transform: scale(2.2);
+    opacity: 0.2;
+  }
+  to {
+    transform: scale(0.85);
+    opacity: 0.85;
+  }
+}
+
+.effect-anticipation-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 50%;
+  border: 2px solid rgba(251, 146, 60, 0.55);
+  transform: translate(-50%, -50%);
+  animation: effect-ring-contract 1.2s ease-in forwards;
+}
+
+.effect-anticipation-ring-1 {
+  width: 280px;
+  height: 280px;
+}
+
+.effect-anticipation-ring-2 {
+  width: 280px;
+  height: 280px;
+  animation-delay: 0.12s;
+  border-color: rgba(249, 115, 22, 0.45);
+}
+
+.effect-anticipation-ring-3 {
+  width: 280px;
+  height: 280px;
+  animation-delay: 0.24s;
+  border-color: rgba(234, 88, 12, 0.35);
+}
+
+@keyframes effect-ring-contract {
+  from {
+    transform: translate(-50%, -50%) scale(1.6);
+    opacity: 0.15;
+  }
+  to {
+    transform: translate(-50%, -50%) scale(0.55);
+    opacity: 0.95;
+  }
+}
+
+.effect-anticipation-core {
+  width: 100px;
+  height: 100px;
+}
+
+.effect-anticipation-core-inner {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fef3c7 0%, #f97316 45%, #c2410c 75%, transparent 100%);
+  animation: effect-core-throb 0.35s ease-in-out infinite alternate;
+}
+
+.effect-anticipation-core-glow {
+  position: absolute;
+  inset: -40px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(249, 115, 22, 0.5) 0%, transparent 70%);
+  animation: effect-core-glow-pulse 0.45s ease-in-out infinite alternate;
+}
+
+@keyframes effect-core-throb {
+  from {
+    transform: scale(0.92);
+    filter: brightness(1);
+  }
+  to {
+    transform: scale(1.08);
+    filter: brightness(1.35);
+  }
+}
+
+@keyframes effect-core-glow-pulse {
+  from {
+    opacity: 0.5;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+.effect-anticipation-pulse {
+  animation: effect-hint-pulse 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes effect-hint-pulse {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.effect-anticipation-ember-hint {
+  background: linear-gradient(to top, rgba(249, 115, 22, 0.35) 0%, transparent 100%);
+  animation: effect-ember-hint-rise 1.2s ease-in forwards;
+}
+
+@keyframes effect-ember-hint-rise {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 0.8;
+    transform: translateY(0);
+  }
+}
+
+/* ── 炎爆発 ── */
+.effect-flame-heat {
+  background: radial-gradient(ellipse at 50% 85%, rgba(249, 115, 22, 0.55) 0%, transparent 55%);
+  animation: effect-heat-surge 1s ease-out forwards;
+}
+
+.effect-flame-flash {
+  background: radial-gradient(circle at 50% 60%, rgba(255, 255, 255, 0.85) 0%, transparent 45%);
+  animation: effect-flame-flash-pop 0.55s ease-out 0.15s forwards;
+  opacity: 0;
+}
+
+@keyframes effect-heat-surge {
+  0% {
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.3;
+  }
+}
+
+@keyframes effect-flame-flash-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  25% {
+    opacity: 0.95;
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.4);
+  }
+}
+
+.effect-flame-tongue {
+  --angle: calc((var(--fi) / var(--fc)) * 80deg - 40deg);
+  width: 48px;
+  height: 0;
+  margin: 0 -6px;
+  border-radius: 50% 50% 20% 20%;
+  background: linear-gradient(to top, #c2410c 0%, #f97316 35%, #fde047 70%, transparent 100%);
+  transform-origin: bottom center;
+  transform: rotate(var(--angle));
+  animation: effect-flame-rise 1s ease-out forwards;
+  animation-delay: calc(var(--fi) * 0.025s);
+  filter: blur(0.5px);
+  box-shadow: 0 0 24px rgba(249, 115, 22, 0.6);
+}
+
+@keyframes effect-flame-rise {
+  0% {
+    height: 0;
+    opacity: 0.4;
+  }
+  35% {
+    height: 38vh;
+    opacity: 1;
+  }
+  100% {
+    height: 52vh;
+    opacity: 0;
+  }
+}
+
+.effect-flame-pillar {
+  width: 140px;
+  height: 55vh;
+  border-radius: 45% 45% 15% 15%;
+  background: linear-gradient(
+    to top,
+    #7c2d12 0%,
+    #ea580c 25%,
+    #fb923c 50%,
+    #fde047 75%,
+    transparent 100%
+  );
+  filter: blur(1px);
+  box-shadow:
+    0 0 60px rgba(249, 115, 22, 0.9),
+    0 0 120px rgba(234, 88, 12, 0.5);
+}
+
+.effect-ember-rise {
+  background-image: radial-gradient(circle, #fde047 1px, transparent 2px);
+  background-size: 40px 40px;
+  animation: effect-ember-float 1s ease-out forwards;
+  opacity: 0.6;
+}
+
+@keyframes effect-ember-float {
+  from {
+    background-position: 0 100%;
+    opacity: 0.2;
+  }
+  to {
+    background-position: 0 -60%;
+    opacity: 0.8;
+  }
+}
+
+.effect-flame-burst-shake {
+  animation: effect-flame-shake 0.12s ease-in-out 8;
+}
+
+@keyframes effect-flame-shake {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(-5px, 3px);
+  }
+  75% {
+    transform: translate(5px, -3px);
+  }
+}
+
+.effect-flame-burst-mini {
+  width: 100px;
+  height: 120px;
+  border-radius: 50% 50% 20% 20%;
+  background: linear-gradient(to top, #c2410c, #fde047, transparent);
+  animation: effect-mini-flame 0.6s ease-out forwards;
+}
+
+.effect-flame-burst-mini-delay {
+  position: absolute;
+  inset: -10px;
+  animation-delay: 0.08s;
+  opacity: 0.7;
+  transform: scale(0.85) rotate(15deg);
+}
+
+@keyframes effect-mini-flame {
+  0% {
+    transform: scale(0.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
 }

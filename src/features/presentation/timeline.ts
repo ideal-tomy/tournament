@@ -1,5 +1,5 @@
 import gsap from 'gsap';
-import { EFFECT_TIMING } from './effectConstants';
+import { EFFECT_EASING, EFFECT_TIMING } from './effectConstants';
 
 export interface WinnerTimelineCallbacks {
   onShow: () => void;
@@ -12,7 +12,8 @@ export interface AdvanceTimelineCallbacks {
   onLineProgress: (progress: number) => void;
   onClashStart: () => void;
   onCollision: () => void;
-  onExplosion: () => void;
+  onVsAnticipation: () => void;
+  onVsFlameBurst: () => void;
   onVsShow: () => void;
   onClose: () => void;
 }
@@ -28,20 +29,23 @@ export function buildAdvanceTimeline(callbacks: AdvanceTimelineCallbacks): gsap.
   tl.to(lineState, {
     progress: 1,
     duration: EFFECT_TIMING.lineExtend,
-    ease: 'power2.inOut',
+    ease: EFFECT_EASING.line,
     onUpdate: () => callbacks.onLineProgress(lineState.progress),
   });
 
-  tl.add(() => callbacks.onClashStart());
+  tl.add(() => callbacks.onClashStart(), `-=${EFFECT_TIMING.lineClashOverlap}`);
   tl.to({}, { duration: EFFECT_TIMING.clashApproach });
 
   tl.add(() => callbacks.onCollision());
   tl.to({}, { duration: EFFECT_TIMING.collisionFlash });
 
-  tl.add(() => callbacks.onExplosion());
-  tl.to({}, { duration: EFFECT_TIMING.explosion });
+  tl.add(() => callbacks.onVsAnticipation(), `-=0.2`);
+  tl.to({}, { duration: EFFECT_TIMING.vsAnticipation });
 
-  tl.add(() => callbacks.onVsShow());
+  tl.add(() => callbacks.onVsFlameBurst());
+  tl.to({}, { duration: EFFECT_TIMING.vsFlameBurst });
+
+  tl.add(() => callbacks.onVsShow(), `-=${EFFECT_TIMING.vsRevealOverlap}`);
   tl.to({}, { duration: EFFECT_TIMING.vsShow });
 
   tl.add(() => callbacks.onClose());

@@ -3,6 +3,10 @@ import type { EventRow } from '../types';
 
 export type ActiveEvent = Pick<EventRow, 'id' | 'name' | 'status'>;
 
+export function isRehearsalEventName(name: string): boolean {
+  return name.startsWith('[REHEARSAL]');
+}
+
 function todayLabel(): string {
   return new Date().toLocaleDateString('ja-JP');
 }
@@ -31,18 +35,27 @@ async function fetchEventById(eventId: string): Promise<ActiveEvent | null> {
   return data;
 }
 
-async function fetchLatestRehearsalEvent(): Promise<ActiveEvent | null> {
-  const { data, error } = await supabase
+async function fetchLatestRehearsalEvent(includeFinished = false): Promise<ActiveEvent | null> {
+  let query = supabase
     .from('events')
     .select('id, name, status')
     .ilike('name', '[REHEARSAL]%')
-    .neq('status', 'finished')
     .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(1);
+
+  if (!includeFinished) {
+    query = query.neq('status', 'finished');
+  }
+
+  const { data, error } = await query.maybeSingle();
 
   if (error) throw error;
   return data;
+}
+
+/** 再利用用 — 終了済みリハーサルも含む最新 */
+export async function getLatestRehearsalEvent(): Promise<ActiveEvent | null> {
+  return fetchLatestRehearsalEvent(true);
 }
 
 async function fetchLatestActiveEvent(): Promise<ActiveEvent | null> {
