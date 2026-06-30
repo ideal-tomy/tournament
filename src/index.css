@@ -24,3 +24,76 @@ body {
 .bracket-match-current {
   animation: bracket-pulse 1.4s ease-in-out infinite;
 }
+
+@keyframes effect-shake {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(-3px, 2px);
+  }
+  75% {
+    transform: translate(3px, -2px);
+  }
+}
+
+.effect-shake {
+  animation: effect-shake 0.12s ease-in-out 2;
+}
+
+.effect-collision-flash {
+  animation: effect-flash 0.1s ease-out;
+}
+
+@keyframes effect-flash {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.effect-explosion-core {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fef08a 0%, #f97316 40%, transparent 70%);
+  animation: effect-burst-core 0.8s ease-out forwards;
+}
+
+.effect-explosion-ring {
+  position: absolute;
+  inset: -20px;
+  border-radius: 50%;
+  border: 3px solid rgba(250, 204, 21, 0.8);
+  animation: effect-burst-ring 0.8s ease-out forwards;
+}
+
+.effect-explosion-ring-delay {
+  animation-delay: 0.08s;
+  border-color: rgba(244, 114, 182, 0.6);
+}
+
+@keyframes effect-burst-core {
+  0% {
+    transform: scale(0.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
+}
+
+@keyframes effect-burst-ring {
+  0% {
+    transform: scale(0.5);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(3);
+    opacity: 0;
+  }
+}

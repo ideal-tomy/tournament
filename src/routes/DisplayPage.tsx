@@ -1,10 +1,13 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import BracketView from '../features/bracket/BracketView';
+import EffectOrchestrator from '../features/presentation/EffectOrchestrator';
 import { useBracketDisplay } from '../features/bracket/useBracketDisplay';
 import { useActiveEvent } from '../hooks/useActiveEvent';
 import { subscribe } from '../lib/realtime';
 import { bracketTheme } from '../styles/bracketTheme';
+import type { RealtimeEvent } from '../types';
+
+type MatchConfirmed = Extract<RealtimeEvent, { type: 'match:confirmed' }>;
 
 export default function DisplayPage() {
   const { event, loading, error, reload } = useActiveEvent();
@@ -20,20 +23,38 @@ export default function DisplayPage() {
     reload: reloadBracket,
   } = useBracketDisplay(event?.id);
 
+  const [matchConfirmed, setMatchConfirmed] = useState<MatchConfirmed | null>(null);
+  const [skipSignal, setSkipSignal] = useState(0);
+  const effectPlayingRef = useRef(false);
+  const pendingBracketReloadRef = useRef(false);
+
+  const handleEffectComplete = useCallback(() => {
+    effectPlayingRef.current = false;
+    if (pendingBracketReloadRef.current) {
+      pendingBracketReloadRef.current = false;
+      reloadBracket();
+    }
+  }, [reloadBracket]);
+
   useEffect(() => {
     if (!event) return;
     return subscribe(event.id, (payload) => {
       if (payload.type === 'bracket:updated') {
-        reloadBracket();
+        if (effectPlayingRef.current) {
+          pendingBracketReloadRef.current = true;
+        } else {
+          reloadBracket();
+        }
       }
       if (payload.type === 'match:confirmed') {
-        console.info('[Display] match:confirmed', payload);
+        effectPlayingRef.current = true;
+        setMatchConfirmed(payload);
       }
       if (payload.type === 'event:finished') {
         console.info('[Display] event:finished', payload);
       }
       if (payload.type === 'effect:skip') {
-        console.info('[Display] effect:skip', payload);
+        setSkipSignal((n) => n + 1);
       }
     });
   }, [event?.id, reloadBracket]);
@@ -97,14 +118,16 @@ export default function DisplayPage() {
             )}
 
             {hasBracket && snapshot && (
-              <div className="flex-1 min-h-0 w-full overflow-hidden flex items-center justify-center">
-                <BracketView
-                  data={snapshot}
-                  faceUrlByTeamId={faceUrlByTeamId}
-                  labelByTeamId={labelByTeamId}
-                  currentMatchId={currentMatchId}
-                />
-              </div>
+              <EffectOrchestrator
+                snapshot={snapshot}
+                faceUrlByTeamId={faceUrlByTeamId}
+                labelByTeamId={labelByTeamId}
+                currentMatchId={currentMatchId}
+                matchConfirmed={matchConfirmed}
+                skipSignal={skipSignal}
+                onMatchConfirmedConsumed={() => setMatchConfirmed(null)}
+                onEffectComplete={handleEffectComplete}
+              />
             )}
           </>
         )}
