@@ -8,6 +8,7 @@ export interface FaceBox {
 }
 
 const OUT_SIZE = 512;
+const FACE_DETECT_TIMEOUT_MS = 5000;
 const MEDIAPIPE_CDN =
   'https://cdn.jsdelivr.net/npm/@mediapipe/face_detection@0.4.1646425229';
 
@@ -40,44 +41,64 @@ function sourceSize(source: HTMLCanvasElement | HTMLVideoElement): {
   return { w: source.width, h: source.height };
 }
 
-function drawSourceToCanvas(source: HTMLCanvasElement | HTMLVideoElement): HTMLCanvasElement {
-  const { w, h } = sourceSize(source);
+/** ストリーム停止前に video → canvas へフレーム固定 */
+export function captureVideoFrame(video: HTMLVideoElement): HTMLCanvasElement {
+  const w = video.videoWidth;
+  const h = video.videoHeight;
+  if (w === 0 || h === 0) {
+    throw new Error('カメラ映像の取得に失敗しました。もう一度撮影してください。');
+  }
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas 2D context unavailable');
-  ctx.drawImage(source, 0, 0, w, h);
+  ctx.drawImage(video, 0, 0, w, h);
   return canvas;
 }
 
-/** MediaPipe で顔 BB を取得。検出失敗時は undefined */
+function drawSourceToCanvas(source: HTMLCanvasElement | HTMLVideoElement): HTMLCanvasElement {
+  if (source instanceof HTMLCanvasElement) return source;
+  return captureVideoFrame(source);
+}
+
+/** MediaPipe で顔 BB を取得。検出失敗・タイムアウト時は undefined */
 export async function detectFaceBox(
   source: HTMLCanvasElement | HTMLVideoElement,
 ): Promise<FaceBox | undefined> {
   const { w: sw, h: sh } = sourceSize(source);
   if (sw === 0 || sh === 0) return undefined;
 
-  const canvas = drawSourceToCanvas(source);
-  const fd = await getDetector();
+  try {
+    const canvas = drawSourceToCanvas(source);
+    const fd = await getDetector();
 
-  return new Promise((resolve) => {
-    fd.onResults((results) => {
-      const detection = results.detections?.[0];
-      const bb = detection?.boundingBox;
-      if (!bb) {
-        resolve(undefined);
-        return;
-      }
-      resolve({
-        x: (bb.xCenter - bb.width / 2) * sw,
-        y: (bb.yCenter - bb.height / 2) * sh,
-        w: bb.width * sw,
-        h: bb.height * sh,
-      });
-    });
-    void fd.send({ image: canvas });
-  });
+    const detection = await Promise.race([
+      new Promise<FaceBox | undefined>((resolve) => {
+        fd.onResults((results) => {
+          const bb = results.detections?.[0]?.boundingBox;
+          if (!bb) {
+            resolve(undefined);
+            return;
+          }
+          resolve({
+            x: (bb.xCenter - bb.width / 2) * sw,
+            y: (bb.yCenter - bb.height / 2) * sh,
+            w: bb.width * sw,
+            h: bb.height * sh,
+          });
+        });
+        void fd.send({ image: canvas });
+      }),
+      new Promise<undefined>((resolve) => {
+        setTimeout(() => resolve(undefined), FACE_DETECT_TIMEOUT_MS);
+      }),
+    ]);
+
+    return detection;
+  } catch {
+    return undefined;
+  }
 }
 
 /** 1:1 正方形クロップ。box 無しは中央フォールバック */
@@ -86,6 +107,9 @@ export async function cropToSquare(
   box?: FaceBox,
 ): Promise<Blob> {
   const { w: sw, h: sh } = sourceSize(source);
+  if (sw === 0 || sh === 0) {
+    throw new Error('画像サイズが不正です');
+  }
 
   let cx: number;
   let cy: number;
@@ -120,26 +144,52 @@ export async function captureOriginal(
   return blobFromCanvas(canvas, 0.92);
 }
 
-/** 顔検出 → クロップを一括実行 */
-export async function processCapture(source: HTMLVideoElement): Promise<{
+/** canvas から顔検出 → クロップ（撮影後はこちらを使う） */
+export async function processCaptureFromCanvas(canvas: HTMLCanvasElement): Promise<{
   photo: Blob;
   face: Blob;
   faceDetected: boolean;
   facePreviewUrl: string;
 }> {
-  const photo = await captureOriginal(source);
-  const box = await detectFaceBox(source);
-  const face = await cropToSquare(source, box);
+  const photo = await captureOriginal(canvas);
+  const box = await detectFaceBox(canvas);
+  const face = await cropToSquare(canvas, box);
   const facePreviewUrl = URL.createObjectURL(face);
   return { photo, face, faceDetected: box != null, facePreviewUrl };
 }
 
+/** @deprecated ストリーム停止前に captureVideoFrame → processCaptureFromCanvas を使う */
+export async function processCapture(source: HTMLVideoElement) {
+  return processCaptureFromCanvas(captureVideoFrame(source));
+}
+
+/** iOS Safari では toBlob が null を返すことがある → toDataURL でフォールバック */
 function blobFromCanvas(canvas: HTMLCanvasElement, quality = 0.9): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
-      (b) => (b ? resolve(b) : reject(new Error('画像の生成に失敗しました'))),
+      (b) => {
+        if (b) {
+          resolve(b);
+          return;
+        }
+        try {
+          resolve(dataUrlToBlob(canvas.toDataURL('image/jpeg', quality)));
+        } catch {
+          reject(new Error('画像の生成に失敗しました'));
+        }
+      },
       'image/jpeg',
       quality,
     );
   });
+}
+
+function dataUrlToBlob(dataUrl: string): Blob {
+  const [header, base64] = dataUrl.split(',');
+  if (!base64) throw new Error('画像の生成に失敗しました');
+  const mime = header.match(/:(.*?);/)?.[1] ?? 'image/jpeg';
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
 }

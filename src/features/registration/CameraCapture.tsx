@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { processCapture } from './faceCrop';
+import {
+  captureVideoFrame,
+  processCaptureFromCanvas,
+} from './faceCrop';
 import {
   addParticipant,
   updateParticipantPhotos,
 } from './registrationApi';
 
 type Step = 'preview' | 'confirm' | 'saving';
+export type CameraFacing = 'user' | 'environment';
 
 interface CaptureDraft {
   photo: Blob;
@@ -31,22 +35,32 @@ export default function CameraCapture({
   const streamRef = useRef<MediaStream | null>(null);
 
   const [step, setStep] = useState<Step>('preview');
+  const [facingMode, setFacingMode] = useState<CameraFacing>('user');
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [draft, setDraft] = useState<CaptureDraft | null>(null);
   const [name, setName] = useState(retakeTarget?.name ?? '');
   const [processing, setProcessing] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [cameraReady, setCameraReady] = useState(false);
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+    setCameraReady(false);
   }, []);
 
   const startCamera = useCallback(async () => {
     setCameraError(null);
+    setCameraReady(false);
+    stopCamera();
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: {
+          facingMode: { ideal: facingMode },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
         audio: false,
       });
       streamRef.current = stream;
@@ -54,11 +68,14 @@ export default function CameraCapture({
       if (video) {
         video.srcObject = stream;
         await video.play();
+        if (video.videoWidth > 0) {
+          setCameraReady(true);
+        }
       }
     } catch (e) {
       setCameraError(formatCameraError(e));
     }
-  }, []);
+  }, [facingMode, stopCamera]);
 
   useEffect(() => {
     if (step === 'preview') {
@@ -67,7 +84,7 @@ export default function CameraCapture({
     return () => {
       if (step === 'preview') stopCamera();
     };
-  }, [step, startCamera, stopCamera]);
+  }, [step, facingMode, startCamera, stopCamera]);
 
   useEffect(() => {
     setName(retakeTarget?.name ?? '');
@@ -86,6 +103,10 @@ export default function CameraCapture({
     setStep('preview');
   }
 
+  function toggleFacing() {
+    setFacingMode((f) => (f === 'user' ? 'environment' : 'user'));
+  }
+
   async function handleCapture() {
     const video = videoRef.current;
     if (!video || video.readyState < 2) return;
@@ -93,8 +114,10 @@ export default function CameraCapture({
     setProcessing(true);
     setSaveError(null);
     try {
+      // ストリーム停止前にフレームを canvas に固定（iOS で必須）
+      const frame = captureVideoFrame(video);
       stopCamera();
-      const result = await processCapture(video);
+      const result = await processCaptureFromCanvas(frame);
       setDraft(result);
       setStep('confirm');
     } catch (e) {
@@ -218,6 +241,8 @@ export default function CameraCapture({
     );
   }
 
+  const isSelfie = facingMode === 'user';
+
   return (
     <div className="space-y-4">
       {retakeTarget && (
@@ -231,12 +256,23 @@ export default function CameraCapture({
           ref={videoRef}
           playsInline
           muted
-          className="absolute inset-0 w-full h-full object-cover mirror"
+          autoPlay
+          onLoadedMetadata={(e) => {
+            if (e.currentTarget.videoWidth > 0) setCameraReady(true);
+          }}
+          className={`absolute inset-0 w-full h-full object-cover ${isSelfie ? 'mirror' : ''}`}
         />
-        {/* 顔ガイド枠 */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="w-[55%] max-w-xs aspect-square rounded-full border-4 border-white/70 border-dashed shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
         </div>
+        <button
+          type="button"
+          onClick={toggleFacing}
+          className="absolute top-3 right-3 rounded-full bg-black/60 text-white px-3 py-2 text-sm font-medium backdrop-blur-sm"
+          aria-label="カメラ切替"
+        >
+          {isSelfie ? '📷 外カメラ' : '🤳 インカメラ'}
+        </button>
         <p className="absolute bottom-3 left-0 right-0 text-center text-white/90 text-sm drop-shadow">
           ガイド枠に顔を合わせてください
         </p>
@@ -247,7 +283,7 @@ export default function CameraCapture({
       <button
         type="button"
         onClick={() => void handleCapture()}
-        disabled={processing}
+        disabled={processing || !cameraReady}
         className="w-full rounded-lg bg-emerald-600 text-white py-5 text-xl font-bold disabled:opacity-50"
       >
         {processing ? '処理中…' : '撮影する'}
