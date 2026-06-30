@@ -20,7 +20,7 @@ interface CaptureDraft {
 
 interface CameraCaptureProps {
   eventId: string;
-  retakeTarget?: { id: string; name: string } | null;
+  retakeTarget?: { id: string; name: string; rating: number | null } | null;
   onDone: () => void;
   onCancelRetake?: () => void;
 }
@@ -39,6 +39,9 @@ export default function CameraCapture({
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [draft, setDraft] = useState<CaptureDraft | null>(null);
   const [name, setName] = useState(retakeTarget?.name ?? '');
+  const [ratingInput, setRatingInput] = useState(
+    retakeTarget?.rating != null ? String(retakeTarget.rating) : '',
+  );
   const [processing, setProcessing] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
@@ -88,6 +91,7 @@ export default function CameraCapture({
 
   useEffect(() => {
     setName(retakeTarget?.name ?? '');
+    setRatingInput(retakeTarget?.rating != null ? String(retakeTarget.rating) : '');
   }, [retakeTarget]);
 
   useEffect(() => {
@@ -131,6 +135,12 @@ export default function CameraCapture({
   async function handleRegister() {
     if (!draft || !name.trim()) return;
 
+    const rating = parseRating(ratingInput);
+    if (rating == null) {
+      setSaveError('レーティングを正の数値で入力してください');
+      return;
+    }
+
     setStep('saving');
     setSaveError(null);
     try {
@@ -141,9 +151,10 @@ export default function CameraCapture({
           draft.photo,
           draft.face,
           name,
+          rating,
         );
       } else {
-        await addParticipant(eventId, name, draft.photo, draft.face);
+        await addParticipant(eventId, name, rating, draft.photo, draft.face);
       }
       if (draft.facePreviewUrl) URL.revokeObjectURL(draft.facePreviewUrl);
       setDraft(null);
@@ -195,9 +206,25 @@ export default function CameraCapture({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="参加者名"
-            className="w-full rounded-lg border border-slate-300 px-4 py-3 text-lg"
+            className="w-full rounded-lg border border-slate-300 px-4 py-3 text-lg mb-3"
             autoFocus
           />
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            レーティング
+          </label>
+          <input
+            type="number"
+            inputMode="decimal"
+            step="0.1"
+            min="0.1"
+            value={ratingInput}
+            onChange={(e) => setRatingInput(e.target.value)}
+            placeholder="例: 5.5"
+            className="w-full rounded-lg border border-slate-300 px-4 py-3 text-lg"
+          />
+          <p className="text-xs text-slate-500 mt-1">
+            抽選時にチーム平均が均等になるよう編成します
+          </p>
         </div>
 
         {saveError && <p className="text-sm text-red-600">{saveError}</p>}
@@ -213,7 +240,7 @@ export default function CameraCapture({
           <button
             type="button"
             onClick={() => void handleRegister()}
-            disabled={!name.trim()}
+            disabled={!name.trim() || !ratingInput.trim()}
             className="rounded-lg bg-slate-800 text-white py-4 font-bold disabled:opacity-40"
           >
             {retakeTarget ? '更新する' : '登録する'}
@@ -302,6 +329,12 @@ export default function CameraCapture({
       <style>{`.mirror { transform: scaleX(-1); }`}</style>
     </div>
   );
+}
+
+function parseRating(input: string): number | null {
+  const n = Number(input.trim());
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.round(n * 10) / 10;
 }
 
 function formatCameraError(e: unknown): string {

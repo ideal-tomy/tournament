@@ -25,6 +25,7 @@ export interface ParticipantRow {
   id: string;
   event_id: string;
   name: string;
+  rating: number | null;
   photo_path: string | null;
   face_crop_path: string | null;
   created_at: string;

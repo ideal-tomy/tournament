@@ -1,11 +1,18 @@
 import { supabase } from '../../lib/supabase';
-import { makeTeams, type DrawStrategy } from './draw';
+import {
+  makeBalancedTeams,
+  teamRatingAvg,
+  type DrawStrategy,
+  type RatedParticipant,
+} from './draw';
 import { buildDoubleElimination } from '../bracket/manager';
 import type { StageData } from '../bracket/layout';
 
 export interface DrawPreviewTeam {
   memberIds: string[];
   memberNames: string[];
+  avgRating: number;
+  totalRating: number;
 }
 
 export async function clearEventTeams(eventId: string): Promise<void> {
@@ -79,13 +86,16 @@ export async function confirmDrawAndBuildBracket(
 }
 
 export function previewDraw(
-  participantIds: string[],
+  participants: RatedParticipant[],
   participantNames: Map<string, string>,
   strategy: DrawStrategy,
 ): DrawPreviewTeam[] {
-  return makeTeams(participantIds, strategy).map((memberIds) => ({
+  const ratingById = new Map(participants.map((p) => [p.id, p.rating]));
+  return makeBalancedTeams(participants, strategy).map((memberIds) => ({
     memberIds,
     memberNames: memberIds.map((id) => participantNames.get(id) ?? '?'),
+    avgRating: teamRatingAvg(memberIds, ratingById),
+    totalRating: memberIds.reduce((s, id) => s + (ratingById.get(id) ?? 0), 0),
   }));
 }
 

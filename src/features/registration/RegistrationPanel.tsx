@@ -23,7 +23,15 @@ export default function RegistrationPanel({ eventId }: RegistrationPanelProps) {
         <h2 className="text-lg font-bold mb-3">参加者登録</h2>
         <CameraCapture
           eventId={eventId}
-          retakeTarget={retakeTarget ? { id: retakeTarget.id, name: retakeTarget.name } : null}
+          retakeTarget={
+            retakeTarget
+              ? {
+                  id: retakeTarget.id,
+                  name: retakeTarget.name,
+                  rating: retakeTarget.rating,
+                }
+              : null
+          }
           onDone={handleDone}
           onCancelRetake={() => setRetakeTarget(null)}
         />
@@ -40,6 +48,7 @@ export default function RegistrationPanel({ eventId }: RegistrationPanelProps) {
           loading={loading}
           onRetake={setRetakeTarget}
           onDeleted={() => void refresh()}
+          onUpdated={() => void refresh()}
         />
       </section>
     </div>

@@ -20,12 +20,13 @@ export async function listParticipants(eventId: string): Promise<ParticipantRow[
 export async function addParticipant(
   eventId: string,
   name: string,
+  rating: number,
   photo: Blob,
   face: Blob,
 ): Promise<string> {
   const { data: row, error } = await supabase
     .from('participants')
-    .insert({ event_id: eventId, name: name.trim() })
+    .insert({ event_id: eventId, name: name.trim(), rating })
     .select()
     .single();
 
@@ -57,6 +58,7 @@ export async function updateParticipantPhotos(
   photo: Blob,
   face: Blob,
   name?: string,
+  rating?: number,
 ): Promise<void> {
   const base = `${eventId}/${participantId}.jpg`;
 
@@ -70,11 +72,17 @@ export async function updateParticipantPhotos(
     .upload(base, face, { upsert: true, contentType: 'image/jpeg' });
   if (faceRes.error) throw faceRes.error;
 
-  const patch: { photo_path: string; face_crop_path: string; name?: string } = {
+  const patch: {
+    photo_path: string;
+    face_crop_path: string;
+    name?: string;
+    rating?: number;
+  } = {
     photo_path: base,
     face_crop_path: base,
   };
   if (name != null) patch.name = name.trim();
+  if (rating != null) patch.rating = rating;
 
   const { error } = await supabase
     .from('participants')
@@ -97,5 +105,16 @@ export async function deleteParticipant(participant: ParticipantRow): Promise<vo
     .delete()
     .eq('id', participant.id);
 
+  if (error) throw error;
+}
+
+export async function updateParticipantRating(
+  participantId: string,
+  rating: number,
+): Promise<void> {
+  const { error } = await supabase
+    .from('participants')
+    .update({ rating })
+    .eq('id', participantId);
   if (error) throw error;
 }
