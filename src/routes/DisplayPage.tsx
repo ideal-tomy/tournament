@@ -88,13 +88,9 @@ export default function DisplayPage() {
           }
         }
         if (payload.type === 'match:confirmed') {
-          if (payload.advanceEffect) {
-            effectPlayingRef.current = true;
-            setPendingEffect(payload);
-            reloadBracket();
-          } else {
-            reloadBracket();
-          }
+          effectPlayingRef.current = true;
+          setPendingEffect(payload);
+          reloadBracket();
         }
         if (payload.type === 'event:finished') {
           reload();

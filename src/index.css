@@ -97,3 +97,76 @@ body {
     opacity: 0;
   }
 }
+
+.effect-winner-rays {
+  position: absolute;
+  width: 120vmax;
+  height: 120vmax;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgba(250, 204, 21, 0.12) 20deg,
+    transparent 40deg,
+    rgba(34, 211, 238, 0.1) 60deg,
+    transparent 80deg,
+    rgba(244, 114, 182, 0.1) 100deg,
+    transparent 120deg
+  );
+  animation: effect-rays-spin 12s linear infinite;
+}
+
+@keyframes effect-rays-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.effect-winner-badge {
+  text-shadow:
+    0 0 20px rgba(250, 204, 21, 0.9),
+    0 0 40px rgba(250, 204, 21, 0.5);
+  animation: effect-winner-pulse 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes effect-winner-pulse {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.06);
+  }
+}
+
+.effect-confetti {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle, #fde047 1px, transparent 1px),
+    radial-gradient(circle, #22d3ee 1px, transparent 1px),
+    radial-gradient(circle, #f472b6 1px, transparent 1px);
+  background-size: 80px 80px, 120px 120px, 100px 100px;
+  background-position: 0 0, 40px 40px, 20px 60px;
+  opacity: 0.35;
+  animation: effect-confetti-fall 2.5s linear infinite;
+}
+
+@keyframes effect-confetti-fall {
+  from {
+    background-position: 0 -80px, 40px -40px, 20px 0;
+  }
+  to {
+    background-position: 0 80px, 40px 120px, 20px 100px;
+  }
+}
+
+.effect-clash-burst {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 160px;
+  height: 160px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, #fef08a 0%, #f97316 35%, transparent 70%);
+  box-shadow: 0 0 60px rgba(250, 204, 21, 0.8);
+}

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { StageData } from '../bracket/layout';
 import type { RealtimeEvent } from '../../types';
+import { getMatchBracketKind } from '../progression/progression';
 import { BRACKET_LABELS } from './effectConstants';
 import { ensurePresentationPreloaded } from './preloadPresentation';
 import {
@@ -8,29 +9,36 @@ import {
   viewBoxToPercent,
   type MatchEffectLayout,
 } from './resolveEffectLayout';
-import { buildMatchTimeline, skipTimeline } from './timeline';
+import { buildPresentationTimeline, skipTimeline } from './timeline';
+import type { ClashPhase } from './ClashPopup';
 
 export type EffectPhase =
   | 'idle'
+  | 'winner'
+  | 'winnerClosing'
   | 'dim'
   | 'lines'
+  | 'clash'
   | 'flash'
   | 'explosion'
   | 'vs'
   | 'closing';
+
+interface ActiveEffect {
+  matchId: number;
+  winnerTeamId: string;
+  loserTeamId: string;
+  winnerBracketLabel: string;
+  teamAId?: string;
+  teamBId?: string;
+  layout?: MatchEffectLayout;
+}
 
 interface UseMatchEffectOptions {
   snapshot: StageData | null;
   faceUrlByTeamId: Record<string, string[]>;
   labelByTeamId: Record<string, string>;
   onComplete: () => void;
-}
-
-interface ActiveEffect {
-  nextMatchId: number;
-  teamAId: string;
-  teamBId: string;
-  layout: MatchEffectLayout;
 }
 
 export function useMatchEffect({
@@ -42,10 +50,11 @@ export function useMatchEffect({
   const [phase, setPhase] = useState<EffectPhase>('idle');
   const [lineProgress, setLineProgress] = useState(0);
   const [active, setActive] = useState<ActiveEffect | null>(null);
-  const timelineRef = useRef<ReturnType<typeof buildMatchTimeline> | null>(null);
+  const timelineRef = useRef<ReturnType<typeof buildPresentationTimeline> | null>(null);
   const playingRef = useRef(false);
 
   const isPlaying = phase !== 'idle';
+  const hasAdvance = Boolean(active?.layout && active.teamAId && active.teamBId);
 
   const finishEffect = useCallback(() => {
     timelineRef.current = null;
@@ -60,23 +69,24 @@ export function useMatchEffect({
     async (payload: Extract<RealtimeEvent, { type: 'match:confirmed' }>) => {
       if (!snapshot || playingRef.current) return;
 
+      const match = snapshot.match.find((m) => m.id === payload.matchId);
+      const bracketKind = match ? getMatchBracketKind(snapshot, match) : 'winner';
+      const winnerBracketLabel = BRACKET_LABELS[bracketKind];
+
       const advance = payload.advanceEffect;
-      if (!advance) {
-        onComplete();
-        return;
+      let layout: MatchEffectLayout | undefined;
+      if (advance) {
+        layout = resolveAdvanceEffectLayout(snapshot, advance) ?? undefined;
+        if (!layout) {
+          console.warn('[presentation] advance layout not found', advance.nextMatchId);
+        }
       }
 
-      const layout = resolveAdvanceEffectLayout(snapshot, advance);
-      if (!layout) {
-        console.warn('[presentation] advance layout not found', advance.nextMatchId);
-        onComplete();
-        return;
+      const preloadIds = [payload.winnerTeamId];
+      if (advance) {
+        preloadIds.push(advance.teamAId, advance.teamBId);
       }
-
-      const faceUrls = [
-        ...(faceUrlByTeamId[advance.teamAId] ?? []),
-        ...(faceUrlByTeamId[advance.teamBId] ?? []),
-      ];
+      const faceUrls = preloadIds.flatMap((id) => faceUrlByTeamId[id] ?? []);
       const preloaded = await ensurePresentationPreloaded(faceUrls);
       if (!preloaded) {
         console.warn('[presentation] preload incomplete — skipping effect');
@@ -86,24 +96,37 @@ export function useMatchEffect({
 
       playingRef.current = true;
       setActive({
-        nextMatchId: advance.nextMatchId,
-        teamAId: advance.teamAId,
-        teamBId: advance.teamBId,
+        matchId: payload.matchId,
+        winnerTeamId: payload.winnerTeamId,
+        loserTeamId: payload.loserTeamId,
+        winnerBracketLabel,
+        teamAId: advance?.teamAId,
+        teamBId: advance?.teamBId,
         layout,
       });
       setLineProgress(0);
-      setPhase('dim');
+      setPhase('winner');
 
-      const tl = buildMatchTimeline({
-        onDimStart: () => setPhase('dim'),
-        onLinesStart: () => setPhase('lines'),
-        onLineProgress: (p) => setLineProgress(p),
-        onCollision: () => setPhase('flash'),
-        onExplosion: () => setPhase('explosion'),
-        onVsShow: () => setPhase('vs'),
-        onClose: () => setPhase('closing'),
-        onComplete: finishEffect,
-      });
+      const tl = buildPresentationTimeline(
+        Boolean(advance && layout),
+        {
+          onShow: () => setPhase('winner'),
+          onClose: () => setPhase('winnerClosing'),
+        },
+        advance && layout
+          ? {
+              onDimStart: () => setPhase('dim'),
+              onLinesStart: () => setPhase('lines'),
+              onLineProgress: (p) => setLineProgress(p),
+              onClashStart: () => setPhase('clash'),
+              onCollision: () => setPhase('flash'),
+              onExplosion: () => setPhase('explosion'),
+              onVsShow: () => setPhase('vs'),
+              onClose: () => setPhase('closing'),
+            }
+          : undefined,
+        finishEffect,
+      );
 
       timelineRef.current = tl;
     },
@@ -123,33 +146,65 @@ export function useMatchEffect({
     };
   }, []);
 
-  const explosionPercent = active
-    ? viewBoxToPercent(active.layout.collision, active.layout.viewBox)
-    : { x: 50, y: 50 };
+  const explosionPercent =
+    active?.layout != null
+      ? viewBoxToPercent(active.layout.collision, active.layout.viewBox)
+      : { x: 50, y: 50 };
 
+  const winnerVisible = phase === 'winner' || phase === 'winnerClosing';
+  const winnerClosing = phase === 'winnerClosing';
   const vsVisible = phase === 'vs' || phase === 'closing';
-  const showOverlay = phase === 'lines' || phase === 'flash' || phase === 'explosion';
-  const showExplosion = phase === 'explosion';
+  const vsClosing = phase === 'closing';
+
+  const clashPhase: ClashPhase =
+    phase === 'clash'
+      ? 'approach'
+      : phase === 'flash'
+        ? 'impact'
+        : phase === 'explosion'
+          ? 'explosion'
+          : 'hidden';
+
+  const showBracketOverlay =
+    hasAdvance && (phase === 'lines' || phase === 'flash' || phase === 'explosion');
+  const showExplosion = phase === 'explosion' && hasAdvance;
   const showFlash = phase === 'flash';
+  const dimmed =
+    hasAdvance &&
+    phase !== 'idle' &&
+    phase !== 'winner' &&
+    phase !== 'winnerClosing' &&
+    phase !== 'closing';
+
+  const advanceBracketLabel = active?.layout
+    ? BRACKET_LABELS[active.layout.bracket]
+    : '';
 
   return {
     isPlaying,
     phase,
     lineProgress,
     active,
+    hasAdvance,
     explosionPercent,
+    winnerVisible,
+    winnerClosing,
+    clashPhase,
     vsVisible,
-    showOverlay,
+    vsClosing,
+    showBracketOverlay,
     showExplosion,
     showFlash,
-    dimmed: phase !== 'idle' && phase !== 'closing',
+    dimmed,
     startEffect,
     handleSkip,
-    teamALabel: active ? (labelByTeamId[active.teamAId] ?? 'Team A') : '',
-    teamBLabel: active ? (labelByTeamId[active.teamBId] ?? 'Team B') : '',
-    teamAFaces: active ? (faceUrlByTeamId[active.teamAId] ?? []) : [],
-    teamBFaces: active ? (faceUrlByTeamId[active.teamBId] ?? []) : [],
-    bracketLabel: active ? BRACKET_LABELS[active.layout.bracket] : '',
-    vsClosing: phase === 'closing',
+    winnerLabel: active ? (labelByTeamId[active.winnerTeamId] ?? 'Winner') : '',
+    winnerFaces: active ? (faceUrlByTeamId[active.winnerTeamId] ?? []) : [],
+    winnerBracketLabel: active?.winnerBracketLabel ?? '',
+    teamALabel: active?.teamAId ? (labelByTeamId[active.teamAId] ?? 'Team A') : '',
+    teamBLabel: active?.teamBId ? (labelByTeamId[active.teamBId] ?? 'Team B') : '',
+    teamAFaces: active?.teamAId ? (faceUrlByTeamId[active.teamAId] ?? []) : [],
+    teamBFaces: active?.teamBId ? (faceUrlByTeamId[active.teamBId] ?? []) : [],
+    bracketLabel: advanceBracketLabel,
   };
 }

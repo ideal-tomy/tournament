@@ -1,11 +1,14 @@
-/** 演出尺（秒）。棒の上昇 ≈ 3s */
+/** 演出尺（秒） */
 export const EFFECT_TIMING = {
-  dim: 0.4,
+  winnerShow: 2.2,
+  winnerClose: 0.4,
+  dim: 0.35,
   lineExtend: 3.0,
-  collisionFlash: 0.15,
-  explosion: 0.8,
+  clashApproach: 0.9,
+  collisionFlash: 0.25,
+  explosion: 1.0,
   vsShow: 2.0,
-  close: 0.6,
+  close: 0.55,
 } as const;
 
 export const EFFECT_EASING = {
@@ -14,8 +17,18 @@ export const EFFECT_EASING = {
   vsOut: 'power2.in',
 } as const;
 
-export function effectTotalDuration(): number {
-  return Object.values(EFFECT_TIMING).reduce((sum, v) => sum + v, 0);
+export function effectTotalDuration(includeAdvance = true): number {
+  const winner = EFFECT_TIMING.winnerShow + EFFECT_TIMING.winnerClose;
+  if (!includeAdvance) return winner;
+  const advance =
+    EFFECT_TIMING.dim +
+    EFFECT_TIMING.lineExtend +
+    EFFECT_TIMING.clashApproach +
+    EFFECT_TIMING.collisionFlash +
+    EFFECT_TIMING.explosion +
+    EFFECT_TIMING.vsShow +
+    EFFECT_TIMING.close;
+  return winner + advance;
 }
 
 export const BRACKET_LABELS: Record<'winner' | 'loser' | 'grand_final', string> = {

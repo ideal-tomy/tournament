@@ -2,9 +2,11 @@ import { useEffect, useRef } from 'react';
 import BracketView from '../bracket/BracketView';
 import type { StageData } from '../bracket/layout';
 import type { RealtimeEvent } from '../../types';
+import ClashPopup from './ClashPopup';
 import ExplosionLayer from './ExplosionLayer';
 import LineCollision from './LineCollision';
 import VsScreen from './VsScreen';
+import WinnerCelebratePopup from './WinnerCelebratePopup';
 import { useMatchEffect } from './useMatchEffect';
 import { ensurePresentationPreloaded } from './preloadPresentation';
 
@@ -37,20 +39,27 @@ export default function EffectOrchestrator({
     isPlaying,
     lineProgress,
     active,
+    hasAdvance,
     explosionPercent,
+    winnerVisible,
+    winnerClosing,
+    clashPhase,
     vsVisible,
-    showOverlay,
+    vsClosing,
+    showBracketOverlay,
     showExplosion,
     showFlash,
     dimmed,
     startEffect,
     handleSkip,
+    winnerLabel,
+    winnerFaces,
+    winnerBracketLabel,
     teamALabel,
     teamBLabel,
     teamAFaces,
     teamBFaces,
     bracketLabel,
-    vsClosing,
   } = useMatchEffect({
     snapshot,
     faceUrlByTeamId,
@@ -79,7 +88,7 @@ export default function EffectOrchestrator({
         ref={containerRef}
         className={`relative flex-1 min-h-0 w-full overflow-hidden flex items-center justify-center transition-opacity duration-300 ${
           dimmed ? 'opacity-25 scale-[0.98]' : ''
-        } ${isPlaying ? 'effect-shake' : ''}`}
+        } ${isPlaying && hasAdvance ? 'effect-shake' : ''}`}
       >
         {snapshot && (
           <BracketView
@@ -87,11 +96,11 @@ export default function EffectOrchestrator({
             faceUrlByTeamId={faceUrlByTeamId}
             labelByTeamId={labelByTeamId}
             memberNamesByTeamId={memberNamesByTeamId}
-            currentMatchId={isPlaying ? null : currentMatchId}
+            currentMatchId={isPlaying && hasAdvance ? null : currentMatchId}
           />
         )}
 
-        {layout && showOverlay && (
+        {layout && showBracketOverlay && (
           <svg
             className="absolute inset-0 w-full h-full pointer-events-none z-20"
             viewBox={`0 0 ${layout.viewBox.width} ${layout.viewBox.height}`}
@@ -114,7 +123,7 @@ export default function EffectOrchestrator({
           </svg>
         )}
 
-        {layout && (
+        {layout && showExplosion && (
           <ExplosionLayer
             xPercent={explosionPercent.x}
             yPercent={explosionPercent.y}
@@ -122,6 +131,25 @@ export default function EffectOrchestrator({
           />
         )}
       </div>
+
+      <WinnerCelebratePopup
+        visible={winnerVisible}
+        closing={winnerClosing}
+        teamLabel={winnerLabel}
+        faces={winnerFaces}
+        bracketLabel={winnerBracketLabel}
+      />
+
+      {hasAdvance && (
+        <ClashPopup
+          phase={clashPhase}
+          teamALabel={teamALabel}
+          teamBLabel={teamBLabel}
+          teamAFaces={teamAFaces}
+          teamBFaces={teamBFaces}
+          bracketLabel={bracketLabel}
+        />
+      )}
 
       <VsScreen
         visible={vsVisible}
