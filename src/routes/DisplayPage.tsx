@@ -4,6 +4,7 @@ import BracketView from '../features/bracket/BracketView';
 import { useBracketDisplay } from '../features/bracket/useBracketDisplay';
 import { useActiveEvent } from '../hooks/useActiveEvent';
 import { subscribe } from '../lib/realtime';
+import { bracketTheme } from '../styles/bracketTheme';
 
 export default function DisplayPage() {
   const { event, loading, error, reload } = useActiveEvent();
@@ -11,6 +12,8 @@ export default function DisplayPage() {
     snapshot,
     faceUrlByTeamId,
     labelByTeamId,
+    currentMatchId,
+    eventStatus,
     hasBracket,
     loading: bracketLoading,
     error: bracketError,
@@ -38,12 +41,23 @@ export default function DisplayPage() {
   const isLoading = loading || bracketLoading;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <header className="px-6 py-4 border-b border-slate-800 flex items-center justify-between gap-4">
+    <div
+      className="min-h-screen text-white flex flex-col"
+      style={{ backgroundColor: bracketTheme.background }}
+    >
+      <header className="px-6 py-3 border-b border-slate-800/80 flex items-center justify-between gap-4 shrink-0">
         <div>
-          <h1 className="text-xl font-black tracking-tight">トーナメント表</h1>
+          <h1 className="text-xl font-black tracking-tight text-cyan-300">トーナメント表</h1>
           {event && (
-            <p className="text-slate-400 text-sm mt-1">{event.name}</p>
+            <p className="text-slate-400 text-sm mt-0.5">
+              {event.name}
+              {eventStatus === 'finished' && (
+                <span className="ml-2 text-fuchsia-400 font-bold">— 終了</span>
+              )}
+              {eventStatus === 'running' && (
+                <span className="ml-2 text-amber-300 font-medium">— 進行中</span>
+              )}
+            </p>
           )}
         </div>
         <Link to="/admin" className="text-cyan-400 text-sm underline shrink-0">
@@ -51,7 +65,7 @@ export default function DisplayPage() {
         </Link>
       </header>
 
-      <main className="p-4 md:p-6">
+      <main className="flex-1 p-2 md:p-4 min-h-0 flex flex-col">
         {isLoading && (
           <p className="text-slate-400 text-center py-12">読み込み中…</p>
         )}
@@ -82,11 +96,12 @@ export default function DisplayPage() {
             )}
 
             {hasBracket && snapshot && (
-              <div className="overflow-x-auto">
+              <div className="flex-1 min-h-0 w-full overflow-hidden flex items-center justify-center">
                 <BracketView
                   data={snapshot}
                   faceUrlByTeamId={faceUrlByTeamId}
                   labelByTeamId={labelByTeamId}
+                  currentMatchId={currentMatchId}
                 />
               </div>
             )}

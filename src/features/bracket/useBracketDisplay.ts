@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { fetchBracketSnapshot, hasBracket } from './bracketApi';
+import { fetchBracketDisplayMeta, hasBracket } from './bracketApi';
 import { buildTeamVisuals, type TeamVisuals } from './teamFaces';
 import type { StageData } from './layout';
 import { preloadImages } from '../../lib/media';
@@ -7,6 +7,8 @@ import { preloadImages } from '../../lib/media';
 interface BracketState {
   snapshot: StageData | null;
   visuals: TeamVisuals;
+  currentMatchId: number | null;
+  status: 'setup' | 'running' | 'finished';
 }
 
 const EMPTY_VISUALS: TeamVisuals = { faceUrlByTeamId: {}, labelByTeamId: {} };
@@ -15,6 +17,8 @@ export function useBracketDisplay(eventId: string | undefined) {
   const [state, setState] = useState<BracketState>({
     snapshot: null,
     visuals: EMPTY_VISUALS,
+    currentMatchId: null,
+    status: 'setup',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,11 +35,16 @@ export function useBracketDisplay(eventId: string | undefined) {
       setLoading(true);
       setError(null);
       try {
-        const snapshot = await fetchBracketSnapshot(eventId);
+        const meta = await fetchBracketDisplayMeta(eventId);
         if (cancelled) return;
 
-        if (!hasBracket(snapshot)) {
-          setState({ snapshot: null, visuals: EMPTY_VISUALS });
+        if (!hasBracket(meta.snapshot)) {
+          setState({
+            snapshot: null,
+            visuals: EMPTY_VISUALS,
+            currentMatchId: null,
+            status: meta.status,
+          });
           return;
         }
 
@@ -46,7 +55,12 @@ export function useBracketDisplay(eventId: string | undefined) {
         if (urls.length > 0) await preloadImages(urls);
 
         if (cancelled) return;
-        setState({ snapshot, visuals });
+        setState({
+          snapshot: meta.snapshot,
+          visuals,
+          currentMatchId: meta.currentMatchId,
+          status: meta.status,
+        });
       } catch (e) {
         if (cancelled) return;
         setError(e instanceof Error ? e.message : 'ブラケット読み込みに失敗しました');
@@ -65,6 +79,8 @@ export function useBracketDisplay(eventId: string | undefined) {
     snapshot: state.snapshot,
     faceUrlByTeamId: state.visuals.faceUrlByTeamId,
     labelByTeamId: state.visuals.labelByTeamId,
+    currentMatchId: state.currentMatchId,
+    eventStatus: state.status,
     hasBracket: hasBracket(state.snapshot),
     loading,
     error,

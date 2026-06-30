@@ -1,5 +1,4 @@
-// =====================================================================
-// layout.ts — トーナメント座標計算（演出の「座標駆動」の中核）
+import { Status } from 'brackets-model';
 // 配置: src/features/bracket/layout.ts
 //
 // 役割:
@@ -214,7 +213,6 @@ export function computeBracketLayout(
     matches.find(m => m.bracket === bracket && m.round === round && m.row === row);
 
   for (const m of matches) {
-    // advance（暫定: WB向けの素直な規則。LBは要調整）
     const next = findMatch(m.bracket, m.round + 1, Math.floor(m.row / 2));
     if (next) {
       connectors.push({
@@ -225,10 +223,28 @@ export function computeBracketLayout(
         to: { x: next.box.x, y: next.center.y },
       });
     }
-    // TODO(Phase4以降): drop コネクタ（WB各試合の敗者がLBのどの試合へ落ちるか）。
-    //   brackets-manager の match 構造/順序から対応付けを導出して push する。
-    //   ※ 演出(線の衝突/爆発)は基本的に「現在の試合の2スロット中心」を使うため、
-    //     drop線は表示上の装飾。MVPでは未実装でも進行・VS演出は成立する。
+  }
+
+  const dropKeys = new Set<string>();
+  for (const lb of matches.filter((m) => m.bracket === 'loser')) {
+    const bm = data.match.find((x) => x.id === lb.matchId);
+    if (!bm) continue;
+
+    for (const opp of [bm.opponent1, bm.opponent2]) {
+      if (opp?.position == null) continue;
+      const wb = findWbMatchForDrop(data, matches, lb.round, opp.position);
+      if (!wb) continue;
+      const key = `${wb.matchId}->${lb.matchId}`;
+      if (dropKeys.has(key)) continue;
+      dropKeys.add(key);
+      connectors.push({
+        fromMatchId: wb.matchId,
+        toMatchId: lb.matchId,
+        kind: 'drop',
+        from: { x: wb.center.x, y: wb.box.y + wb.box.h },
+        to: { x: lb.center.x, y: lb.box.y },
+      });
+    }
   }
 
   // -------------------------------------------------------------------
@@ -240,6 +256,56 @@ export function computeBracketLayout(
   const height = Math.max(maxBottom + cfg.padding, lbTop + lbSectionH + cfg.padding);
 
   return { matches, connectors, width, height, byId };
+}
+
+/** WB 敗者 → LB 試合の drop 線用: brackets-manager の opponent.position から導出 */
+function findWbMatchForDrop(
+  data: StageData,
+  layouts: MatchLayout[],
+  lbRound: number,
+  position: number,
+): MatchLayout | null {
+  if (lbRound === 1) {
+    const row = Math.floor((position - 1) / 2);
+    return layouts.find((m) => m.bracket === 'winner' && m.round === 1 && m.row === row) ?? null;
+  }
+
+  const wbRound = lbRound % 2 === 0 ? lbRound : lbRound - 1;
+  const bm = data.match.find((m) => {
+    const info = data.round.find((r) => r.id === m.round_id);
+    const group = info ? data.group.find((g) => g.id === info.group_id) : null;
+    return group?.number === 1 && info?.number === wbRound && m.number === position;
+  });
+  if (!bm) return null;
+  return layouts.find((m) => m.matchId === bm.id) ?? null;
+}
+
+export function getWinnerParticipantId(m: BMMatch): number | null {
+  if (m.opponent1?.result === 'win' && m.opponent1.id != null) return m.opponent1.id as number;
+  if (m.opponent2?.result === 'win' && m.opponent2.id != null) return m.opponent2.id as number;
+  return null;
+}
+
+export function getLoserParticipantId(m: BMMatch): number | null {
+  if (m.opponent1?.result === 'loss' && m.opponent1.id != null) return m.opponent1.id as number;
+  if (m.opponent2?.result === 'loss' && m.opponent2.id != null) return m.opponent2.id as number;
+  return null;
+}
+
+/** 確定済み勝ち上がり / 落下経路か */
+export function isConnectorHighlighted(connector: Connector, data: StageData): boolean {
+  const from = data.match.find((m) => m.id === connector.fromMatchId);
+  const to = data.match.find((m) => m.id === connector.toMatchId);
+  if (!from || !to || from.status < Status.Completed) return false;
+
+  const participantInTo = (id: number | null) =>
+    id != null && (to.opponent1?.id === id || to.opponent2?.id === id);
+
+  if (connector.kind === 'advance') {
+    return participantInTo(getWinnerParticipantId(from));
+  }
+
+  return participantInTo(getLoserParticipantId(from));
 }
 
 // =====================================================================

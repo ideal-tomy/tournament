@@ -53,6 +53,25 @@ function assertLayout(data: Awaited<ReturnType<typeof buildSnapshotForTeamCount>
   }
 }
 
+describe('drop connectors', () => {
+  it('8 チームで WB→LB drop 線が生成される', async () => {
+    const data = await buildSnapshotForTeamCount(8);
+    const L = computeBracketLayout(toStageData(data));
+    const drops = L.connectors.filter((c) => c.kind === 'drop');
+    expect(drops.length).toBeGreaterThan(0);
+  });
+});
+
+describe('bracketTheme', () => {
+  it('WB/LB/GF テーマが定義されている', async () => {
+    const { bracketTheme, themeForBracket } = await import('../../styles/bracketTheme');
+    expect(bracketTheme.wb.label).toBe('WINNERS');
+    expect(bracketTheme.lb.label).toBe('LOSERS');
+    expect(bracketTheme.gf.label).toBe('GRAND FINAL');
+    expect(themeForBracket('winner').stroke).toBeTruthy();
+  });
+});
+
 describe('computeBracketLayout', () => {
   it.each([4, 8, 16])('%i チームで WB/LB/GF を含むレイアウト', async (n) => {
     const data = await buildSnapshotForTeamCount(n);

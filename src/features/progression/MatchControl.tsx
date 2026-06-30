@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import BracketView from '../bracket/BracketView';
 import { buildTeamVisuals } from '../bracket/teamFaces';
 import {
   getMatchBracketKind,
@@ -23,11 +24,15 @@ export default function MatchControl({ eventId, onStatusChange }: MatchControlPr
   const { state, loading, error, busy, canUndo, confirmWinner, undo, skipEffect, reload } =
     useProgression(eventId);
   const [labels, setLabels] = useState<Record<string, string>>({});
+  const [faces, setFaces] = useState<Record<string, string[]>>({});
   const [pendingSlot, setPendingSlot] = useState<0 | 1 | null>(null);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    void buildTeamVisuals(eventId).then((v) => setLabels(v.labelByTeamId));
+    void buildTeamVisuals(eventId).then((v) => {
+      setLabels(v.labelByTeamId);
+      setFaces(v.faceUrlByTeamId);
+    });
   }, [eventId, state?.snapshot]);
 
   const currentMatch = useMemo(() => {
@@ -188,6 +193,19 @@ export default function MatchControl({ eventId, onStatusChange }: MatchControlPr
       )}
       {statusMsg && !error && (
         <p className="text-sm text-emerald-700">{statusMsg}</p>
+      )}
+
+      {state.stageView && (
+        <div className="rounded-lg border border-slate-200 bg-slate-900 p-2 overflow-hidden">
+          <p className="text-xs text-slate-400 mb-2 px-1">ブラケット俯瞰</p>
+          <BracketView
+            data={state.stageView}
+            faceUrlByTeamId={faces}
+            labelByTeamId={labels}
+            currentMatchId={state.currentMatchId}
+            compact
+          />
+        </div>
       )}
     </div>
   );

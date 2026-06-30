@@ -10,3 +10,17 @@ body {
   margin: 0;
   min-height: 100vh;
 }
+
+@keyframes bracket-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 4px rgba(250, 204, 21, 0.4));
+  }
+  50% {
+    filter: drop-shadow(0 0 14px rgba(250, 204, 21, 0.95));
+  }
+}
+
+.bracket-match-current {
+  animation: bracket-pulse 1.4s ease-in-out infinite;
+}
