@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase';
+import { toStageData } from './manager';
 import type { StageData } from './layout';
 
 export async function fetchBracketSnapshot(eventId: string): Promise<StageData | null> {
@@ -10,7 +11,7 @@ export async function fetchBracketSnapshot(eventId: string): Promise<StageData |
 
   if (error) throw error;
   if (!data?.bracket_snapshot) return null;
-  return data.bracket_snapshot as StageData;
+  return toStageData(data.bracket_snapshot as Parameters<typeof toStageData>[0]);
 }
 
 export function hasBracket(snapshot: StageData | null): boolean {

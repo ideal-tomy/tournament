@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { buildSnapshotForTeamCount } from './manager';
+import { buildSnapshotForTeamCount, toStageData } from './manager';
 import { computeBracketLayout } from './layout';
 
 const BRACKET_KINDS = ['winner', 'loser', 'grand_final'] as const;
 
 function assertLayout(data: Awaited<ReturnType<typeof buildSnapshotForTeamCount>>) {
-  const L = computeBracketLayout(data);
+  const L = computeBracketLayout(toStageData(data));
   expect(L.matches.length).toBeGreaterThan(0);
   expect(L.width).toBeGreaterThan(0);
   expect(L.height).toBeGreaterThan(0);

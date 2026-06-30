@@ -3,7 +3,10 @@ import { InMemoryDatabase } from 'brackets-memory-db';
 import type { Database } from 'brackets-model';
 import type { StageData } from './layout';
 
-export function toStageData(db: Database): StageData {
+/** brackets-manager の完全 DB（真実源。stage/tournament 含む） */
+export type BracketSnapshot = Database;
+
+export function toStageData(db: Database | BracketSnapshot | StageData): StageData {
   return {
     group: (db.group ?? []) as StageData['group'],
     round: (db.round ?? []) as StageData['round'],
@@ -12,7 +15,16 @@ export function toStageData(db: Database): StageData {
   };
 }
 
-export async function buildDoubleElimination(teamIds: string[]): Promise<StageData> {
+export function isFullSnapshot(snapshot: unknown): snapshot is BracketSnapshot {
+  return (
+    typeof snapshot === 'object' &&
+    snapshot != null &&
+    'stage' in snapshot &&
+    Array.isArray((snapshot as BracketSnapshot).stage)
+  );
+}
+
+export async function buildDoubleElimination(teamIds: string[]): Promise<BracketSnapshot> {
   const storage = new InMemoryDatabase();
   const manager = new BracketsManager(storage);
 
@@ -28,23 +40,26 @@ export async function buildDoubleElimination(teamIds: string[]): Promise<StageDa
     settings: { grandFinal: 'double', seedOrdering: ['natural'], balanceByes: true },
   });
 
-  const data = await manager.get.stageData(0);
-  return toStageData(data);
+  return manager.get.stageData(0);
 }
 
-export function createManagerFromSnapshot(snapshot: StageData): BracketsManager {
+export function createManagerFromSnapshot(snapshot: BracketSnapshot | StageData): BracketsManager {
+  if (!isFullSnapshot(snapshot)) {
+    throw new Error(
+      'ブラケット形式が古いです。抽選タブでブラケットを再生成してください',
+    );
+  }
   const storage = new InMemoryDatabase();
-  storage.setData(snapshot as Database);
+  storage.setData(snapshot);
   return new BracketsManager(storage);
 }
 
-export async function exportSnapshot(manager: BracketsManager): Promise<StageData> {
-  const data = await manager.get.stageData(0);
-  return toStageData(data);
+export async function exportSnapshot(manager: BracketsManager): Promise<BracketSnapshot> {
+  return manager.get.stageData(0);
 }
 
 /** Vitest / 開発用: 指定チーム数のスナップショット生成 */
-export async function buildSnapshotForTeamCount(count: number): Promise<StageData> {
+export async function buildSnapshotForTeamCount(count: number): Promise<BracketSnapshot> {
   const teamIds = Array.from({ length: count }, (_, i) => `team-${i}`);
   return buildDoubleElimination(teamIds);
 }

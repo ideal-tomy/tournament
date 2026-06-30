@@ -20,7 +20,18 @@ export default function DisplayPage() {
   useEffect(() => {
     if (!event) return;
     return subscribe(event.id, (payload) => {
-      if (payload.type === 'bracket:updated') reloadBracket();
+      if (payload.type === 'bracket:updated') {
+        reloadBracket();
+      }
+      if (payload.type === 'match:confirmed') {
+        console.info('[Display] match:confirmed', payload);
+      }
+      if (payload.type === 'event:finished') {
+        console.info('[Display] event:finished', payload);
+      }
+      if (payload.type === 'effect:skip') {
+        console.info('[Display] effect:skip', payload);
+      }
     });
   }, [event?.id, reloadBracket]);
 

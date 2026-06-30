@@ -5,8 +5,8 @@ import {
   type DrawStrategy,
   type RatedParticipant,
 } from './draw';
-import { buildDoubleElimination } from '../bracket/manager';
-import type { StageData } from '../bracket/layout';
+import { buildDoubleElimination, toStageData, type BracketSnapshot } from '../bracket/manager';
+import { getNextMatch } from '../progression/progression';
 
 export interface DrawPreviewTeam {
   memberIds: string[];
@@ -25,7 +25,7 @@ export async function confirmDrawAndBuildBracket(
   teams: string[][],
   strategy: DrawStrategy,
   memberNames: Map<string, string>,
-): Promise<StageData> {
+): Promise<BracketSnapshot> {
   if (teams.length < 2) {
     throw new Error('ブラケット生成には2チーム以上必要です');
   }
@@ -77,6 +77,7 @@ export async function confirmDrawAndBuildBracket(
     .update({
       odd_strategy: strategy,
       bracket_snapshot: snapshot,
+      current_match_id: getNextMatch(toStageData(snapshot))?.id ?? null,
       status: 'setup',
     })
     .eq('id', eventId);

@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import RegistrationPanel from '../features/registration/RegistrationPanel';
 import DrawPanel from '../features/draw/DrawPanel';
+import MatchControl from '../features/progression/MatchControl';
+import { fetchBracketSnapshot } from '../features/bracket/bracketApi';
 import { useActiveEvent } from '../hooks/useActiveEvent';
 import { useAdminPasscode } from '../hooks/useAdminPasscode';
 import { broadcast } from '../lib/realtime';
 
-type AdminTab = 'registration' | 'draw' | 'debug';
+type AdminTab = 'registration' | 'draw' | 'progression' | 'debug';
 
 export default function AdminPage() {
   const { authorized, passcodeInput, setPasscodeInput, submit, error: passError } =
@@ -16,6 +18,14 @@ export default function AdminPage() {
   const [pingStatus, setPingStatus] = useState<string | null>(null);
   const [pinging, setPinging] = useState(false);
   const [drawKey, setDrawKey] = useState(0);
+  const [hasBracket, setHasBracket] = useState(false);
+
+  useEffect(() => {
+    if (!event) return;
+    void fetchBracketSnapshot(event.id).then((snap) => {
+      setHasBracket(snap != null && snap.match.length > 0);
+    });
+  }, [event?.id, drawKey]);
 
   async function handlePing() {
     if (!event) return;
@@ -60,9 +70,10 @@ export default function AdminPage() {
     );
   }
 
-  const tabs: { id: AdminTab; label: string }[] = [
+  const tabs: { id: AdminTab; label: string; hidden?: boolean }[] = [
     { id: 'registration', label: '参加者登録' },
     { id: 'draw', label: '抽選' },
+    { id: 'progression', label: '試合進行', hidden: !hasBracket },
     { id: 'debug', label: '疎通' },
   ];
 
@@ -106,20 +117,22 @@ export default function AdminPage() {
             </div>
 
             <div className="flex gap-2 mb-4">
-              {tabs.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setTab(t.id)}
-                  className={`flex-1 rounded-lg py-3 font-medium text-sm ${
-                    tab === t.id
-                      ? 'bg-slate-800 text-white'
-                      : 'bg-white text-slate-700 border border-slate-200'
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
+              {tabs
+                .filter((t) => !t.hidden)
+                .map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setTab(t.id)}
+                    className={`flex-1 rounded-lg py-3 font-medium text-sm ${
+                      tab === t.id
+                        ? 'bg-slate-800 text-white'
+                        : 'bg-white text-slate-700 border border-slate-200'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
             </div>
 
             <div className="rounded-lg bg-white p-6 shadow">
@@ -129,7 +142,17 @@ export default function AdminPage() {
                 <DrawPanel
                   key={drawKey}
                   eventId={event.id}
-                  onBracketCreated={() => setDrawKey((k) => k + 1)}
+                  onBracketCreated={() => {
+                    setDrawKey((k) => k + 1);
+                    setTab('progression');
+                  }}
+                />
+              )}
+
+              {tab === 'progression' && (
+                <MatchControl
+                  eventId={event.id}
+                  onStatusChange={() => reload()}
                 />
               )}
 
