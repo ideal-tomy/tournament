@@ -36,6 +36,7 @@ async function fetchLatestActiveEvent(): Promise<ActiveEvent | null> {
     .from('events')
     .select('id, name, status')
     .neq('status', 'finished')
+    .not('name', 'ilike', '[REHEARSAL]%')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -73,4 +74,22 @@ export async function getOrCreateActiveEvent(
   if (latest) return latest;
 
   return createEvent();
+}
+
+/** リハーサル専用イベント（本番の getOrCreateActiveEvent からは除外） */
+export async function createRehearsalEvent(): Promise<ActiveEvent> {
+  const ts = new Date().toLocaleTimeString('ja-JP', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+  const name = `[REHEARSAL] ${todayLabel()} ${ts}`;
+  const { data, error } = await supabase
+    .from('events')
+    .insert({ name, status: 'setup' })
+    .select('id, name, status')
+    .single();
+
+  if (error || !data) throw error ?? new Error('リハーサルイベント作成に失敗しました');
+  return data;
 }

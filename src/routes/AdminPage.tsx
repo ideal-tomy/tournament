@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import RegistrationPanel from '../features/registration/RegistrationPanel';
 import DrawPanel from '../features/draw/DrawPanel';
@@ -6,9 +6,10 @@ import MatchControl from '../features/progression/MatchControl';
 import { fetchBracketSnapshot } from '../features/bracket/bracketApi';
 import { useActiveEvent } from '../hooks/useActiveEvent';
 import { useAdminPasscode } from '../hooks/useAdminPasscode';
+import { finishAndPurgePortraitData } from '../lib/eventCleanup';
 import { broadcast } from '../lib/realtime';
 
-type AdminTab = 'registration' | 'draw' | 'progression' | 'debug';
+type AdminTab = 'registration' | 'draw' | 'progression' | 'finish' | 'debug';
 
 export default function AdminPage() {
   const { authorized, passcodeInput, setPasscodeInput, submit, error: passError } =
@@ -19,6 +20,9 @@ export default function AdminPage() {
   const [pinging, setPinging] = useState(false);
   const [drawKey, setDrawKey] = useState(0);
   const [hasBracket, setHasBracket] = useState(false);
+  const [purgeConfirm, setPurgeConfirm] = useState('');
+  const [purging, setPurging] = useState(false);
+  const [purgeStatus, setPurgeStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (!event) return;
@@ -42,6 +46,24 @@ export default function AdminPage() {
       setPinging(false);
     }
   }
+
+  const handlePurge = useCallback(async () => {
+    if (!event) return;
+    setPurging(true);
+    setPurgeStatus(null);
+    try {
+      await finishAndPurgePortraitData(event.id);
+      setPurgeStatus('大会終了・肖像データを削除しました');
+      setPurgeConfirm('');
+      reload();
+    } catch (e) {
+      setPurgeStatus(
+        e instanceof Error ? e.message : '削除に失敗しました',
+      );
+    } finally {
+      setPurging(false);
+    }
+  }, [event, reload]);
 
   if (!authorized) {
     return (
@@ -74,8 +96,11 @@ export default function AdminPage() {
     { id: 'registration', label: '参加者登録' },
     { id: 'draw', label: '抽選' },
     { id: 'progression', label: '試合進行', hidden: !hasBracket },
+    { id: 'finish', label: '終了' },
     { id: 'debug', label: '疎通' },
   ];
+
+  const purgeEnabled = event != null && purgeConfirm === '削除する';
 
   return (
     <div className="min-h-screen bg-slate-100 p-6">
@@ -89,6 +114,10 @@ export default function AdminPage() {
               target="_blank"
             >
               表示端末を開く
+            </Link>
+            {' · '}
+            <Link to="/rehearsal" className="text-blue-600 underline">
+              リハーサル
             </Link>
           </p>
         </header>
@@ -116,7 +145,7 @@ export default function AdminPage() {
               <span className="text-slate-400 ml-2">({event.status})</span>
             </div>
 
-            <div className="flex gap-2 mb-4">
+            <div className="flex flex-wrap gap-2 mb-4">
               {tabs
                 .filter((t) => !t.hidden)
                 .map((t) => (
@@ -124,7 +153,7 @@ export default function AdminPage() {
                     key={t.id}
                     type="button"
                     onClick={() => setTab(t.id)}
-                    className={`flex-1 rounded-lg py-3 font-medium text-sm ${
+                    className={`flex-1 min-w-[4.5rem] rounded-lg py-3 font-medium text-sm ${
                       tab === t.id
                         ? 'bg-slate-800 text-white'
                         : 'bg-white text-slate-700 border border-slate-200'
@@ -154,6 +183,43 @@ export default function AdminPage() {
                   eventId={event.id}
                   onStatusChange={() => reload()}
                 />
+              )}
+
+              {tab === 'finish' && (
+                <div className="space-y-4">
+                  <div className="rounded border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                    <p className="font-bold">不可逆操作</p>
+                    <p className="mt-2">
+                      大会を終了し、参加者の顔写真・Storage データ・チーム情報をすべて削除します。
+                      ブラケット snapshot もクリアされます。
+                    </p>
+                  </div>
+                  <label className="block text-sm text-slate-600">
+                    確認のため「削除する」と入力
+                    <input
+                      type="text"
+                      value={purgeConfirm}
+                      onChange={(e) => setPurgeConfirm(e.target.value)}
+                      className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                      placeholder="削除する"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => void handlePurge()}
+                    disabled={!purgeEnabled || purging}
+                    className="w-full rounded-lg bg-red-700 text-white py-4 text-lg font-bold disabled:opacity-40"
+                  >
+                    {purging ? '削除中…' : '大会終了・肖像データ削除'}
+                  </button>
+                  {purgeStatus && (
+                    <p
+                      className={`text-sm ${purgeStatus.includes('失敗') ? 'text-red-600' : 'text-emerald-700'}`}
+                    >
+                      {purgeStatus}
+                    </p>
+                  )}
+                </div>
               )}
 
               {tab === 'debug' && (

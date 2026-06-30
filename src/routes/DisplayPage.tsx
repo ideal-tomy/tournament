@@ -1,15 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import EffectOrchestrator from '../features/presentation/EffectOrchestrator';
 import { useBracketDisplay } from '../features/bracket/useBracketDisplay';
 import { useActiveEvent } from '../hooks/useActiveEvent';
-import { subscribe } from '../lib/realtime';
+import { displayMediaPreloader } from '../lib/media';
+import {
+  subscribeWithReconnect,
+  type ConnectionStatus,
+} from '../lib/realtime';
 import { bracketTheme } from '../styles/bracketTheme';
 import type { RealtimeEvent } from '../types';
 
 type MatchConfirmed = Extract<RealtimeEvent, { type: 'match:confirmed' }>;
 
+const STATUS_LABEL: Record<ConnectionStatus, string> = {
+  connecting: '接続中…',
+  connected: '接続済み',
+  disconnected: '切断 — 再接続中',
+  error: '接続エラー — 再接続中',
+};
+
 export default function DisplayPage() {
+  const [searchParams] = useSearchParams();
+  const isKiosk = searchParams.get('kiosk') === '1';
+
   const { event, loading, error, reload } = useActiveEvent();
   const {
     snapshot,
@@ -25,8 +39,20 @@ export default function DisplayPage() {
 
   const [matchConfirmed, setMatchConfirmed] = useState<MatchConfirmed | null>(null);
   const [skipSignal, setSkipSignal] = useState(0);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
+  const [mediaReady, setMediaReady] = useState(false);
   const effectPlayingRef = useRef(false);
   const pendingBracketReloadRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void displayMediaPreloader.preloadDisplayAssets().then(() => {
+      if (!cancelled) setMediaReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleEffectComplete = useCallback(() => {
     effectPlayingRef.current = false;
@@ -36,34 +62,44 @@ export default function DisplayPage() {
     }
   }, [reloadBracket]);
 
+  const handleReconnect = useCallback(() => {
+    reload();
+    reloadBracket();
+  }, [reload, reloadBracket]);
+
   useEffect(() => {
     if (!event) return;
-    return subscribe(event.id, (payload) => {
-      if (payload.type === 'bracket:updated') {
-        if (effectPlayingRef.current) {
-          pendingBracketReloadRef.current = true;
-        } else {
+    return subscribeWithReconnect(event.id, {
+      onEvent: (payload) => {
+        if (payload.type === 'bracket:updated') {
+          if (effectPlayingRef.current) {
+            pendingBracketReloadRef.current = true;
+          } else {
+            reloadBracket();
+          }
+        }
+        if (payload.type === 'match:confirmed') {
+          effectPlayingRef.current = true;
+          setMatchConfirmed(payload);
+        }
+        if (payload.type === 'event:finished') {
+          reload();
           reloadBracket();
         }
-      }
-      if (payload.type === 'match:confirmed') {
-        effectPlayingRef.current = true;
-        setMatchConfirmed(payload);
-      }
-      if (payload.type === 'event:finished') {
-        console.info('[Display] event:finished', payload);
-      }
-      if (payload.type === 'effect:skip') {
-        setSkipSignal((n) => n + 1);
-      }
+        if (payload.type === 'effect:skip') {
+          setSkipSignal((n) => n + 1);
+        }
+      },
+      onStatus: setConnectionStatus,
+      onReconnect: handleReconnect,
     });
-  }, [event?.id, reloadBracket]);
+  }, [event?.id, reload, reloadBracket, handleReconnect]);
 
-  const isLoading = loading || bracketLoading;
+  const isLoading = loading || bracketLoading || !mediaReady;
 
   return (
     <div
-      className="min-h-screen text-white flex flex-col"
+      className={`min-h-screen text-white flex flex-col ${isKiosk ? 'cursor-none select-none' : ''}`}
       style={{ backgroundColor: bracketTheme.background }}
     >
       <header className="px-6 py-3 border-b border-slate-800/80 flex items-center justify-between gap-4 shrink-0">
@@ -82,14 +118,32 @@ export default function DisplayPage() {
             </p>
           )}
         </div>
-        <Link to="/admin" className="text-cyan-400 text-sm underline shrink-0">
-          運営画面
-        </Link>
+        <div className="flex items-center gap-4 shrink-0">
+          <span
+            className={`text-xs font-mono ${
+              connectionStatus === 'connected'
+                ? 'text-emerald-400'
+                : connectionStatus === 'connecting'
+                  ? 'text-amber-300'
+                  : 'text-red-400'
+            }`}
+            title="Realtime 接続状態"
+          >
+            {STATUS_LABEL[connectionStatus]}
+          </span>
+          {!isKiosk && (
+            <Link to="/admin" className="text-cyan-400 text-sm underline">
+              運営画面
+            </Link>
+          )}
+        </div>
       </header>
 
       <main className="flex-1 p-2 md:p-4 min-h-0 flex flex-col">
         {isLoading && (
-          <p className="text-slate-400 text-center py-12">読み込み中…</p>
+          <p className="text-slate-400 text-center py-12">
+            {!mediaReady ? '素材読み込み中…' : '読み込み中…'}
+          </p>
         )}
 
         {(error || bracketError) && (

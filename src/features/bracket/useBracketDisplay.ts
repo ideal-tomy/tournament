@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { fetchBracketDisplayMeta, hasBracket } from './bracketApi';
 import { buildTeamVisuals, type TeamVisuals } from './teamFaces';
 import type { StageData } from './layout';
-import { preloadImages } from '../../lib/media';
+import { displayMediaPreloader } from '../../lib/media';
 
 interface BracketState {
   snapshot: StageData | null;
@@ -52,7 +52,7 @@ export function useBracketDisplay(eventId: string | undefined) {
         if (cancelled) return;
 
         const urls = Object.values(visuals.faceUrlByTeamId).flat();
-        if (urls.length > 0) await preloadImages(urls);
+        if (urls.length > 0) await displayMediaPreloader.preloadAll(urls);
 
         if (cancelled) return;
         setState({

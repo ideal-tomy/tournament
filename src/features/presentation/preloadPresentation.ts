@@ -1,45 +1,55 @@
-import { preloadImages, preloadVideosOptional } from '../../lib/media';
+import {
+  displayMediaPreloader,
+  OPTIONAL_VIDEO_URLS,
+} from '../../lib/media';
 
-let preloadPromise: Promise<boolean> | null = null;
-let isReady = false;
-
-/** 任意 WebM（存在しなくても procedural 演出で継続） */
-const OPTIONAL_VIDEO_URLS: string[] = [
-  // 将来: import.meta.url ベースの public アセット
-];
+let bootstrapPromise: Promise<boolean> | null = null;
+let bootstrapReady = false;
 
 export async function ensurePresentationPreloaded(
   faceUrls: string[] = [],
 ): Promise<boolean> {
-  if (isReady) return true;
-  if (!preloadPromise) {
-    preloadPromise = (async () => {
-      try {
-        const urls = [...new Set(faceUrls.filter(Boolean))];
-        if (urls.length > 0) {
-          await preloadImages(urls).catch((e) => {
-            console.warn('[presentation] face preload partial fail', e);
-          });
-        }
-        await preloadVideosOptional(OPTIONAL_VIDEO_URLS);
-        isReady = true;
-        return true;
-      } catch (e) {
-        console.warn('[presentation] preload failed', e);
-        isReady = true;
-        return true;
-      }
-    })();
+  const urls = [...new Set(faceUrls.filter(Boolean))];
+  const pending = urls.filter((url) => !displayMediaPreloader.hasLoaded(url));
+
+  if (pending.length === 0 && bootstrapReady) {
+    return true;
   }
-  return preloadPromise;
+
+  try {
+    if (!bootstrapReady) {
+      if (!bootstrapPromise) {
+        bootstrapPromise = displayMediaPreloader
+          .preloadDisplayAssets()
+          .then(() => true)
+          .catch((e) => {
+            console.warn('[presentation] display assets preload partial fail', e);
+            return true;
+          });
+      }
+      await bootstrapPromise;
+      bootstrapReady = true;
+    }
+
+    if (pending.length > 0) {
+      await displayMediaPreloader.preloadAll(pending);
+    }
+
+    return displayMediaPreloader.isReady(
+      pending.length > 0 ? pending : OPTIONAL_VIDEO_URLS,
+    );
+  } catch (e) {
+    console.warn('[presentation] preload failed', e);
+    return false;
+  }
 }
 
 export function isPresentationPreloaded(): boolean {
-  return isReady;
+  return bootstrapReady;
 }
 
 /** Vitest / 開発用リセット */
 export function resetPresentationPreload(): void {
-  isReady = false;
-  preloadPromise = null;
+  bootstrapReady = false;
+  bootstrapPromise = null;
 }
