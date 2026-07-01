@@ -9,6 +9,7 @@ import {
 } from '../bracket/manager';
 import type { StageData } from '../bracket/layout';
 import { detectAdvanceEffect } from '../presentation/advanceEffect';
+import type { RealtimeEvent } from '../../types';
 import {
   applyResult,
   deriveEventStatus,
@@ -61,6 +62,8 @@ export async function fetchProgressionState(
   };
 }
 
+export type MatchConfirmedEvent = Extract<RealtimeEvent, { type: 'match:confirmed' }>;
+
 export interface ConfirmMatchResult {
   snapshot: BracketSnapshot;
   stageView: StageData;
@@ -69,6 +72,7 @@ export interface ConfirmMatchResult {
   winnerTeamId: string;
   loserTeamId: string | null;
   championTeamId: string | null;
+  effectEvent: MatchConfirmedEvent;
 }
 
 export async function confirmMatchResult(
@@ -132,14 +136,16 @@ export async function confirmMatchResult(
 
   const advanceEffect = detectAdvanceEffect(updatedView, matchId) ?? undefined;
 
-  await broadcast(eventId, {
+  const effectEvent: MatchConfirmedEvent = {
     type: 'match:confirmed',
     eventId,
     matchId,
     winnerTeamId,
     loserTeamId: loserTeamId ?? '',
     ...(advanceEffect ? { advanceEffect } : {}),
-  });
+  };
+
+  await broadcast(eventId, effectEvent);
 
   if (status === 'finished') {
     await broadcast(eventId, { type: 'event:finished', eventId });
@@ -155,6 +161,7 @@ export async function confirmMatchResult(
     winnerTeamId,
     loserTeamId,
     championTeamId,
+    effectEvent,
   };
 }
 

@@ -6,6 +6,7 @@ import {
   isProgressionError,
   skipEffects,
   undoToSnapshot,
+  type ConfirmMatchResult,
   type ProgressionState,
 } from './progressionApi';
 import { countPlayableMatches } from './progression';
@@ -17,7 +18,7 @@ interface UseProgressionResult {
   busy: boolean;
   canUndo: boolean;
   reload: () => void;
-  confirmWinner: (matchId: number, winnerSlot: 0 | 1) => Promise<void>;
+  confirmWinner: (matchId: number, winnerSlot: 0 | 1) => Promise<ConfirmMatchResult>;
   undo: () => Promise<void>;
   skipEffect: () => Promise<void>;
 }
@@ -61,8 +62,10 @@ export function useProgression(eventId: string | undefined): UseProgressionResul
     };
   }, [eventId, tick]);
 
-  async function confirmWinner(matchId: number, winnerSlot: 0 | 1) {
-    if (!eventId || !state) return;
+  async function confirmWinner(matchId: number, winnerSlot: 0 | 1): Promise<ConfirmMatchResult> {
+    if (!eventId || !state) {
+      throw new Error('進行状態が読み込まれていません');
+    }
     setBusy(true);
     setError(null);
     try {
@@ -88,6 +91,7 @@ export function useProgression(eventId: string | undefined): UseProgressionResul
           result.status === 'finished' ? 0 : countPlayableMatches(result.stageView),
         championTeamId: result.championTeamId,
       });
+      return result;
     } catch (e) {
       undoRef.current = null;
       setCanUndo(false);

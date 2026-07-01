@@ -1,17 +1,22 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import EventIdBadge from '../components/EventIdBadge';
+import { DisplayEffectPanel } from '../features/display/useDisplayEffects';
 import { ensureDemoReady } from '../features/demo/ensureDemoReady';
 import MatchControl from '../features/progression/MatchControl';
+import type { MatchConfirmedEvent } from '../features/progression/progressionApi';
 import {
   reuseRehearsal,
   type RehearsalProgress,
   type RehearsalResult,
 } from '../features/rehearsal/rehearsalActions';
-import { displayUrlForEvent } from '../lib/displayUrl';
 import { syncEventIdToUrl } from '../lib/event';
 
 type Phase = 'loading' | 'ready' | 'error';
+
+type EffectTriggers = {
+  queueMatchConfirmed: (payload: MatchConfirmedEvent) => void;
+  triggerEffectSkip: () => void;
+};
 
 export default function DemoPage() {
   const [searchParams] = useSearchParams();
@@ -24,8 +29,14 @@ export default function DemoPage() {
   const [resetting, setResetting] = useState(false);
   const [matchKey, setMatchKey] = useState(0);
 
+  const effectTriggersRef = useRef<EffectTriggers | null>(null);
+
   const appendLog = useCallback((entry: RehearsalProgress) => {
     setLogs((prev) => [...prev, entry]);
+  }, []);
+
+  const registerEffectTriggers = useCallback((triggers: EffectTriggers) => {
+    effectTriggersRef.current = triggers;
   }, []);
 
   const prepare = useCallback(async () => {
@@ -47,11 +58,18 @@ export default function DemoPage() {
     void prepare();
   }, [prepare]);
 
+  const handleMatchConfirmed = useCallback((payload: MatchConfirmedEvent) => {
+    effectTriggersRef.current?.queueMatchConfirmed(payload);
+  }, []);
+
+  const handleEffectSkip = useCallback(() => {
+    effectTriggersRef.current?.triggerEffectSkip();
+  }, []);
+
   async function handleReset() {
     if (!result) return;
     setResetting(true);
     setError(null);
-    setLogs([]);
     try {
       const res = await reuseRehearsal(appendLog, 0);
       syncEventIdToUrl(res.eventId);
@@ -64,119 +82,107 @@ export default function DemoPage() {
     }
   }
 
-  const displayUrl = result ? displayUrlForEvent(result.eventId, { kiosk: true }) : null;
   const shareUrl =
     result != null
       ? `${window.location.origin}/demo?eventId=${encodeURIComponent(result.eventId)}`
       : null;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <div className="max-w-lg mx-auto px-5 py-8">
-        <Link to="/" className="text-slate-500 text-sm underline">
-          ← トップ
-        </Link>
-
-        <header className="mt-4">
-          <p className="text-xs font-black tracking-widest text-cyan-400 uppercase">Demo</p>
-          <h1 className="text-2xl font-black mt-1">試合進行 × 演出体験</h1>
-          <p className="text-slate-400 text-sm mt-2 leading-relaxed">
-            ログイン不要 · サンプル 32 名（16 チーム）で、本番と同じ勝敗確定 → Display 演出を体験できます。
+    <div className="min-h-screen bg-slate-950 text-white flex flex-col">
+      <header className="shrink-0 px-4 py-3 border-b border-slate-800 flex items-center justify-between gap-3">
+        <div>
+          <Link to="/" className="text-slate-500 text-xs underline">
+            ← トップ
+          </Link>
+          <h1 className="text-lg font-black mt-1">試合進行 × 演出デモ</h1>
+          <p className="text-slate-500 text-xs mt-0.5">ログイン不要 · サンプル 32 名</p>
+        </div>
+        {result && (
+          <p className="text-xs text-slate-600 font-mono hidden sm:block">
+            {result.eventId.slice(0, 8)}…
           </p>
-        </header>
+        )}
+      </header>
 
-        {phase === 'loading' && (
-          <div className="mt-8 rounded-xl border border-slate-800 bg-slate-900/80 p-5">
+      {phase === 'loading' && (
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="max-w-md w-full rounded-xl border border-slate-800 bg-slate-900/80 p-5">
             <p className="text-cyan-300 font-medium animate-pulse">サンプルを準備中…</p>
             {logs.length > 0 && (
-              <ol className="mt-4 space-y-1.5 text-sm font-mono text-slate-400">
+              <ol className="mt-4 space-y-1 text-sm font-mono text-slate-500">
                 {logs.map((log, i) => (
-                  <li key={`${log.step}-${i}`}>
-                    <span className="text-slate-300">{log.step}</span>
-                    {log.detail && <span className="text-slate-600 ml-2">— {log.detail}</span>}
-                  </li>
+                  <li key={`${log.step}-${i}`}>{log.step}</li>
                 ))}
               </ol>
             )}
           </div>
-        )}
+        </div>
+      )}
 
-        {phase === 'error' && (
-          <div className="mt-8 rounded-xl border border-red-500/40 bg-red-950/40 p-5">
-            <p className="text-red-300 font-medium">{error}</p>
+      {phase === 'error' && (
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="max-w-md w-full rounded-xl border border-red-500/40 bg-red-950/40 p-5">
+            <p className="text-red-300">{error}</p>
             <button
               type="button"
               onClick={() => void prepare()}
-              className="mt-4 w-full rounded-lg bg-red-800 hover:bg-red-700 py-3 font-bold"
+              className="mt-4 w-full rounded-lg bg-red-800 py-3 font-bold"
             >
               再試行
             </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {phase === 'ready' && result && (
-          <div className="mt-8 space-y-6">
-            <div className="rounded-xl border border-emerald-800/50 bg-emerald-950/30 p-4 text-sm">
-              <p className="text-emerald-300 font-bold">準備完了</p>
-              <p className="text-slate-300 mt-1">{result.eventName}</p>
-              <p className="text-slate-500 mt-1">
-                {result.participantCount} 名 · {result.teamCount} チーム
+      {phase === 'ready' && result && (
+        <div className="flex-1 flex flex-col lg:flex-row min-h-0">
+          <section className="flex-1 min-h-[42vh] lg:min-h-0 flex flex-col border-b lg:border-b-0 lg:border-r border-slate-800">
+            <p className="shrink-0 px-3 py-1.5 text-xs text-fuchsia-300/90 bg-fuchsia-950/30 border-b border-fuchsia-900/40">
+              演出表示 — 下で勝敗を確定するとここに WIN → 接近 → 爆発 → VS が流れます
+            </p>
+            <DisplayEffectPanel
+              key={`display-${result.eventId}-${matchKey}`}
+              eventId={result.eventId}
+              className="flex-1"
+              onRegisterTriggers={registerEffectTriggers}
+            />
+          </section>
+
+          <section className="lg:w-[22rem] xl:w-[24rem] shrink-0 overflow-y-auto p-4 space-y-4 bg-slate-900/50">
+            <div className="text-sm">
+              <p className="text-emerald-400 font-bold text-xs uppercase tracking-wide">操作</p>
+              <p className="text-slate-400 text-xs mt-1 leading-relaxed">
+                1 試合目は勝利表示のみ。2 試合目以降でフル演出（棒上昇・接近・爆発・VS）が流れます。
               </p>
-              <div className="mt-2">
-                <EventIdBadge eventId={result.eventId} className="text-slate-500" />
-              </div>
             </div>
 
-            <section className="rounded-xl border border-fuchsia-800/50 bg-fuchsia-950/20 p-5 space-y-3">
-              <h2 className="text-sm font-black text-fuchsia-300">① Display を開く</h2>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                別タブ（または別画面）で Display を開いてください。ここで勝敗を確定すると、Display
-                にトーナメント表の更新と演出がリアルタイムで反映されます。
-              </p>
-              {displayUrl && (
-                <a
-                  href={displayUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block text-center rounded-xl bg-fuchsia-700 hover:bg-fuchsia-600 py-4 text-lg font-black shadow-lg shadow-fuchsia-900/40"
-                >
-                  Display を開く
-                </a>
-              )}
-            </section>
+            <MatchControl
+              key={`control-${result.eventId}-${matchKey}`}
+              eventId={result.eventId}
+              onMatchConfirmed={handleMatchConfirmed}
+              onEffectSkip={handleEffectSkip}
+            />
 
-            <section className="rounded-xl border border-slate-700 bg-slate-900 p-5">
-              <h2 className="text-sm font-black text-white mb-4">② 勝者を選んで確定</h2>
-              <MatchControl
-                key={`${result.eventId}-${matchKey}`}
-                eventId={result.eventId}
-              />
-            </section>
-
-            <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => void handleReset()}
-                disabled={resetting}
-                className="w-full rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800 py-3 text-sm font-medium disabled:opacity-40"
-              >
-                {resetting ? 'リセット中…' : '試合を最初から（サンプル維持）'}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => void handleReset()}
+              disabled={resetting}
+              className="w-full rounded-lg border border-slate-600 text-slate-400 py-2.5 text-sm disabled:opacity-40"
+            >
+              {resetting ? 'リセット中…' : '試合を最初から'}
+            </button>
 
             {shareUrl && (
-              <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-4">
-                <p className="text-xs text-slate-500 mb-2">この URL を共有（同じサンプルイベント）</p>
-                <p className="text-xs font-mono text-slate-400 break-all select-all">{shareUrl}</p>
+              <div className="rounded-lg border border-slate-800 p-3">
+                <p className="text-xs text-slate-600 mb-1">共有 URL</p>
+                <p className="text-[10px] font-mono text-slate-500 break-all select-all">{shareUrl}</p>
               </div>
             )}
 
-            {error && (
-              <p className="text-sm text-red-400 bg-red-950/50 rounded-lg p-3">{error}</p>
-            )}
-          </div>
-        )}
-      </div>
+            {error && <p className="text-sm text-red-400">{error}</p>}
+          </section>
+        </div>
+      )}
     </div>
   );
 }

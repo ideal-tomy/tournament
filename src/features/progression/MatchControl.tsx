@@ -7,11 +7,15 @@ import {
   getNextMatch,
   getSlotTeamUuid,
 } from './progression';
+import type { MatchConfirmedEvent } from './progressionApi';
 import { useProgression } from './useProgression';
 
 interface MatchControlProps {
   eventId: string;
   onStatusChange?: () => void;
+  /** 同一ページ内 Display 用 — Realtime を介さず演出を起動 */
+  onMatchConfirmed?: (payload: MatchConfirmedEvent) => void;
+  onEffectSkip?: () => void;
 }
 
 const BRACKET_LABEL: Record<'winner' | 'loser' | 'grand_final', string> = {
@@ -20,7 +24,12 @@ const BRACKET_LABEL: Record<'winner' | 'loser' | 'grand_final', string> = {
   grand_final: 'Grand Final',
 };
 
-export default function MatchControl({ eventId, onStatusChange }: MatchControlProps) {
+export default function MatchControl({
+  eventId,
+  onStatusChange,
+  onMatchConfirmed,
+  onEffectSkip,
+}: MatchControlProps) {
   const { state, loading, error, busy, canUndo, confirmWinner, undo, skipEffect, reload } =
     useProgression(eventId);
   const [labels, setLabels] = useState<Record<string, string>>({});
@@ -60,9 +69,10 @@ export default function MatchControl({ eventId, onStatusChange }: MatchControlPr
     if (!window.confirm(`${slotLabels[pendingSlot]} の勝利で確定しますか？`)) return;
 
     try {
-      await confirmWinner(currentMatch.id, pendingSlot);
+      const result = await confirmWinner(currentMatch.id, pendingSlot);
       setPendingSlot(null);
       setStatusMsg('勝敗を確定しました');
+      onMatchConfirmed?.(result.effectEvent);
       onStatusChange?.();
     } catch {
       /* error shown via hook */
@@ -182,7 +192,9 @@ export default function MatchControl({ eventId, onStatusChange }: MatchControlPr
         </button>
         <button
           type="button"
-          onClick={() => void skipEffect()}
+          onClick={() => {
+            void skipEffect().then(() => onEffectSkip?.());
+          }}
           disabled={busy}
           className="flex-1 rounded-lg border border-slate-300 text-slate-600 py-4 font-medium disabled:opacity-40"
         >
