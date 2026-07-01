@@ -24,10 +24,20 @@ export default function HomePage() {
           </h2>
 
           <Link
+            to="/demo"
+            className="block rounded-xl border-2 border-cyan-500/60 bg-cyan-950/40 hover:border-cyan-400 p-5 transition-colors shadow-lg shadow-cyan-950/30"
+          >
+            <p className="text-lg font-bold text-cyan-200">試合進行 × 演出体験</p>
+            <p className="text-sm text-slate-400 mt-1">
+              ログイン不要 · サンプル 32 名 · Display 演出までワンクリック
+            </p>
+          </Link>
+
+          <Link
             to="/admin"
             className="block rounded-xl border border-slate-700 bg-slate-900 hover:border-cyan-500/50 p-5 transition-colors"
           >
-            <p className="text-lg font-bold text-white">参加者登録体験</p>
+            <p className="text-lg font-bold text-white">参加者登録体験（運営）</p>
             <p className="text-sm text-slate-400 mt-1">
               顔写真付きで参加者を登録 → 抽選 → 本番と同じ運営フロー
             </p>
