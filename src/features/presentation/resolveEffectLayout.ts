@@ -25,12 +25,12 @@ function winnerLineStart(
   for (const slot of feederLayout.slots) {
     const id = resolveTeamId(slot.teamRef, data.participant);
     if (id === teamId) {
-      return { x: slot.center.x, y: feederLayout.box.y };
+      return { x: slot.center.x, y: feederLayout.box.y + feederLayout.box.h };
     }
   }
   for (const slot of feederLayout.slots) {
     if (slot.teamRef != null) {
-      return { x: slot.center.x, y: feederLayout.box.y };
+      return { x: slot.center.x, y: feederLayout.box.y + feederLayout.box.h };
     }
   }
   return null;
@@ -51,9 +51,8 @@ export function resolveAdvanceEffectLayout(
   const slotB = winnerLineStart(feederB, advance.teamBId, data);
   if (!slotA || !slotB) return null;
 
-  const fromY = Math.min(feederA.box.y, feederB.box.y);
-  const toY = parent.box.y + parent.box.h;
-  const junctionY = (fromY + toY) / 2;
+  const parentBottom = parent.box.y + parent.box.h;
+  const junctionY = (Math.min(slotA.y, slotB.y) + parentBottom) / 2;
 
   return {
     viewBox: { width: layout.width, height: layout.height },

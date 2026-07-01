@@ -1,47 +1,38 @@
-/** 演出尺（秒）— 従来の約2倍・途切れない盛り上がり */
-export const EFFECT_TIMING = {
-  winnerShow: 5.0,
-  winnerClose: 0.8,
-  dim: 0.8,
-  lineExtend: 6.0,
-  /** 棒上昇の終盤からクラッシュ接近を重ねる */
-  lineClashOverlap: 0.8,
-  clashApproach: 2.4,
-  collisionFlash: 0.6,
-  /** 衝突後 — エネルギー蓄積・予感（合計 2.2s の前半） */
-  vsAnticipation: 1.2,
-  /** 炎の燃え上がり爆発（合計 2.2s の後半） */
-  vsFlameBurst: 1.0,
-  /** 炎爆発の終盤から VS をにじませる */
-  vsRevealOverlap: 0.9,
-  vsShow: 4.0,
-  close: 1.0,
+/** 爆発 WebM の尺（秒）— impact フェーズと同期 */
+export const EXPLOSION_VIDEO_SEC = 5;
+
+/** 演出尺（秒）— Single Timeline 用 */
+export const TIMING = {
+  win: 3.8,
+  dissolve: 0.6,
+  pause: 0.5,
+  barRise: 2.8,
+  clash: 3.0,
+  /** 衝突〜爆発ホールド（= EXPLOSION_VIDEO_SEC） */
+  impact: EXPLOSION_VIDEO_SEC,
+  vsHold: 3.5,
+  return: 1.6,
 } as const;
+
+export type EffectTiming = typeof TIMING;
 
 export const EFFECT_EASING = {
   line: 'power1.inOut',
-  clash: 'power2.out',
+  clash: 'power1.out',
   impact: 'power4.in',
   vsIn: 'back.out(1.6)',
   vsOut: 'power2.in',
 } as const;
 
 export function effectTotalDuration(includeAdvance = true): number {
-  const winner = EFFECT_TIMING.winnerShow + EFFECT_TIMING.winnerClose;
-  if (!includeAdvance) return winner;
-  const advance =
-    EFFECT_TIMING.dim +
-    EFFECT_TIMING.lineExtend +
-    EFFECT_TIMING.clashApproach +
-    EFFECT_TIMING.collisionFlash +
-    EFFECT_TIMING.vsAnticipation +
-    EFFECT_TIMING.vsFlameBurst +
-    EFFECT_TIMING.vsShow +
-    EFFECT_TIMING.close -
-    EFFECT_TIMING.lineClashOverlap -
-    EFFECT_TIMING.vsRevealOverlap -
-    0.2;
-  return winner + advance;
+  const winner = TIMING.win + TIMING.dissolve;
+  if (!includeAdvance) return winner + TIMING.return;
+  const barAt = TIMING.win + TIMING.dissolve + TIMING.pause;
+  const clashAt = barAt + TIMING.barRise * 0.55;
+  const impactAt = clashAt + TIMING.clash;
+  const holdAt = impactAt + TIMING.impact;
+  const returnAt = holdAt + TIMING.vsHold;
+  return returnAt + TIMING.return;
 }
 
 export const BRACKET_LABELS: Record<'winner' | 'loser' | 'grand_final', string> = {

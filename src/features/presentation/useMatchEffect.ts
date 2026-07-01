@@ -4,32 +4,15 @@ import type { RealtimeEvent } from '../../types';
 import { getMatchBracketKind } from '../progression/progression';
 import { BRACKET_LABELS } from './effectConstants';
 import { ensurePresentationPreloaded } from './preloadPresentation';
-import {
-  resolveAdvanceEffectLayout,
-  viewBoxToPercent,
-  type MatchEffectLayout,
-} from './resolveEffectLayout';
-import { buildPresentationTimeline, skipTimeline } from './timeline';
-import type { ClashPhase } from './ClashPopup';
+import { resolveAdvanceEffectLayout, type MatchEffectLayout } from './resolveEffectLayout';
 
-export type EffectPhase =
-  | 'idle'
-  | 'winner'
-  | 'winnerClosing'
-  | 'dim'
-  | 'lines'
-  | 'clash'
-  | 'flash'
-  | 'vsAnticipation'
-  | 'vsFlameBurst'
-  | 'vs'
-  | 'closing';
-
-interface ActiveEffect {
+export interface ActiveEffect {
   matchId: number;
+  advance: boolean;
   winnerTeamId: string;
   loserTeamId: string;
   winnerBracketLabel: string;
+  bracketLabel: string;
   teamAId?: string;
   teamBId?: string;
   layout?: MatchEffectLayout;
@@ -48,23 +31,20 @@ export function useMatchEffect({
   labelByTeamId,
   onComplete,
 }: UseMatchEffectOptions) {
-  const [phase, setPhase] = useState<EffectPhase>('idle');
-  const [lineProgress, setLineProgress] = useState(0);
-  const [active, setActive] = useState<ActiveEffect | null>(null);
-  const timelineRef = useRef<ReturnType<typeof buildPresentationTimeline> | null>(null);
+  const [activeEffect, setActiveEffect] = useState<ActiveEffect | null>(null);
+  const killTimelineRef = useRef<(() => void) | null>(null);
   const playingRef = useRef(false);
 
-  const isPlaying = phase !== 'idle';
-  const hasAdvance = Boolean(active?.layout && active.teamAId && active.teamBId);
-
   const finishEffect = useCallback(() => {
-    timelineRef.current = null;
+    killTimelineRef.current = null;
     playingRef.current = false;
-    setPhase('idle');
-    setLineProgress(0);
-    setActive(null);
+    setActiveEffect(null);
     onComplete();
   }, [onComplete]);
+
+  const registerTimelineKill = useCallback((kill: () => void) => {
+    killTimelineRef.current = kill;
+  }, []);
 
   const startEffect = useCallback(
     async (payload: Extract<RealtimeEvent, { type: 'match:confirmed' }>) => {
@@ -74,18 +54,19 @@ export function useMatchEffect({
       const bracketKind = match ? getMatchBracketKind(snapshot, match) : 'winner';
       const winnerBracketLabel = BRACKET_LABELS[bracketKind];
 
-      const advance = payload.advanceEffect;
+      const advancePayload = payload.advanceEffect;
+      const hasAdvance = Boolean(advancePayload);
       let layout: MatchEffectLayout | undefined;
-      if (advance) {
-        layout = resolveAdvanceEffectLayout(snapshot, advance) ?? undefined;
+      if (advancePayload) {
+        layout = resolveAdvanceEffectLayout(snapshot, advancePayload) ?? undefined;
         if (!layout) {
-          console.warn('[presentation] advance layout not found', advance.nextMatchId);
+          console.warn('[presentation] advance layout not found', advancePayload.nextMatchId);
         }
       }
 
       const preloadIds = [payload.winnerTeamId];
-      if (advance) {
-        preloadIds.push(advance.teamAId, advance.teamBId);
+      if (advancePayload) {
+        preloadIds.push(advancePayload.teamAId, advancePayload.teamBId);
       }
       const faceUrls = preloadIds.flatMap((id) => faceUrlByTeamId[id] ?? []);
       const preloaded = await ensurePresentationPreloaded(faceUrls);
@@ -96,115 +77,67 @@ export function useMatchEffect({
       }
 
       playingRef.current = true;
-      setActive({
+
+      const bracketLabel = layout ? BRACKET_LABELS[layout.bracket] : '';
+
+      setActiveEffect({
         matchId: payload.matchId,
+        advance: hasAdvance && Boolean(layout),
         winnerTeamId: payload.winnerTeamId,
         loserTeamId: payload.loserTeamId,
         winnerBracketLabel,
-        teamAId: advance?.teamAId,
-        teamBId: advance?.teamBId,
+        bracketLabel,
+        teamAId: advancePayload?.teamAId,
+        teamBId: advancePayload?.teamBId,
         layout,
       });
-      setLineProgress(0);
-      setPhase('winner');
-
-      const tl = buildPresentationTimeline(
-        Boolean(advance && layout),
-        {
-          onShow: () => setPhase('winner'),
-          onClose: () => setPhase('winnerClosing'),
-        },
-        advance && layout
-          ? {
-              onDimStart: () => setPhase('dim'),
-              onLinesStart: () => setPhase('lines'),
-              onLineProgress: (p) => setLineProgress(p),
-              onClashStart: () => setPhase('clash'),
-              onCollision: () => setPhase('flash'),
-              onVsAnticipation: () => setPhase('vsAnticipation'),
-              onVsFlameBurst: () => setPhase('vsFlameBurst'),
-              onVsShow: () => setPhase('vs'),
-              onClose: () => setPhase('closing'),
-            }
-          : undefined,
-        finishEffect,
-      );
-
-      timelineRef.current = tl;
     },
-    [snapshot, faceUrlByTeamId, onComplete, finishEffect],
+    [snapshot, faceUrlByTeamId, onComplete],
   );
 
   const handleSkip = useCallback(() => {
-    if (timelineRef.current) {
-      skipTimeline(timelineRef.current);
-    }
+    killTimelineRef.current?.();
     finishEffect();
   }, [finishEffect]);
 
   useEffect(() => {
     return () => {
-      timelineRef.current?.kill();
+      killTimelineRef.current?.();
     };
   }, []);
 
-  const explosionPercent =
-    active?.layout != null
-      ? viewBoxToPercent(active.layout.collision, active.layout.viewBox)
-      : { x: 50, y: 50 };
-
-  const winnerVisible = phase === 'winner' || phase === 'winnerClosing';
-  const winnerClosing = phase === 'winnerClosing';
-  const vsVisible = phase === 'vs' || phase === 'closing';
-  const vsClosing = phase === 'closing';
-  const vsAnticipationVisible = phase === 'vsAnticipation';
-  const vsFlameBurstVisible = phase === 'vsFlameBurst';
-
-  const clashPhase: ClashPhase =
-    phase === 'clash' ? 'approach' : phase === 'flash' ? 'impact' : 'hidden';
-
-  const showBracketOverlay =
-    hasAdvance && (phase === 'lines' || phase === 'clash' || phase === 'flash');
-  const showBracketExplosion = phase === 'flash' && hasAdvance;
-  const showFlash = phase === 'flash';
-  const dimmed =
-    hasAdvance &&
-    phase !== 'idle' &&
-    phase !== 'winner' &&
-    phase !== 'winnerClosing' &&
-    phase !== 'closing';
-
-  const advanceBracketLabel = active?.layout
-    ? BRACKET_LABELS[active.layout.bracket]
+  const winnerLabel = activeEffect
+    ? (labelByTeamId[activeEffect.winnerTeamId] ?? 'Winner')
     : '';
+  const winnerFaces = activeEffect
+    ? (faceUrlByTeamId[activeEffect.winnerTeamId] ?? [])
+    : [];
+  const teamALabel = activeEffect?.teamAId
+    ? (labelByTeamId[activeEffect.teamAId] ?? 'Team A')
+    : '';
+  const teamBLabel = activeEffect?.teamBId
+    ? (labelByTeamId[activeEffect.teamBId] ?? 'Team B')
+    : '';
+  const teamAFaces = activeEffect?.teamAId
+    ? (faceUrlByTeamId[activeEffect.teamAId] ?? [])
+    : [];
+  const teamBFaces = activeEffect?.teamBId
+    ? (faceUrlByTeamId[activeEffect.teamBId] ?? [])
+    : [];
 
   return {
-    isPlaying,
-    phase,
-    lineProgress,
-    active,
-    hasAdvance,
-    explosionPercent,
-    winnerVisible,
-    winnerClosing,
-    clashPhase,
-    vsAnticipationVisible,
-    vsFlameBurstVisible,
-    vsVisible,
-    vsClosing,
-    showBracketOverlay,
-    showBracketExplosion,
-    showFlash,
-    dimmed,
+    activeEffect,
     startEffect,
+    finishEffect,
     handleSkip,
-    winnerLabel: active ? (labelByTeamId[active.winnerTeamId] ?? 'Winner') : '',
-    winnerFaces: active ? (faceUrlByTeamId[active.winnerTeamId] ?? []) : [],
-    winnerBracketLabel: active?.winnerBracketLabel ?? '',
-    teamALabel: active?.teamAId ? (labelByTeamId[active.teamAId] ?? 'Team A') : '',
-    teamBLabel: active?.teamBId ? (labelByTeamId[active.teamBId] ?? 'Team B') : '',
-    teamAFaces: active?.teamAId ? (faceUrlByTeamId[active.teamAId] ?? []) : [],
-    teamBFaces: active?.teamBId ? (faceUrlByTeamId[active.teamBId] ?? []) : [],
-    bracketLabel: advanceBracketLabel,
+    registerTimelineKill,
+    winnerLabel,
+    winnerFaces,
+    winnerBracketLabel: activeEffect?.winnerBracketLabel ?? '',
+    teamALabel,
+    teamBLabel,
+    teamAFaces,
+    teamBFaces,
+    bracketLabel: activeEffect?.bracketLabel ?? '',
   };
 }

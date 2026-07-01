@@ -6,6 +6,8 @@ export interface TeamShowcaseProps {
   accent: 'cyan' | 'rose' | 'gold';
   size?: 'md' | 'lg' | 'xl';
   className?: string;
+  /** 顔写真のみ（枠・ラベルなし） */
+  facesOnly?: boolean;
 }
 
 const ACCENT = {
@@ -38,10 +40,28 @@ export default function TeamShowcase({
   accent,
   size = 'lg',
   className = '',
+  facesOnly = false,
 }: TeamShowcaseProps) {
   const theme = ACCENT[accent];
   const dim = SIZE[size];
   const urls = faces.length > 0 ? faces : [placeholderFace];
+
+  if (facesOnly) {
+    return (
+      <div className={`flex flex-col items-center ${className}`}>
+        <div className={`flex gap-2 justify-center ${theme.glow}`}>
+          {urls.map((url) => (
+            <img
+              key={url}
+              src={url}
+              alt=""
+              className={`${dim.face} rounded-xl object-cover shadow-2xl`}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`flex flex-col items-center gap-4 ${className}`}>

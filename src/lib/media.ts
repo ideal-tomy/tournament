@@ -4,8 +4,15 @@ import placeholderFace from '../assets/placeholder_face.svg';
 
 export const DISPLAY_STATIC_ASSET_URLS = [placeholderFace];
 
+/** 透過 WebM — 衝突・爆発演出（5秒） */
+export const HIT_EXPLOSION_WEBM = '/images/test_mv.webm';
+
 /** public/ 配置の任意 WebM（無くても CSS フォールバック） */
-export const OPTIONAL_VIDEO_URLS = ['/assets/bg_main.webm', '/assets/explosion_alpha.webm'];
+export const OPTIONAL_VIDEO_URLS = [
+  HIT_EXPLOSION_WEBM,
+  '/assets/bg_main.webm',
+  '/assets/explosion_alpha.webm',
+];
 
 export async function preloadImages(urls: string[]): Promise<void> {
   const unique = [...new Set(urls.filter(Boolean))];

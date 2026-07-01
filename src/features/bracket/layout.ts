@@ -75,10 +75,10 @@ export interface LayoutConfig {
 }
 export const DEFAULT_LAYOUT: LayoutConfig = {
   boxW: 56,
-  boxH: 172,
+  boxH: 72,
   compactBoxW: 28,
-  compactBoxH: 52,
-  roundGap: 52,
+  compactBoxH: 26,
+  roundGap: 26,
   matchGap: 6,
   sectionGap: 28,
   padding: 36,

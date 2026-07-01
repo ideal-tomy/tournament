@@ -17,6 +17,8 @@ interface BracketViewProps {
   memberNamesByTeamId?: Record<string, string[]>;
   currentMatchId?: number | null;
   compact?: boolean;
+  /** 棒上昇演出中は勝ち上がり線のハイライトを抑止 */
+  suppressConnectorHighlight?: boolean;
 }
 
 export default function BracketView({
@@ -26,6 +28,7 @@ export default function BracketView({
   memberNamesByTeamId = {},
   currentMatchId = null,
   compact = false,
+  suppressConnectorHighlight = false,
 }: BracketViewProps) {
   const L = computeBracketLayout(data);
 
@@ -108,7 +111,7 @@ export default function BracketView({
       })}
 
       {L.connectors.map((c) => {
-        const lit = isConnectorHighlighted(c, data);
+        const lit = !suppressConnectorHighlight && isConnectorHighlighted(c, data);
         const isDrop = c.kind === 'drop';
         const stroke = isDrop
           ? bracketTheme.drop.stroke
@@ -222,7 +225,7 @@ export default function BracketView({
                     isEmpty={isBye || (!teamId && s.teamRef == null)}
                     accent={theme.stroke}
                     compact={compact}
-                    facesOnly={!m.isLeafRound}
+                    facesOnly
                   />
                 </g>
               );
@@ -244,7 +247,6 @@ function VerticalSlotContent({
   memberNames,
   label,
   isEmpty,
-  accent,
   compact,
   facesOnly = false,
 }: {
@@ -256,18 +258,22 @@ function VerticalSlotContent({
   memberNames: string[];
   label: string;
   isEmpty: boolean;
-  accent: string;
+  accent?: string;
   compact: boolean;
   facesOnly?: boolean;
 }) {
   const pad = compact || facesOnly ? 2 : 3;
   const cx = x + w / 2;
   const fontSize = compact ? 7 : 8;
+  const faceGap = facesOnly ? 2 : 2;
   const faceSize = Math.min(
     w - pad * 2,
-    facesOnly ? (compact ? 12 : 14) : compact ? 16 : 20,
+    facesOnly
+      ? Math.floor((h - pad * 2 - faceGap) / 2)
+      : compact
+        ? 16
+        : 20,
   );
-  const faceGap = facesOnly ? 1 : 2;
 
   if (isEmpty) {
     if (facesOnly) return null;
@@ -313,26 +319,15 @@ function VerticalSlotContent({
   const faceNodes = displayFaces.map((faceUrl, i) => {
     const faceY = faceBottom + i * (faceSize + faceGap);
     return (
-      <g key={`face-${i}-${faceUrl}`}>
-        <rect
-          x={cx - faceSize / 2 - 1}
-          y={faceY - 1}
-          width={faceSize + 2}
-          height={faceSize + 2}
-          fill="none"
-          stroke={accent}
-          strokeOpacity={facesOnly ? 0.75 : 0.55}
-          rx={2}
-        />
-        <image
-          href={faceUrl}
-          x={cx - faceSize / 2}
-          y={faceY}
-          width={faceSize}
-          height={faceSize}
-          preserveAspectRatio="xMidYMid slice"
-        />
-      </g>
+      <image
+        key={`face-${i}-${faceUrl}`}
+        href={faceUrl}
+        x={cx - faceSize / 2}
+        y={faceY}
+        width={faceSize}
+        height={faceSize}
+        preserveAspectRatio="xMidYMid slice"
+      />
     );
   });
   faceBottom += count * faceSize + Math.max(0, count - 1) * faceGap;

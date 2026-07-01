@@ -11,6 +11,7 @@ import {
 } from '../lib/realtime';
 import { bracketTheme } from '../styles/bracketTheme';
 import type { RealtimeEvent } from '../types';
+import type { StageData } from '../features/bracket/layout';
 
 type MatchConfirmed = Extract<RealtimeEvent, { type: 'match:confirmed' }>;
 
@@ -41,11 +42,16 @@ export default function DisplayPage() {
 
   const [matchConfirmed, setMatchConfirmed] = useState<MatchConfirmed | null>(null);
   const [pendingEffect, setPendingEffect] = useState<MatchConfirmed | null>(null);
+  const [frozenSnapshot, setFrozenSnapshot] = useState<StageData | null>(null);
   const [skipSignal, setSkipSignal] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
   const [mediaReady, setMediaReady] = useState(false);
   const effectPlayingRef = useRef(false);
   const pendingBracketReloadRef = useRef(false);
+  const snapshotRef = useRef(snapshot);
+  snapshotRef.current = snapshot;
+
+  const displaySnapshot = frozenSnapshot ?? snapshot;
 
   useEffect(() => {
     let cancelled = false;
@@ -59,6 +65,7 @@ export default function DisplayPage() {
 
   const handleEffectComplete = useCallback(() => {
     effectPlayingRef.current = false;
+    setFrozenSnapshot(null);
     if (pendingBracketReloadRef.current) {
       pendingBracketReloadRef.current = false;
       reloadBracket();
@@ -89,6 +96,9 @@ export default function DisplayPage() {
         }
         if (payload.type === 'match:confirmed') {
           effectPlayingRef.current = true;
+          if (snapshotRef.current) {
+            setFrozenSnapshot(snapshotRef.current);
+          }
           setPendingEffect(payload);
           reloadBracket();
         }
@@ -187,9 +197,10 @@ export default function DisplayPage() {
               </div>
             )}
 
-            {hasBracket && snapshot && (
+            {hasBracket && displaySnapshot && snapshot && (
               <EffectOrchestrator
-                snapshot={snapshot}
+                displaySnapshot={displaySnapshot}
+                layoutSnapshot={snapshot}
                 faceUrlByTeamId={faceUrlByTeamId}
                 labelByTeamId={labelByTeamId}
                 memberNamesByTeamId={memberNamesByTeamId}
