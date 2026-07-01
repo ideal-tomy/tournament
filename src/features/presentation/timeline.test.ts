@@ -33,6 +33,7 @@ function createMockStageRefs(): StageRefObjects {
     flashRing: mockRef(mockEl()),
     bracketUpdated: mockRef(mockEl()),
     bracketFrozen: mockRef(mockEl()),
+    bracketDim: mockRef(mockEl()),
   } as unknown as StageRefObjects;
 }
 
@@ -44,7 +45,7 @@ describe('effectConstants', () => {
   it('フル演出 ≈ 20 秒（爆発5秒込み）', () => {
     const total = effectTotalDuration(true);
     expect(total).toBeGreaterThanOrEqual(19);
-    expect(total).toBeLessThanOrEqual(22);
+    expect(total).toBeLessThanOrEqual(23);
   });
 });
 

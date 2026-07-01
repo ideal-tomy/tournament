@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react';
 import BracketView from '../bracket/BracketView';
 import type { StageData } from '../bracket/layout';
+import BracketDimLayer from './BracketDimLayer';
 import ExplosionVideo from './ExplosionVideo';
 import LineCollision from './LineCollision';
 import ReturnFlashLayer from './ReturnFlashLayer';
@@ -66,6 +67,7 @@ export default function PresentationStage({
   const flashRingRef = useRef<HTMLDivElement>(null);
   const bracketUpdatedRef = useRef<HTMLDivElement>(null);
   const bracketFrozenRef = useRef<HTMLDivElement>(null);
+  const bracketDimRef = useRef<HTMLDivElement>(null);
 
   const refs: StageRefObjects = {
     winner: winnerRef,
@@ -82,6 +84,7 @@ export default function PresentationStage({
     flashRing: flashRingRef,
     bracketUpdated: bracketUpdatedRef,
     bracketFrozen: bracketFrozenRef,
+    bracketDim: bracketDimRef,
   };
 
   const fireExplosion = useCallback(() => {
@@ -131,6 +134,8 @@ export default function PresentationStage({
           currentMatchId={currentMatchId}
         />
       </div>
+
+      <BracketDimLayer dimRef={bracketDimRef} />
 
       {layout && (
         <svg

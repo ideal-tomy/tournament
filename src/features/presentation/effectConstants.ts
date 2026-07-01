@@ -7,8 +7,8 @@ export const CROSSFADE = {
   teamsOut: 1.4,
   /** 爆発レイヤーのフェードイン */
   explosionIn: 0.9,
-  /** 爆発余韻のフェードアウト */
-  explosionOut: 1.1,
+  /** 爆発余韻 — ゆっくりフェードアウト */
+  explosionOut: 2.0,
   /** 爆発が引くタイミングで対戦者を戻す */
   teamsIn: 1.0,
   /** VS — 爆発 fade-out と重ねる */
@@ -30,18 +30,26 @@ export const TIMING = {
   impact: EXPLOSION_VIDEO_SEC,
   vsHold: 3.5,
   /** 光の余韻込みで表復帰 */
-  return: 2.0,
+  return: 2.5,
 } as const;
 
-/** 表復帰の光 — 中心から外へ */
+/** 演出中の背景ブラケット */
+export const BRACKET_DIM = {
+  fadeIn: 0.7,
+  fadeOut: 1.1,
+} as const;
+
+/** 表復帰の光 — 中心から外へ、最後はゆっくり消える */
 export const RETURN_LIGHT = {
-  burstExpand: 1.55,
-  ringExpand: 1.85,
+  burstExpand: 1.3,
+  ringExpand: 1.5,
   ringLag: 0.06,
-  cardsFade: 0.9,
-  burstFadeStart: 0.55,
-  burstFade: 0.55,
-  stageFade: 0.4,
+  cardsFade: 1.0,
+  /** 拡大後、光を長めに留めてからフェード開始 */
+  burstFadeStart: 1.05,
+  /** 光のゆっくりしたフェードアウト */
+  burstFade: 1.35,
+  stageFade: 0.9,
 } as const;
 
 export type EffectTiming = typeof TIMING;
