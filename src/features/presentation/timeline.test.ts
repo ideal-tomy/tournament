@@ -24,7 +24,6 @@ function createMockStageRefs(): StageRefObjects {
     left: mockRef(mockEl()),
     right: mockRef(mockEl()),
     vs: mockRef(mockEl()),
-    teamBackdrop: mockRef(mockEl()),
     clashLabels: mockRef(mockEl()),
     explosionWrap: mockRef(mockEl()),
     explosionVideo: mockRef(mockEl() as unknown as HTMLVideoElement),

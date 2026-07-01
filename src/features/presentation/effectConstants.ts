@@ -1,6 +1,24 @@
 /** 爆発 WebM の尺（秒）— impact フェーズと同期 */
 export const EXPLOSION_VIDEO_SEC = 5;
 
+/** クロスフェード（秒）— レイヤー重なり */
+export const CROSSFADE = {
+  /** 衝突直後、爆発と重なりながら対戦者を消す */
+  teamsOut: 1.4,
+  /** 爆発レイヤーのフェードイン */
+  explosionIn: 0.9,
+  /** 爆発余韻のフェードアウト */
+  explosionOut: 1.1,
+  /** 爆発が引くタイミングで対戦者を戻す */
+  teamsIn: 1.0,
+  /** VS — 爆発 fade-out と重ねる */
+  vsIn: 1.0,
+  /** VS 開始を爆発 fade-out 開始から少し遅らせる */
+  vsInLag: 0.2,
+  /** 対戦者 fade-in を爆発 fade-out 開始から少し遅らせる */
+  teamsInLag: 0.15,
+} as const;
+
 /** 演出尺（秒）— Single Timeline 用 */
 export const TIMING = {
   win: 3.8,

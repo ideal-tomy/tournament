@@ -1,6 +1,7 @@
 import type { RefObject } from 'react';
 import gsap from 'gsap';
 import type { EffectTiming } from './effectConstants';
+import { CROSSFADE } from './effectConstants';
 
 /** 常時 mount された各レイヤーの ref オブジェクト */
 export type StageRefObjects = {
@@ -9,7 +10,6 @@ export type StageRefObjects = {
   left: RefObject<HTMLElement | null>;
   right: RefObject<HTMLElement | null>;
   vs: RefObject<HTMLElement | null>;
-  teamBackdrop: RefObject<HTMLElement | null>;
   clashLabels: RefObject<HTMLElement | null>;
   explosionWrap: RefObject<HTMLElement | null>;
   explosionVideo: RefObject<HTMLVideoElement | null>;
@@ -25,7 +25,6 @@ type ResolvedRefs = {
   left: HTMLElement | null;
   right: HTMLElement | null;
   vs: HTMLElement | null;
-  teamBackdrop: HTMLElement | null;
   clashLabels: HTMLElement | null;
   explosionWrap: HTMLElement | null;
   explosionVideo: HTMLVideoElement | null;
@@ -42,7 +41,6 @@ function resolveRefs(r: StageRefObjects): ResolvedRefs {
     left: r.left.current,
     right: r.right.current,
     vs: r.vs.current,
-    teamBackdrop: r.teamBackdrop.current,
     clashLabels: r.clashLabels.current,
     explosionWrap: r.explosionWrap.current,
     explosionVideo: r.explosionVideo.current,
@@ -55,7 +53,7 @@ function resolveRefs(r: StageRefObjects): ResolvedRefs {
 
 function setInitialState(r: ResolvedRefs): void {
   gsap.set(
-    [r.winner, r.left, r.right, r.vs, r.explosionWrap, r.spark, r.flash, r.bracketUpdated, r.teamBackdrop, r.clashLabels],
+    [r.winner, r.left, r.right, r.vs, r.explosionWrap, r.spark, r.flash, r.bracketUpdated, r.clashLabels],
     { opacity: 0 },
   );
   gsap.set(r.bracketFrozen, { opacity: 1 });
@@ -65,7 +63,6 @@ function setInitialState(r: ResolvedRefs): void {
   gsap.set(r.left, { xPercent: -120, opacity: 0 });
   gsap.set(r.right, { xPercent: 120, opacity: 0 });
   gsap.set(r.vs, { scale: 0.85, opacity: 0 });
-  gsap.set(r.explosionWrap, { scale: 0.92 });
 }
 
 export function buildMatchTimeline(
@@ -99,7 +96,6 @@ export function buildMatchTimeline(
 
   const clashAt = barAt + T.barRise * 0.55;
   tl.addLabel('clash', clashAt)
-    .to(r.teamBackdrop, { opacity: 1, duration: 0.35, ease: 'power2.out' }, 'clash')
     .to(r.clashLabels, { opacity: 1, duration: 0.45, ease: 'power2.out' }, 'clash')
     .fromTo(
       r.left,
@@ -114,35 +110,38 @@ export function buildMatchTimeline(
       'clash',
     );
 
-  const explosionFadeAt = T.impact - 0.5;
+  const explosionFadeStart = T.impact - CROSSFADE.explosionOut;
 
   tl.addLabel('impact', `clash+=${T.clash}`)
     .to([r.left, r.right], { xPercent: 0, duration: 0.35, ease: 'power4.in' }, 'impact')
-    .fromTo(
-      r.explosionWrap,
-      { opacity: 0, scale: 0.92 },
-      { opacity: 1, scale: 1, duration: 0.25, ease: 'power2.out' },
-      'impact',
-    )
+    .to(r.explosionWrap, { opacity: 1, duration: CROSSFADE.explosionIn, ease: 'power2.inOut' }, 'impact')
     .call(opts.fireExplosion, [], 'impact')
     .fromTo(r.spark, { opacity: 0 }, { opacity: 0.9, duration: 0.15, yoyo: true, repeat: 1 }, 'impact')
-    .to([r.left, r.right, r.clashLabels], { opacity: 0.15, duration: 0.4, ease: 'power1.in' }, 'impact+=0.15')
-    .to(r.explosionWrap, { opacity: 0, duration: 0.5, ease: 'power2.in' }, `impact+=${explosionFadeAt}`);
-
-  tl.addLabel('hold', `impact+=${T.impact}`)
-    .to([r.left, r.right, r.clashLabels], { opacity: 1, duration: 0.45, ease: 'power2.out' }, 'hold')
+    .to([r.left, r.right], { opacity: 0, duration: CROSSFADE.teamsOut, ease: 'power1.inOut' }, `impact+=0.2`)
+    .to(r.clashLabels, { opacity: 0, duration: CROSSFADE.teamsOut * 0.6, ease: 'power1.inOut' }, 'impact+=0.15')
+    .to(
+      r.explosionWrap,
+      { opacity: 0, duration: CROSSFADE.explosionOut, ease: 'power2.inOut' },
+      `impact+=${explosionFadeStart}`,
+    )
+    .to(
+      [r.left, r.right],
+      { opacity: 1, duration: CROSSFADE.teamsIn, ease: 'power2.out' },
+      `impact+=${explosionFadeStart + CROSSFADE.teamsInLag}`,
+    )
     .fromTo(
       r.vs,
-      { opacity: 0, scale: 0.85 },
-      { opacity: 1, scale: 1, duration: 0.6, ease: 'power2.out' },
-      'hold',
-    )
-    .to({}, { duration: T.vsHold });
+      { opacity: 0, scale: 0.88 },
+      { opacity: 1, scale: 1, duration: CROSSFADE.vsIn, ease: 'power2.out' },
+      `impact+=${explosionFadeStart + CROSSFADE.vsInLag}`,
+    );
+
+  tl.addLabel('hold', `impact+=${T.impact}`).to({}, { duration: T.vsHold });
 
   tl.addLabel('return', `hold+=${T.vsHold}`)
     .to(r.flash, { opacity: 1, duration: 0.2, ease: 'power2.in' }, 'return')
     .to(r.bracketUpdated, { opacity: 1, duration: T.return, ease: 'power1.inOut' }, 'return')
-    .to([r.left, r.right, r.vs, r.teamBackdrop, r.clashLabels], { opacity: 0, duration: T.return * 0.7 }, 'return+=0.15')
+    .to([r.left, r.right, r.vs, r.clashLabels], { opacity: 0, duration: T.return * 0.7 }, 'return+=0.15')
     .to(r.bracketFrozen, { opacity: 0, duration: T.return, ease: 'power1.inOut' }, 'return')
     .to(r.flash, { opacity: 0, duration: T.return * 0.7 }, `return+=${T.return * 0.4}`);
 

@@ -7,21 +7,19 @@ interface TeamPairLayerProps {
   teamAFaces: string[];
   teamBFaces: string[];
   bracketLabel: string;
-  teamBackdropRef: Ref<HTMLDivElement>;
   clashLabelsRef: Ref<HTMLDivElement>;
   leftRef: Ref<HTMLDivElement>;
   rightRef: Ref<HTMLDivElement>;
   vsRef: Ref<HTMLDivElement>;
 }
 
-/** 対戦者接近 / VS — アニメは timeline が ref を直接 tween */
+/** 対戦者接近 / VS — 背景は透過のまま（黒オーバーレイなし） */
 export default function TeamPairLayer({
   teamALabel,
   teamBLabel,
   teamAFaces,
   teamBFaces,
   bracketLabel,
-  teamBackdropRef,
   clashLabelsRef,
   leftRef,
   rightRef,
@@ -33,18 +31,13 @@ export default function TeamPairLayer({
       aria-hidden
     >
       <div
-        ref={teamBackdropRef}
-        className="absolute inset-0 bg-black/85 backdrop-blur-md opacity-0"
-      />
-
-      <div
         ref={clashLabelsRef}
         className="relative z-10 flex flex-col items-center mb-10 opacity-0"
       >
-        <p className="text-amber-300 text-xs md:text-sm font-black tracking-[0.25em] uppercase">
+        <p className="text-amber-300 text-xs md:text-sm font-black tracking-[0.25em] uppercase drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
           {bracketLabel}
         </p>
-        <p className="text-white/80 text-sm md:text-base font-bold tracking-widest mt-4">
+        <p className="text-white/90 text-sm md:text-base font-bold tracking-widest mt-4 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
           NEXT MATCH — 対戦確定
         </p>
       </div>

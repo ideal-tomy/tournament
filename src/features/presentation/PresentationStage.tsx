@@ -57,7 +57,6 @@ export default function PresentationStage({
   const leftRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
   const vsRef = useRef<HTMLDivElement>(null);
-  const teamBackdropRef = useRef<HTMLDivElement>(null);
   const clashLabelsRef = useRef<HTMLDivElement>(null);
   const explosionWrapRef = useRef<HTMLDivElement>(null);
   const explosionVideoRef = useRef<HTMLVideoElement>(null);
@@ -72,7 +71,6 @@ export default function PresentationStage({
     left: leftRef,
     right: rightRef,
     vs: vsRef,
-    teamBackdrop: teamBackdropRef,
     clashLabels: clashLabelsRef,
     explosionWrap: explosionWrapRef,
     explosionVideo: explosionVideoRef,
@@ -166,7 +164,6 @@ export default function PresentationStage({
         teamAFaces={teamAFaces}
         teamBFaces={teamBFaces}
         bracketLabel={bracketLabel}
-        teamBackdropRef={teamBackdropRef}
         clashLabelsRef={clashLabelsRef}
         leftRef={leftRef}
         rightRef={rightRef}
