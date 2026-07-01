@@ -49,7 +49,7 @@ export default function TeamShowcase({
   if (facesOnly) {
     return (
       <div className={`flex flex-col items-center ${className}`}>
-        <div className={`flex gap-2 justify-center ${theme.glow}`}>
+        <div className={`flex flex-col gap-2 items-center ${theme.glow}`}>
           {urls.map((url) => (
             <img
               key={url}

@@ -1,7 +1,7 @@
 import type { RefObject } from 'react';
 import gsap from 'gsap';
 import type { EffectTiming } from './effectConstants';
-import { CROSSFADE } from './effectConstants';
+import { CROSSFADE, RETURN_LIGHT } from './effectConstants';
 
 /** 常時 mount された各レイヤーの ref オブジェクト */
 export type StageRefObjects = {
@@ -15,6 +15,8 @@ export type StageRefObjects = {
   explosionVideo: RefObject<HTMLVideoElement | null>;
   spark: RefObject<HTMLElement | null>;
   flash: RefObject<HTMLElement | null>;
+  flashBurst: RefObject<HTMLElement | null>;
+  flashRing: RefObject<HTMLElement | null>;
   bracketUpdated: RefObject<HTMLElement | null>;
   bracketFrozen: RefObject<HTMLElement | null>;
 };
@@ -30,6 +32,8 @@ type ResolvedRefs = {
   explosionVideo: HTMLVideoElement | null;
   spark: HTMLElement | null;
   flash: HTMLElement | null;
+  flashBurst: HTMLElement | null;
+  flashRing: HTMLElement | null;
   bracketUpdated: HTMLElement | null;
   bracketFrozen: HTMLElement | null;
 };
@@ -46,6 +50,8 @@ function resolveRefs(r: StageRefObjects): ResolvedRefs {
     explosionVideo: r.explosionVideo.current,
     spark: r.spark.current,
     flash: r.flash.current,
+    flashBurst: r.flashBurst.current,
+    flashRing: r.flashRing.current,
     bracketUpdated: r.bracketUpdated.current,
     bracketFrozen: r.bracketFrozen.current,
   };
@@ -63,6 +69,7 @@ function setInitialState(r: ResolvedRefs): void {
   gsap.set(r.left, { xPercent: -120, opacity: 0 });
   gsap.set(r.right, { xPercent: 120, opacity: 0 });
   gsap.set(r.vs, { scale: 0.85, opacity: 0 });
+  gsap.set([r.flashBurst, r.flashRing], { scale: 0.05, opacity: 0, transformOrigin: '50% 50%' });
 }
 
 export function buildMatchTimeline(
@@ -139,11 +146,30 @@ export function buildMatchTimeline(
   tl.addLabel('hold', `impact+=${T.impact}`).to({}, { duration: T.vsHold });
 
   tl.addLabel('return', `hold+=${T.vsHold}`)
-    .to(r.flash, { opacity: 1, duration: 0.2, ease: 'power2.in' }, 'return')
-    .to(r.bracketUpdated, { opacity: 1, duration: T.return, ease: 'power1.inOut' }, 'return')
-    .to([r.left, r.right, r.vs, r.clashLabels], { opacity: 0, duration: T.return * 0.7 }, 'return+=0.15')
-    .to(r.bracketFrozen, { opacity: 0, duration: T.return, ease: 'power1.inOut' }, 'return')
-    .to(r.flash, { opacity: 0, duration: T.return * 0.7 }, `return+=${T.return * 0.4}`);
+    .to(r.flash, { opacity: 1, duration: 0.12, ease: 'power1.out' }, 'return')
+    .to(
+      r.flashBurst,
+      { scale: 4.2, opacity: 1, duration: RETURN_LIGHT.burstExpand, ease: 'power2.out' },
+      'return',
+    )
+    .to(
+      r.flashRing,
+      { scale: 5.5, opacity: 0.75, duration: RETURN_LIGHT.ringExpand, ease: 'power1.out' },
+      `return+=${RETURN_LIGHT.ringLag}`,
+    )
+    .to(
+      [r.left, r.right, r.vs, r.clashLabels],
+      { opacity: 0, duration: RETURN_LIGHT.cardsFade, ease: 'power2.inOut' },
+      'return',
+    )
+    .to(r.bracketUpdated, { opacity: 1, duration: T.return, ease: 'power1.inOut' }, 'return+=0.1')
+    .to(r.bracketFrozen, { opacity: 0, duration: T.return, ease: 'power1.inOut' }, 'return+=0.1')
+    .to(
+      [r.flashBurst, r.flashRing],
+      { opacity: 0, duration: RETURN_LIGHT.burstFade, ease: 'power1.in' },
+      `return+=${RETURN_LIGHT.burstFadeStart}`,
+    )
+    .to(r.flash, { opacity: 0, duration: RETURN_LIGHT.stageFade, ease: 'power2.in' }, `return+=${T.return - 0.25}`);
 
   return tl;
 }

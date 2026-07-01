@@ -13,7 +13,7 @@ interface TeamPairLayerProps {
   vsRef: Ref<HTMLDivElement>;
 }
 
-/** 対戦者接近 / VS — 背景は透過のまま（黒オーバーレイなし） */
+/** 対戦者接近 / VS — 3カラムで VS と顔が重ならない */
 export default function TeamPairLayer({
   teamALabel,
   teamBLabel,
@@ -32,7 +32,7 @@ export default function TeamPairLayer({
     >
       <div
         ref={clashLabelsRef}
-        className="relative z-10 flex flex-col items-center mb-10 opacity-0"
+        className="relative z-10 flex flex-col items-center mb-8 opacity-0"
       >
         <p className="text-amber-300 text-xs md:text-sm font-black tracking-[0.25em] uppercase drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
           {bracketLabel}
@@ -42,20 +42,22 @@ export default function TeamPairLayer({
         </p>
       </div>
 
-      <div className="relative flex items-center justify-center gap-4 md:gap-12 w-full max-w-5xl px-4 min-h-[280px]">
-        <div ref={leftRef} className="flex-1 flex justify-end z-10 will-change-transform opacity-0">
-          <TeamShowcase label={teamALabel} faces={teamAFaces} accent="cyan" size="xl" facesOnly />
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 md:gap-8 w-full max-w-6xl px-4 min-h-[300px]">
+        <div ref={leftRef} className="flex justify-end opacity-0 will-change-transform">
+          <TeamShowcase label={teamALabel} faces={teamAFaces} accent="cyan" size="lg" facesOnly />
         </div>
 
         <div
           ref={vsRef}
-          className="absolute left-1/2 top-1/2 text-7xl md:text-9xl font-black text-yellow-300 drop-shadow-[0_0_32px_rgba(250,204,21,0.95)] shrink-0 z-30 opacity-0 pointer-events-none -translate-x-1/2 -translate-y-1/2 will-change-transform"
+          className="flex items-center justify-center px-3 md:px-6 opacity-0 will-change-transform"
         >
-          VS
+          <span className="text-6xl md:text-8xl font-black text-yellow-300 drop-shadow-[0_0_32px_rgba(250,204,21,0.95)] leading-none select-none">
+            VS
+          </span>
         </div>
 
-        <div ref={rightRef} className="flex-1 flex justify-start z-10 will-change-transform opacity-0">
-          <TeamShowcase label={teamBLabel} faces={teamBFaces} accent="rose" size="xl" facesOnly />
+        <div ref={rightRef} className="flex justify-start opacity-0 will-change-transform">
+          <TeamShowcase label={teamBLabel} faces={teamBFaces} accent="rose" size="lg" facesOnly />
         </div>
       </div>
     </div>

@@ -29,7 +29,19 @@ export const TIMING = {
   /** 衝突〜爆発ホールド（= EXPLOSION_VIDEO_SEC） */
   impact: EXPLOSION_VIDEO_SEC,
   vsHold: 3.5,
-  return: 1.6,
+  /** 光の余韻込みで表復帰 */
+  return: 2.0,
+} as const;
+
+/** 表復帰の光 — 中心から外へ */
+export const RETURN_LIGHT = {
+  burstExpand: 1.55,
+  ringExpand: 1.85,
+  ringLag: 0.06,
+  cardsFade: 0.9,
+  burstFadeStart: 0.55,
+  burstFade: 0.55,
+  stageFade: 0.4,
 } as const;
 
 export type EffectTiming = typeof TIMING;

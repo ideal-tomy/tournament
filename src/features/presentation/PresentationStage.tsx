@@ -62,6 +62,8 @@ export default function PresentationStage({
   const explosionVideoRef = useRef<HTMLVideoElement>(null);
   const sparkRef = useRef<HTMLDivElement>(null);
   const flashRef = useRef<HTMLDivElement>(null);
+  const flashBurstRef = useRef<HTMLDivElement>(null);
+  const flashRingRef = useRef<HTMLDivElement>(null);
   const bracketUpdatedRef = useRef<HTMLDivElement>(null);
   const bracketFrozenRef = useRef<HTMLDivElement>(null);
 
@@ -76,6 +78,8 @@ export default function PresentationStage({
     explosionVideo: explosionVideoRef,
     spark: sparkRef,
     flash: flashRef,
+    flashBurst: flashBurstRef,
+    flashRing: flashRingRef,
     bracketUpdated: bracketUpdatedRef,
     bracketFrozen: bracketFrozenRef,
   };
@@ -172,7 +176,11 @@ export default function PresentationStage({
 
       <ExplosionVideo wrapRef={explosionWrapRef} videoRef={explosionVideoRef} />
 
-      <ReturnFlashLayer flashRef={flashRef} />
+      <ReturnFlashLayer
+        flashRef={flashRef}
+        flashBurstRef={flashBurstRef}
+        flashRingRef={flashRingRef}
+      />
     </div>
   );
 }

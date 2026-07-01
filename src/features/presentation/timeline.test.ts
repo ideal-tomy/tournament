@@ -29,6 +29,8 @@ function createMockStageRefs(): StageRefObjects {
     explosionVideo: mockRef(mockEl() as unknown as HTMLVideoElement),
     spark: mockRef(mockEl()),
     flash: mockRef(mockEl()),
+    flashBurst: mockRef(mockEl()),
+    flashRing: mockRef(mockEl()),
     bracketUpdated: mockRef(mockEl()),
     bracketFrozen: mockRef(mockEl()),
   } as unknown as StageRefObjects;
@@ -39,10 +41,10 @@ describe('effectConstants', () => {
     expect(effectTotalDuration(false)).toBeCloseTo(TIMING.win + TIMING.dissolve + TIMING.return, 1);
   });
 
-  it('フル演出 ≈ 19.5 秒（爆発5秒込み）', () => {
+  it('フル演出 ≈ 20 秒（爆発5秒込み）', () => {
     const total = effectTotalDuration(true);
-    expect(total).toBeGreaterThanOrEqual(18);
-    expect(total).toBeLessThanOrEqual(21);
+    expect(total).toBeGreaterThanOrEqual(19);
+    expect(total).toBeLessThanOrEqual(22);
   });
 });
 
