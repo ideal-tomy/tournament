@@ -14,8 +14,14 @@ alwaysApply: true
 1. **ライブ進行を絶対に止めない。** 演出は「事前固定テンプレ＋実行時差し込み」。
 2. **演出は座標駆動。** 座標やレイアウトをハードコードしない。
 3. **全メディアはプリロード後に再生。**
-4. **真実源は Supabase の `bracket_snapshot`。**
-5. **ダブルイリミ進行を手書きしない。** → `brackets-manager`
+4. **進行の真実源は `events.bracket_snapshot`（brackets-manager）。** UI ローカル state を真実源にしない。
+5. **シーンの真実源は `event_state`。** Admin はこれを更新するだけ。Display は購読するだけ。
+6. **ダブルイリミ進行を手書きしない。** → `brackets-manager`
+7. **演出コンポーネントの中で乱数を引かない。** 抽選は `draw_sessions` 確定後の再生のみ。
+8. **Admin から Display へ一過性の命令を送らない。** （`match:confirmed` / `effect:skip` broadcast 禁止。状態更新で表現する）
+9. **Winners / Losers でページを分けない。** 同一画面のテーマを切り替える。
+10. **状態列に enum 型を使わない。** text + CHECK 制約。
+11. **Display に操作 UI を置かない。**（起動ゲートの「開始」のみ例外）
 
 ## 2. 技術スタック（固定）
 
@@ -23,6 +29,7 @@ React 18 + Vite + TS(strict) + Tailwind + Supabase + brackets-manager + GSAP/Pix
 
 ## 3. フェーズ遵守
 
-`00_REQUIREMENTS.md` の Phase 順に実装。**演出(Phase5)を土台より先に作らない。**
+v2 は `docs/files/` の P0→P3 順。**演出をシーン状態機械より先に作らない。**
+表示用 `matches` は snapshot からの投影。進行計算の真実源にしない。
 
-詳細はリポジトリ直下 `03_CURSOR_PROJECT_RULES.md` を参照。
+詳細はリポジトリ直下 `03_CURSOR_PROJECT_RULES.md` および `docs/files/` を参照。

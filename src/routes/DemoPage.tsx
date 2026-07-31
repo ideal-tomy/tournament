@@ -1,22 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { DisplayEffectPanel } from '../features/display/useDisplayEffects';
 import { ensureDemoReady } from '../features/demo/ensureDemoReady';
 import MatchControl from '../features/progression/MatchControl';
-import type { MatchConfirmedEvent } from '../features/progression/progressionApi';
 import {
   reuseRehearsal,
   type RehearsalProgress,
   type RehearsalResult,
 } from '../features/rehearsal/rehearsalActions';
 import { syncEventIdToUrl } from '../lib/event';
+import { displayUrlForEvent } from '../lib/displayUrl';
 
 type Phase = 'loading' | 'ready' | 'error';
-
-type EffectTriggers = {
-  queueMatchConfirmed: (payload: MatchConfirmedEvent) => void;
-  triggerEffectSkip: () => void;
-};
 
 export default function DemoPage() {
   const [searchParams] = useSearchParams();
@@ -29,14 +23,8 @@ export default function DemoPage() {
   const [resetting, setResetting] = useState(false);
   const [matchKey, setMatchKey] = useState(0);
 
-  const effectTriggersRef = useRef<EffectTriggers | null>(null);
-
   const appendLog = useCallback((entry: RehearsalProgress) => {
     setLogs((prev) => [...prev, entry]);
-  }, []);
-
-  const registerEffectTriggers = useCallback((triggers: EffectTriggers) => {
-    effectTriggersRef.current = triggers;
   }, []);
 
   const prepare = useCallback(async () => {
@@ -57,14 +45,6 @@ export default function DemoPage() {
   useEffect(() => {
     void prepare();
   }, [prepare]);
-
-  const handleMatchConfirmed = useCallback((payload: MatchConfirmedEvent) => {
-    effectTriggersRef.current?.queueMatchConfirmed(payload);
-  }, []);
-
-  const handleEffectSkip = useCallback(() => {
-    effectTriggersRef.current?.triggerEffectSkip();
-  }, []);
 
   async function handleReset() {
     if (!result) return;
@@ -95,13 +75,8 @@ export default function DemoPage() {
             ← トップ
           </Link>
           <h1 className="text-lg font-black mt-1">試合進行 × 演出デモ</h1>
-          <p className="text-slate-500 text-xs mt-0.5">ログイン不要 · サンプル 32 名</p>
+          <p className="text-slate-500 text-xs mt-0.5">シーン状態機械駆動 · サンプル 32 名</p>
         </div>
-        {result && (
-          <p className="text-xs text-slate-600 font-mono hidden sm:block">
-            {result.eventId.slice(0, 8)}…
-          </p>
-        )}
       </header>
 
       {phase === 'loading' && (
@@ -138,29 +113,19 @@ export default function DemoPage() {
         <div className="flex-1 flex flex-col lg:flex-row min-h-0">
           <section className="flex-1 min-h-[42vh] lg:min-h-0 flex flex-col border-b lg:border-b-0 lg:border-r border-slate-800">
             <p className="shrink-0 px-3 py-1.5 text-xs text-fuchsia-300/90 bg-fuchsia-950/30 border-b border-fuchsia-900/40">
-              演出表示 — 下で勝敗を確定するとここに WIN → 接近 → 爆発 → VS が流れます
+              Display（別タブ推奨）— event_state を購読してシーン描画
             </p>
-            <DisplayEffectPanel
-              key={`display-${result.eventId}-${matchKey}`}
-              eventId={result.eventId}
-              className="flex-1"
-              onRegisterTriggers={registerEffectTriggers}
+            <iframe
+              title="display"
+              src={displayUrlForEvent(result.eventId)}
+              className="flex-1 w-full bg-black min-h-[40vh]"
             />
           </section>
 
           <section className="lg:w-[22rem] xl:w-[24rem] shrink-0 overflow-y-auto p-4 space-y-4 bg-slate-900/50">
-            <div className="text-sm">
-              <p className="text-emerald-400 font-bold text-xs uppercase tracking-wide">操作</p>
-              <p className="text-slate-400 text-xs mt-1 leading-relaxed">
-                1 試合目は勝利表示のみ。2 試合目以降でフル演出（棒上昇・接近・爆発・VS）が流れます。
-              </p>
-            </div>
-
             <MatchControl
               key={`control-${result.eventId}-${matchKey}`}
               eventId={result.eventId}
-              onMatchConfirmed={handleMatchConfirmed}
-              onEffectSkip={handleEffectSkip}
             />
 
             <button
@@ -175,7 +140,9 @@ export default function DemoPage() {
             {shareUrl && (
               <div className="rounded-lg border border-slate-800 p-3">
                 <p className="text-xs text-slate-600 mb-1">共有 URL</p>
-                <p className="text-[10px] font-mono text-slate-500 break-all select-all">{shareUrl}</p>
+                <p className="text-[10px] font-mono text-slate-500 break-all select-all">
+                  {shareUrl}
+                </p>
               </div>
             )}
 

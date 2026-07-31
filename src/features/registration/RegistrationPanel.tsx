@@ -27,7 +27,7 @@ export default function RegistrationPanel({ eventId }: RegistrationPanelProps) {
             retakeTarget
               ? {
                   id: retakeTarget.id,
-                  name: retakeTarget.name,
+                  name: retakeTarget.display_name,
                   rating: retakeTarget.rating,
                 }
               : null

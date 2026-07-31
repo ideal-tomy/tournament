@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { StageData } from '../bracket/layout';
-import type { RealtimeEvent } from '../../types';
+import type { LegacyMatchConfirmed } from '../../types';
 import { getMatchBracketKind } from '../progression/progression';
 import { BRACKET_LABELS } from './effectConstants';
 import { ensurePresentationPreloaded } from './preloadPresentation';
@@ -47,7 +47,7 @@ export function useMatchEffect({
   }, []);
 
   const startEffect = useCallback(
-    async (payload: Extract<RealtimeEvent, { type: 'match:confirmed' }>) => {
+    async (payload: LegacyMatchConfirmed) => {
       if (!snapshot || playingRef.current) return;
 
       const match = snapshot.match.find((m) => m.id === payload.matchId);

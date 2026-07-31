@@ -12,8 +12,11 @@ import { isRehearsalEventName } from '../lib/event';
 import { resetRehearsalMatches } from '../features/rehearsal/rehearsalActions';
 import { displayUrlForEvent } from '../lib/displayUrl';
 import { broadcast } from '../lib/realtime';
+import MediaManager from '../features/admin/MediaManager';
+import { setPresentationMode, transitionScene } from '../features/scene/sceneActions';
+import { supabase } from '../lib/supabase';
 
-type AdminTab = 'registration' | 'draw' | 'progression' | 'finish' | 'debug';
+type AdminTab = 'registration' | 'draw' | 'progression' | 'media' | 'stage' | 'finish' | 'debug';
 
 export default function AdminPage() {
   const { authorized, passcodeInput, setPasscodeInput, submit, error: passError } =
@@ -71,7 +74,7 @@ export default function AdminPage() {
     }
   }, [event, reload]);
 
-  const isRehearsal = event != null && isRehearsalEventName(event.name);
+  const isRehearsal = event != null && isRehearsalEventName(event.title);
 
   const handleResetRehearsal = useCallback(async () => {
     if (!event) return;
@@ -136,6 +139,8 @@ export default function AdminPage() {
     { id: 'registration', label: '参加者登録' },
     { id: 'draw', label: '抽選' },
     { id: 'progression', label: '試合進行', hidden: !hasBracket },
+    { id: 'media', label: 'メディア' },
+    { id: 'stage', label: 'シーン' },
     { id: 'finish', label: '終了' },
     { id: 'debug', label: '疎通' },
   ];
@@ -194,7 +199,7 @@ export default function AdminPage() {
           <>
             <div className="rounded-lg bg-white px-4 py-3 shadow mb-4 text-sm">
               <span className="text-slate-500">イベント:</span>{' '}
-              <span className="font-medium">{event.name}</span>
+              <span className="font-medium">{event.title}</span>
               <span className="text-slate-400 ml-2">({event.status})</span>
             </div>
 
@@ -236,6 +241,74 @@ export default function AdminPage() {
                   eventId={event.id}
                   onStatusChange={() => reload()}
                 />
+              )}
+
+              {tab === 'media' && <MediaManager eventId={event.id} />}
+
+              {tab === 'stage' && (
+                <div className="space-y-3">
+                  <p className="text-sm text-slate-600">Display のシーンを切り替えます</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(
+                      [
+                        ['opening', 'オープニング'],
+                        ['bracket', 'トーナメント表'],
+                        ['interval', '試合間広告'],
+                        ['idle', '待機'],
+                      ] as const
+                    ).map(([scene, label]) => (
+                      <button
+                        key={scene}
+                        type="button"
+                        onClick={() =>
+                          void transitionScene(event.id, scene, { force: true }).then(() =>
+                            reload(),
+                          )
+                        }
+                        className="rounded-lg bg-slate-800 text-white py-3 font-medium"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <label className="block text-sm mt-4">
+                    大会タイトル
+                    <input
+                      defaultValue={event.title}
+                      className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                      onBlur={(e) => {
+                        const title = e.target.value.trim();
+                        if (!title) return;
+                        void supabase.from('events').update({ title }).eq('id', event.id);
+                      }}
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    サブタイトル
+                    <input
+                      className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                      placeholder="第○○回 など"
+                      onBlur={(e) => {
+                        void supabase
+                          .from('events')
+                          .update({ subtitle: e.target.value.trim() || null })
+                          .eq('id', event.id);
+                      }}
+                    />
+                  </label>
+                  <div className="flex gap-2 pt-2">
+                    {(['full', 'short', 'lite'] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => void setPresentationMode(event.id, mode)}
+                        className="flex-1 rounded border border-slate-300 py-2 text-sm capitalize"
+                      >
+                        {mode}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
 
               {tab === 'finish' && (

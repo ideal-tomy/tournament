@@ -11,7 +11,7 @@ export interface TeamVisuals {
 export async function buildTeamVisuals(eventId: string): Promise<TeamVisuals> {
   const { data: teams, error: teamsError } = await supabase
     .from('teams')
-    .select('id, display_name')
+    .select('id, name')
     .eq('event_id', eventId);
 
   if (teamsError) throw teamsError;
@@ -19,7 +19,7 @@ export async function buildTeamVisuals(eventId: string): Promise<TeamVisuals> {
     return { faceUrlByTeamId: {}, labelByTeamId: {}, memberNamesByTeamId: {} };
   }
 
-  const teamIds = teams.map((t) => t.id);
+  const teamIds = teams.map((t) => t.id as string);
   const { data: members, error: membersError } = await supabase
     .from('team_members')
     .select('team_id, participant_id')
@@ -27,7 +27,7 @@ export async function buildTeamVisuals(eventId: string): Promise<TeamVisuals> {
 
   if (membersError) throw membersError;
 
-  const participantIds = [...new Set((members ?? []).map((m) => m.participant_id))];
+  const participantIds = [...new Set((members ?? []).map((m) => m.participant_id as string))];
   let participants: ParticipantRow[] = [];
   if (participantIds.length > 0) {
     const { data, error } = await supabase
@@ -35,7 +35,7 @@ export async function buildTeamVisuals(eventId: string): Promise<TeamVisuals> {
       .select('*')
       .in('id', participantIds);
     if (error) throw error;
-    participants = data ?? [];
+    participants = (data ?? []) as ParticipantRow[];
   }
 
   const participantById = new Map(participants.map((p) => [p.id, p]));
@@ -46,22 +46,21 @@ export async function buildTeamVisuals(eventId: string): Promise<TeamVisuals> {
   for (const team of teams) {
     const pids = (members ?? [])
       .filter((m) => m.team_id === team.id)
-      .map((m) => m.participant_id);
+      .map((m) => m.participant_id as string);
 
     const names: string[] = [];
     const urls: string[] = [];
     for (const pid of pids) {
       const p = participantById.get(pid);
       if (!p) continue;
-      names.push(p.name);
+      names.push(p.display_name);
       const url = faceUrl(p.face_crop_path);
       if (url) urls.push(url);
     }
 
     faceUrlByTeamId[team.id] = urls;
     memberNamesByTeamId[team.id] = names;
-    labelByTeamId[team.id] =
-      team.display_name ?? names.join(' & ') ?? 'チーム';
+    labelByTeamId[team.id] = (team.name as string | null) ?? names.join(' & ') ?? 'チーム';
   }
 
   return { faceUrlByTeamId, labelByTeamId, memberNamesByTeamId };

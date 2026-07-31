@@ -33,7 +33,7 @@ export default function DrawPanel({ eventId, onBracketCreated }: DrawPanelProps)
     void checkBracket();
   }, [eventId]);
 
-  const nameMap = new Map(participants.map((p) => [p.id, p.name]));
+  const nameMap = new Map(participants.map((p) => [p.id, p.display_name]));
   const ratedParticipants = participants
     .filter((p) => p.rating != null && p.rating > 0)
     .map((p) => ({ id: p.id, rating: p.rating as number }));
@@ -48,7 +48,7 @@ export default function DrawPanel({ eventId, onBracketCreated }: DrawPanelProps)
     }
     if (missingRating.length > 0) {
       setError(
-        `レーティング未登録: ${missingRating.map((p) => p.name).join('、')}（参加者登録タブで設定）`,
+        `レーティング未登録: ${missingRating.map((p) => p.display_name).join('、')}（参加者登録タブで設定）`,
       );
       return;
     }

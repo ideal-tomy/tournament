@@ -7,6 +7,8 @@ import {
 } from './draw';
 import { buildDoubleElimination, toStageData, type BracketSnapshot } from '../bracket/manager';
 import { getNextMatch } from '../progression/progression';
+import { syncMatchesFromSnapshot } from '../scene/syncMatchesFromSnapshot';
+import { transitionScene } from '../scene/sceneActions';
 
 export interface DrawPreviewTeam {
   memberIds: string[];
@@ -16,6 +18,7 @@ export interface DrawPreviewTeam {
 }
 
 export async function clearEventTeams(eventId: string): Promise<void> {
+  await supabase.from('matches').delete().eq('event_id', eventId);
   const { error } = await supabase.from('teams').delete().eq('event_id', eventId);
   if (error) throw error;
 }
@@ -42,7 +45,7 @@ export async function confirmDrawAndBuildBracket(
       .insert({
         event_id: eventId,
         seed,
-        display_name: label,
+        name: label,
       })
       .select('id')
       .single();
@@ -52,9 +55,10 @@ export async function confirmDrawAndBuildBracket(
     teamIds.push(teamRow.id);
 
     const { error: membersError } = await supabase.from('team_members').insert(
-      memberIds.map((participant_id) => ({
+      memberIds.map((participant_id, idx) => ({
         team_id: teamRow.id,
         participant_id,
+        position: idx + 1,
       })),
     );
     if (membersError) throw membersError;
@@ -72,17 +76,22 @@ export async function confirmDrawAndBuildBracket(
     if (error) throw error;
   }
 
+  const stage = toStageData(snapshot);
   const { error: eventError } = await supabase
     .from('events')
     .update({
       odd_strategy: strategy,
       bracket_snapshot: snapshot,
-      current_match_id: getNextMatch(toStageData(snapshot))?.id ?? null,
-      status: 'setup',
+      bm_current_match_id: getNextMatch(stage)?.id ?? null,
+      status: 'drawn',
+      draw_mode: 'rating_balanced',
     })
     .eq('id', eventId);
 
   if (eventError) throw eventError;
+
+  await syncMatchesFromSnapshot(eventId, stage);
+  await transitionScene(eventId, 'bracket', { force: true });
   return snapshot;
 }
 
@@ -104,7 +113,12 @@ export async function resetBracket(eventId: string): Promise<void> {
   await clearEventTeams(eventId);
   const { error } = await supabase
     .from('events')
-    .update({ bracket_snapshot: null, current_match_id: null })
+    .update({
+      bracket_snapshot: null,
+      bm_current_match_id: null,
+      status: 'entry',
+    })
     .eq('id', eventId);
   if (error) throw error;
+  await transitionScene(eventId, 'idle', { force: true });
 }

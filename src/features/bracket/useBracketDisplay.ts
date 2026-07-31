@@ -3,12 +3,13 @@ import { fetchBracketDisplayMeta, hasBracket } from './bracketApi';
 import { buildTeamVisuals, type TeamVisuals } from './teamFaces';
 import type { StageData } from './layout';
 import { displayMediaPreloader } from '../../lib/media';
+import type { EventStatus } from '../../types';
 
 interface BracketState {
   snapshot: StageData | null;
   visuals: TeamVisuals;
   currentMatchId: number | null;
-  status: 'setup' | 'running' | 'finished';
+  status: EventStatus;
 }
 
 const EMPTY_VISUALS: TeamVisuals = {
@@ -22,7 +23,7 @@ export function useBracketDisplay(eventId: string | undefined) {
     snapshot: null,
     visuals: EMPTY_VISUALS,
     currentMatchId: null,
-    status: 'setup',
+    status: 'entry',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

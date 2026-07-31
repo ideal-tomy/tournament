@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
-import { broadcast } from './realtime';
 import { resetBracket } from '../features/draw/drawApi';
-import { isRehearsalEventName } from './event';
+import { isRehearsalEventTitle } from './event';
+import { transitionScene } from '../features/scene/sceneActions';
 
 async function removeStoragePrefix(bucket: string, eventId: string): Promise<void> {
   const { data: files, error } = await supabase.storage.from(bucket).list(eventId);
@@ -20,9 +20,10 @@ export async function finishRehearsalSoft(eventId: string): Promise<void> {
   await resetBracket(eventId);
   const { error } = await supabase
     .from('events')
-    .update({ status: 'setup' })
+    .update({ status: 'entry' })
     .eq('id', eventId);
   if (error) throw error;
+  await transitionScene(eventId, 'idle', { force: true });
 }
 
 /**
@@ -32,12 +33,12 @@ export async function finishRehearsalSoft(eventId: string): Promise<void> {
 export async function finishAndPurgePortraitData(eventId: string): Promise<void> {
   const { data: row, error: fetchError } = await supabase
     .from('events')
-    .select('name')
+    .select('title')
     .eq('id', eventId)
     .maybeSingle();
 
   if (fetchError) throw fetchError;
-  if (row && isRehearsalEventName(row.name)) {
+  if (row && isRehearsalEventTitle(row.title as string)) {
     throw new Error(
       'リハーサルイベントでは肖像データの完全削除はできません。「試合リセット」または「リハーサル終了（データ維持）」をご利用ください。',
     );
@@ -48,16 +49,18 @@ export async function finishAndPurgePortraitData(eventId: string): Promise<void>
     .update({
       status: 'finished',
       bracket_snapshot: null,
-      current_match_id: null,
+      bm_current_match_id: null,
     })
     .eq('id', eventId);
 
   if (statusError) throw statusError;
 
-  await broadcast(eventId, { type: 'event:finished', eventId });
+  await transitionScene(eventId, 'finished', { force: true });
 
   await removeStoragePrefix('participant-photos', eventId);
   await removeStoragePrefix('participant-faces', eventId);
+
+  await supabase.from('matches').delete().eq('event_id', eventId);
 
   const { error: teamError } = await supabase.from('teams').delete().eq('event_id', eventId);
   if (teamError) throw teamError;

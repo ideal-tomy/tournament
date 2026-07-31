@@ -1,5 +1,4 @@
 import { supabase } from '../../lib/supabase';
-import { broadcast } from '../../lib/realtime';
 import {
   createManagerFromSnapshot,
   exportSnapshot,
@@ -8,8 +7,6 @@ import {
   type BracketSnapshot,
 } from '../bracket/manager';
 import type { StageData } from '../bracket/layout';
-import { detectAdvanceEffect } from '../presentation/advanceEffect';
-import type { RealtimeEvent } from '../../types';
 import {
   applyResult,
   deriveEventStatus,
@@ -21,12 +18,15 @@ import {
   ProgressionError,
   type ProgressionError as ProgressionErrorType,
 } from './progression';
+import { syncMatchesFromSnapshot, resolveMatchUuid } from '../scene/syncMatchesFromSnapshot';
+import { requestForceComplete, transitionScene } from '../scene/sceneActions';
+import type { EventStatus } from '../../types';
 
 export interface ProgressionState {
   snapshot: BracketSnapshot;
   stageView: StageData;
   currentMatchId: number | null;
-  status: 'setup' | 'running' | 'finished';
+  status: EventStatus;
   remainingMatches: number;
   championTeamId: string | null;
 }
@@ -36,7 +36,7 @@ export async function fetchProgressionState(
 ): Promise<ProgressionState | null> {
   const { data, error } = await supabase
     .from('events')
-    .select('bracket_snapshot, current_match_id, status')
+    .select('bracket_snapshot, bm_current_match_id, status')
     .eq('id', eventId)
     .maybeSingle();
 
@@ -55,24 +55,25 @@ export async function fetchProgressionState(
   return {
     snapshot,
     stageView,
-    currentMatchId: finished ? null : (data.current_match_id ?? getNextMatch(stageView)?.id ?? null),
+    currentMatchId: finished
+      ? null
+      : (data.bm_current_match_id ?? getNextMatch(stageView)?.id ?? null),
     status: deriveEventStatus(stageView, finished),
     remainingMatches: finished ? 0 : countPlayableMatches(stageView),
     championTeamId,
   };
 }
 
-export type MatchConfirmedEvent = Extract<RealtimeEvent, { type: 'match:confirmed' }>;
-
 export interface ConfirmMatchResult {
   snapshot: BracketSnapshot;
   stageView: StageData;
   currentMatchId: number | null;
-  status: 'setup' | 'running' | 'finished';
+  status: EventStatus;
   winnerTeamId: string;
   loserTeamId: string | null;
   championTeamId: string | null;
-  effectEvent: MatchConfirmedEvent;
+  matchUuid: string | null;
+  bmMatchId: number;
 }
 
 export async function confirmMatchResult(
@@ -83,7 +84,7 @@ export async function confirmMatchResult(
 ): Promise<ConfirmMatchResult> {
   const { data: row, error: fetchError } = await supabase
     .from('events')
-    .select('bracket_snapshot, current_match_id')
+    .select('bracket_snapshot, bm_current_match_id')
     .eq('id', eventId)
     .single();
 
@@ -97,15 +98,10 @@ export async function confirmMatchResult(
   }
   const stageView = toStageData(snapshot);
   const manager = createManagerFromSnapshot(snapshot);
-  const effectiveCurrent = currentMatchId ?? row.current_match_id ?? getNextMatch(stageView)?.id ?? null;
+  const effectiveCurrent =
+    currentMatchId ?? row.bm_current_match_id ?? getNextMatch(stageView)?.id ?? null;
 
-  await applyResult(
-    manager,
-    stageView,
-    matchId,
-    winnerSlot,
-    effectiveCurrent,
-  );
+  await applyResult(manager, stageView, matchId, winnerSlot, effectiveCurrent);
 
   const fullSnapshot = await exportSnapshot(manager);
   const updatedView = toStageData(fullSnapshot);
@@ -127,31 +123,31 @@ export async function confirmMatchResult(
     .from('events')
     .update({
       bracket_snapshot: fullSnapshot,
-      current_match_id: nextMatch?.id ?? null,
+      bm_current_match_id: nextMatch?.id ?? null,
       status,
     })
     .eq('id', eventId);
 
   if (updateError) throw updateError;
 
-  const advanceEffect = detectAdvanceEffect(updatedView, matchId) ?? undefined;
+  const bmToUuid = await syncMatchesFromSnapshot(eventId, updatedView);
+  const matchUuid = bmToUuid.get(matchId) ?? (await resolveMatchUuid(eventId, matchId));
 
-  const effectEvent: MatchConfirmedEvent = {
-    type: 'match:confirmed',
-    eventId,
-    matchId,
-    winnerTeamId,
-    loserTeamId: loserTeamId ?? '',
-    ...(advanceEffect ? { advanceEffect } : {}),
-  };
-
-  await broadcast(eventId, effectEvent);
+  await transitionScene(eventId, 'result', {
+    force: true,
+    awaitingOperator: false,
+    currentMatchId: matchUuid,
+    payload: {
+      bmMatchId: matchId,
+      matchId: matchUuid,
+      winnerTeamId,
+      loserTeamId,
+    },
+  });
 
   if (status === 'finished') {
-    await broadcast(eventId, { type: 'event:finished', eventId });
+    // result 演出後に Admin / Display が finished へ。ここでは status のみ反映済み。
   }
-
-  await broadcast(eventId, { type: 'bracket:updated', eventId });
 
   return {
     snapshot: fullSnapshot,
@@ -161,7 +157,8 @@ export async function confirmMatchResult(
     winnerTeamId,
     loserTeamId,
     championTeamId,
-    effectEvent,
+    matchUuid,
+    bmMatchId: matchId,
   };
 }
 
@@ -180,14 +177,15 @@ export async function undoToSnapshot(
     .from('events')
     .update({
       bracket_snapshot: previousSnapshot,
-      current_match_id: previousCurrentMatchId,
+      bm_current_match_id: previousCurrentMatchId,
       status,
     })
     .eq('id', eventId);
 
   if (error) throw error;
 
-  await broadcast(eventId, { type: 'bracket:updated', eventId });
+  await syncMatchesFromSnapshot(eventId, stageView);
+  await transitionScene(eventId, 'bracket', { force: true });
 
   return {
     snapshot: previousSnapshot,
@@ -200,7 +198,7 @@ export async function undoToSnapshot(
 }
 
 export async function skipEffects(eventId: string): Promise<void> {
-  await broadcast(eventId, { type: 'effect:skip', eventId });
+  await requestForceComplete(eventId);
 }
 
 export function isProgressionError(e: unknown): e is ProgressionErrorType {

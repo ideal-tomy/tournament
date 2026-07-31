@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import BracketView from '../bracket/BracketView';
 import type { StageData } from '../bracket/layout';
-import type { RealtimeEvent } from '../../types';
+import type { LegacyMatchConfirmed } from '../../types';
 import PresentationStage from './PresentationStage';
 import { useMatchEffect } from './useMatchEffect';
 import { ensurePresentationPreloaded } from './preloadPresentation';
@@ -15,7 +15,7 @@ interface EffectOrchestratorProps {
   labelByTeamId: Record<string, string>;
   memberNamesByTeamId?: Record<string, string[]>;
   currentMatchId: number | null;
-  matchConfirmed: Extract<RealtimeEvent, { type: 'match:confirmed' }> | null;
+  matchConfirmed: LegacyMatchConfirmed | null;
   skipSignal: number;
   onMatchConfirmedConsumed: () => void;
   onEffectComplete: () => void;

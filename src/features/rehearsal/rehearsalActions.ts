@@ -43,7 +43,7 @@ async function rebuildBracketFromParticipants(
     id: p.id,
     rating: p.rating ?? 0,
   }));
-  const nameById = new Map(participants.map((p) => [p.id, p.name]));
+  const nameById = new Map(participants.map((p) => [p.id, p.display_name]));
   const teams = makeBalancedTeams(rated, DRAW_STRATEGY);
 
   onProgress({
@@ -90,7 +90,7 @@ export async function reuseRehearsal(
 
   return {
     eventId: event.id,
-    eventName: event.name,
+    eventName: event.title,
     matchesPlayed,
     participantCount: participants.length,
     teamCount,
@@ -150,7 +150,7 @@ export async function createFreshRehearsal(
 
   return {
     eventId: event.id,
-    eventName: event.name,
+    eventName: event.title,
     matchesPlayed,
     participantCount: REHEARSAL_PARTICIPANT_COUNT,
     teamCount: teams.length,

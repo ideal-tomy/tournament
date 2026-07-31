@@ -1,10 +1,15 @@
 import { supabase } from './supabase';
-import type { EventRow } from '../types';
+import type { EventRow, EventStatus } from '../types';
 
-export type ActiveEvent = Pick<EventRow, 'id' | 'name' | 'status'>;
+export type ActiveEvent = Pick<EventRow, 'id' | 'title' | 'status'>;
 
+export function isRehearsalEventTitle(title: string): boolean {
+  return title.startsWith('[REHEARSAL]');
+}
+
+/** @deprecated use isRehearsalEventTitle */
 export function isRehearsalEventName(name: string): boolean {
-  return name.startsWith('[REHEARSAL]');
+  return isRehearsalEventTitle(name);
 }
 
 function todayLabel(): string {
@@ -27,19 +32,19 @@ export function syncEventIdToUrl(eventId: string): void {
 async function fetchEventById(eventId: string): Promise<ActiveEvent | null> {
   const { data, error } = await supabase
     .from('events')
-    .select('id, name, status')
+    .select('id, title, status')
     .eq('id', eventId)
     .maybeSingle();
 
   if (error) throw error;
-  return data;
+  return data as ActiveEvent | null;
 }
 
 async function fetchLatestRehearsalEvent(includeFinished = false): Promise<ActiveEvent | null> {
   let query = supabase
     .from('events')
-    .select('id, name, status')
-    .ilike('name', '[REHEARSAL]%')
+    .select('id, title, status')
+    .ilike('title', '[REHEARSAL]%')
     .order('created_at', { ascending: false })
     .limit(1);
 
@@ -50,7 +55,7 @@ async function fetchLatestRehearsalEvent(includeFinished = false): Promise<Activ
   const { data, error } = await query.maybeSingle();
 
   if (error) throw error;
-  return data;
+  return data as ActiveEvent | null;
 }
 
 /** 再利用用 — 終了済みリハーサルも含む最新 */
@@ -61,27 +66,39 @@ export async function getLatestRehearsalEvent(): Promise<ActiveEvent | null> {
 async function fetchLatestActiveEvent(): Promise<ActiveEvent | null> {
   const { data, error } = await supabase
     .from('events')
-    .select('id, name, status')
+    .select('id, title, status')
     .neq('status', 'finished')
-    .not('name', 'ilike', '[REHEARSAL]%')
+    .neq('status', 'archived')
+    .not('title', 'ilike', '[REHEARSAL]%')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
   if (error) throw error;
-  return data;
+  return data as ActiveEvent | null;
+}
+
+function formatSupabaseError(error: unknown, fallback: string): Error {
+  if (error && typeof error === 'object' && 'message' in error) {
+    const e = error as { message?: string; code?: string; details?: string; hint?: string };
+    const parts = [e.message, e.code && `code=${e.code}`, e.details, e.hint].filter(Boolean);
+    return new Error(parts.join(' | ') || fallback);
+  }
+  return new Error(fallback);
 }
 
 async function createEvent(): Promise<ActiveEvent> {
-  const name = `ダーツ大会 ${todayLabel()}`;
+  const title = `ダーツ大会 ${todayLabel()}`;
   const { data, error } = await supabase
     .from('events')
-    .insert({ name, status: 'setup' })
-    .select('id, name, status')
+    .insert({ title, status: 'entry' satisfies EventStatus })
+    .select('id, title, status')
     .single();
 
-  if (error || !data) throw error ?? new Error('イベント作成に失敗しました');
-  return data;
+  if (error || !data) {
+    throw formatSupabaseError(error, 'イベント作成に失敗しました');
+  }
+  return data as ActiveEvent;
 }
 
 /**
@@ -120,13 +137,15 @@ export async function createRehearsalEvent(): Promise<ActiveEvent> {
     minute: '2-digit',
     second: '2-digit',
   });
-  const name = `[REHEARSAL] ${todayLabel()} ${ts}`;
+  const title = `[REHEARSAL] ${todayLabel()} ${ts}`;
   const { data, error } = await supabase
     .from('events')
-    .insert({ name, status: 'setup' })
-    .select('id, name, status')
+    .insert({ title, status: 'entry' satisfies EventStatus })
+    .select('id, title, status')
     .single();
 
-  if (error || !data) throw error ?? new Error('リハーサルイベント作成に失敗しました');
-  return data;
+  if (error || !data) {
+    throw formatSupabaseError(error, 'リハーサルイベント作成に失敗しました');
+  }
+  return data as ActiveEvent;
 }

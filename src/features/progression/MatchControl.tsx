@@ -7,15 +7,15 @@ import {
   getNextMatch,
   getSlotTeamUuid,
 } from './progression';
-import type { MatchConfirmedEvent } from './progressionApi';
 import { useProgression } from './useProgression';
+import { closeVsCard, openVsCard, transitionScene } from '../scene/sceneActions';
+import { resolveMatchUuid } from '../scene/syncMatchesFromSnapshot';
+import { kindToThemeKey, roundBannerText } from '../../styles/bracketTheme';
+import { useEventState } from '../scene/useEventState';
 
 interface MatchControlProps {
   eventId: string;
   onStatusChange?: () => void;
-  /** 同一ページ内 Display 用 — Realtime を介さず演出を起動 */
-  onMatchConfirmed?: (payload: MatchConfirmedEvent) => void;
-  onEffectSkip?: () => void;
 }
 
 const BRACKET_LABEL: Record<'winner' | 'loser' | 'grand_final', string> = {
@@ -24,19 +24,16 @@ const BRACKET_LABEL: Record<'winner' | 'loser' | 'grand_final', string> = {
   grand_final: 'Grand Final',
 };
 
-export default function MatchControl({
-  eventId,
-  onStatusChange,
-  onMatchConfirmed,
-  onEffectSkip,
-}: MatchControlProps) {
+export default function MatchControl({ eventId, onStatusChange }: MatchControlProps) {
   const { state, loading, error, busy, canUndo, confirmWinner, undo, skipEffect, reload } =
     useProgression(eventId);
+  const { state: eventState } = useEventState(eventId);
   const [labels, setLabels] = useState<Record<string, string>>({});
   const [faces, setFaces] = useState<Record<string, string[]>>({});
   const [memberNames, setMemberNames] = useState<Record<string, string[]>>({});
   const [pendingSlot, setPendingSlot] = useState<0 | 1 | null>(null);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [sceneBusy, setSceneBusy] = useState(false);
 
   useEffect(() => {
     void buildTeamVisuals(eventId).then((v) => {
@@ -64,18 +61,62 @@ export default function MatchControl({
     ];
   }, [state, currentMatch, labels]);
 
+  const banner = useMemo(() => {
+    if (!state?.stageView || !currentMatch) return null;
+    const kind = getMatchBracketKind(state.stageView, currentMatch);
+    const round = getMatchRoundLabel(state.stageView, currentMatch);
+    return roundBannerText(kindToThemeKey(kind), round);
+  }, [state, currentMatch]);
+
   async function handleConfirm() {
     if (!currentMatch || pendingSlot == null) return;
     if (!window.confirm(`${slotLabels[pendingSlot]} の勝利で確定しますか？`)) return;
 
     try {
-      const result = await confirmWinner(currentMatch.id, pendingSlot);
+      await confirmWinner(currentMatch.id, pendingSlot);
       setPendingSlot(null);
-      setStatusMsg('勝敗を確定しました');
-      onMatchConfirmed?.(result.effectEvent);
+      setStatusMsg('勝敗を確定しました（Display が result シーンへ）');
       onStatusChange?.();
     } catch {
       /* error shown via hook */
+    }
+  }
+
+  async function handleShowVsCard() {
+    if (!currentMatch) return;
+    setSceneBusy(true);
+    try {
+      const uuid = await resolveMatchUuid(eventId, currentMatch.id);
+      await openVsCard(eventId, uuid);
+      setStatusMsg('対戦カードを表示しました');
+      onStatusChange?.();
+    } catch (e) {
+      setStatusMsg(e instanceof Error ? e.message : 'VS 表示に失敗');
+    } finally {
+      setSceneBusy(false);
+    }
+  }
+
+  async function handleCloseVsCard() {
+    setSceneBusy(true);
+    try {
+      await closeVsCard(eventId);
+      setStatusMsg('対戦カードを閉じました → 試合中');
+      onStatusChange?.();
+    } catch (e) {
+      setStatusMsg(e instanceof Error ? e.message : 'クローズに失敗');
+    } finally {
+      setSceneBusy(false);
+    }
+  }
+
+  async function handleGoBracket() {
+    setSceneBusy(true);
+    try {
+      await transitionScene(eventId, 'bracket', { force: true });
+      onStatusChange?.();
+    } finally {
+      setSceneBusy(false);
     }
   }
 
@@ -127,6 +168,7 @@ export default function MatchControl({
     ? getMatchBracketKind(state.stageView, currentMatch)
     : null;
   const roundNum = currentMatch ? getMatchRoundLabel(state.stageView, currentMatch) : null;
+  const scene = eventState?.scene ?? '—';
 
   return (
     <div className="space-y-6">
@@ -134,8 +176,23 @@ export default function MatchControl({
         <span>
           残り試合: <strong>{state.remainingMatches}</strong>
         </span>
-        <span className="capitalize">状態: {state.status}</span>
+        <span>
+          状態: {state.status} / シーン: <strong>{scene}</strong>
+        </span>
       </div>
+
+      {banner && (
+        <div
+          className="rounded-lg px-4 py-2 text-center font-black tracking-widest text-sm"
+          style={{
+            background: 'var(--bracket-fill, #0c1929)',
+            color: 'var(--bracket-label, #67e8f9)',
+            border: '2px solid var(--bracket-accent, #22d3ee)',
+          }}
+        >
+          {banner}
+        </div>
+      )}
 
       {currentMatch && (
         <div className="rounded-xl border-2 border-slate-800 bg-slate-50 p-4">
@@ -181,25 +238,52 @@ export default function MatchControl({
         {busy ? '処理中…' : '勝敗を確定'}
       </button>
 
-      <div className="flex gap-3">
-        <button
-          type="button"
-          onClick={() => void undo().then(() => onStatusChange?.())}
-          disabled={busy || !canUndo}
-          className="flex-1 rounded-lg border-2 border-amber-500 text-amber-800 py-4 font-bold disabled:opacity-40"
-        >
-          1 手戻す
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            void skipEffect().then(() => onEffectSkip?.());
-          }}
-          disabled={busy}
-          className="flex-1 rounded-lg border border-slate-300 text-slate-600 py-4 font-medium disabled:opacity-40"
-        >
-          演出スキップ
-        </button>
+      {/* 画面下部固定相当 — 押し間違い防止のため間隔を空ける */}
+      <div className="sticky bottom-0 z-10 -mx-2 border-t border-slate-200 bg-white/95 backdrop-blur px-2 py-4 space-y-3">
+        <div className="grid grid-cols-2 gap-4">
+          <button
+            type="button"
+            onClick={() => void handleShowVsCard()}
+            disabled={busy || sceneBusy || !currentMatch}
+            className="rounded-lg bg-cyan-700 text-white py-4 font-bold disabled:opacity-40"
+          >
+            対戦カードを表示
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleCloseVsCard()}
+            disabled={busy || sceneBusy || eventState?.scene !== 'vs_card'}
+            className="rounded-lg bg-cyan-900 text-white py-4 font-bold disabled:opacity-40"
+          >
+            対戦カードを閉じる
+          </button>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <button
+            type="button"
+            onClick={() => void undo().then(() => onStatusChange?.())}
+            disabled={busy || !canUndo}
+            className="rounded-lg border-2 border-amber-500 text-amber-800 py-3 font-bold disabled:opacity-40"
+          >
+            1 手戻す
+          </button>
+          <button
+            type="button"
+            onClick={() => void skipEffect()}
+            disabled={busy}
+            className="rounded-lg border border-slate-300 text-slate-600 py-3 font-medium disabled:opacity-40"
+          >
+            演出スキップ
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleGoBracket()}
+            disabled={busy || sceneBusy}
+            className="rounded-lg border border-slate-300 text-slate-700 py-3 font-medium disabled:opacity-40"
+          >
+            表に戻す
+          </button>
+        </div>
       </div>
 
       {error && (

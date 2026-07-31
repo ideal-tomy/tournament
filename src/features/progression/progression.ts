@@ -66,10 +66,10 @@ export function countPlayableMatches(data: StageData): number {
 export function deriveEventStatus(
   data: StageData,
   finished: boolean,
-): 'setup' | 'running' | 'finished' {
+): 'drawn' | 'running' | 'finished' {
   if (finished) return 'finished';
   const started = data.match.some((m) => m.status >= Status.Completed);
-  return started ? 'running' : 'setup';
+  return started ? 'running' : 'drawn';
 }
 
 export async function isTournamentFinished(

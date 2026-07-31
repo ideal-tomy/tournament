@@ -1,5 +1,5 @@
 import { fetchBracketSnapshot } from '../bracket/bracketApi';
-import { isRehearsalEventName } from '../../lib/event';
+import { isRehearsalEventTitle } from '../../lib/event';
 import { supabase } from '../../lib/supabase';
 import {
   createFreshRehearsal,
@@ -13,13 +13,13 @@ import { listParticipants } from '../registration/registrationApi';
 async function loadRehearsalEvent(eventId: string) {
   const { data, error } = await supabase
     .from('events')
-    .select('id, name, status')
+    .select('id, title, status')
     .eq('id', eventId)
     .maybeSingle();
 
   if (error) throw error;
-  if (!data || !isRehearsalEventName(data.name)) return null;
-  return data;
+  if (!data || !isRehearsalEventTitle(data.title as string)) return null;
+  return data as { id: string; title: string; status: string };
 }
 
 async function resultFromEvent(
@@ -55,12 +55,12 @@ export async function ensureDemoReady(
       const snap = await fetchBracketSnapshot(event.id);
       if (snap != null && snap.match.length > 0) {
         onProgress({ step: '準備完了', detail: '共有イベントを使用' });
-        return resultFromEvent(event.id, event.name, true);
+        return resultFromEvent(event.id, event.title, true);
       }
       onProgress({ step: 'ブラケットを再生成' });
       await resetRehearsalMatches(event.id);
       onProgress({ step: '準備完了' });
-      return resultFromEvent(event.id, event.name, true);
+      return resultFromEvent(event.id, event.title, true);
     }
   }
 

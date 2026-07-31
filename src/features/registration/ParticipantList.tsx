@@ -17,7 +17,7 @@ export default function ParticipantList({
   onUpdated,
 }: ParticipantListProps) {
   async function handleDelete(p: ParticipantRow) {
-    if (!window.confirm(`「${p.name}」を削除しますか？`)) return;
+    if (!window.confirm(`「${p.display_name}」を削除しますか？`)) return;
     try {
       await deleteParticipant(p);
       onDeleted();
@@ -28,7 +28,7 @@ export default function ParticipantList({
 
   async function handleEditRating(p: ParticipantRow) {
     const raw = window.prompt(
-      `「${p.name}」のレーティングを入力`,
+      `「${p.display_name}」のレーティングを入力`,
       p.rating != null ? String(p.rating) : '',
     );
     if (raw == null) return;
@@ -68,7 +68,7 @@ export default function ParticipantList({
           >
             <div className="aspect-square bg-slate-100 relative">
               {url ? (
-                <img src={url} alt={p.name} className="w-full h-full object-cover" />
+                <img src={url} alt={p.display_name} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs">
                   画像なし
@@ -79,8 +79,8 @@ export default function ParticipantList({
               </span>
             </div>
             <div className="p-2">
-              <p className="font-medium text-sm truncate" title={p.name}>
-                {p.name}
+              <p className="font-medium text-sm truncate" title={p.display_name}>
+                {p.display_name}
               </p>
               <div className="flex gap-1 mt-2">
                 <button

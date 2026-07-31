@@ -14,19 +14,23 @@ export async function listParticipants(eventId: string): Promise<ParticipantRow[
     .order('created_at', { ascending: true });
 
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []) as ParticipantRow[];
 }
 
 export async function addParticipant(
   eventId: string,
-  name: string,
+  displayName: string,
   rating: number,
   photo: Blob,
   face: Blob,
 ): Promise<string> {
   const { data: row, error } = await supabase
     .from('participants')
-    .insert({ event_id: eventId, name: name.trim(), rating })
+    .insert({
+      event_id: eventId,
+      display_name: displayName.trim(),
+      rating,
+    })
     .select()
     .single();
 
@@ -49,7 +53,7 @@ export async function addParticipant(
     .eq('id', row.id);
 
   if (updateError) throw updateError;
-  return row.id;
+  return row.id as string;
 }
 
 export async function updateParticipantPhotos(
@@ -57,7 +61,7 @@ export async function updateParticipantPhotos(
   eventId: string,
   photo: Blob,
   face: Blob,
-  name?: string,
+  displayName?: string,
   rating?: number,
 ): Promise<void> {
   const base = `${eventId}/${participantId}.jpg`;
@@ -75,13 +79,13 @@ export async function updateParticipantPhotos(
   const patch: {
     photo_path: string;
     face_crop_path: string;
-    name?: string;
+    display_name?: string;
     rating?: number;
   } = {
     photo_path: base,
     face_crop_path: base,
   };
-  if (name != null) patch.name = name.trim();
+  if (displayName != null) patch.display_name = displayName.trim();
   if (rating != null) patch.rating = rating;
 
   const { error } = await supabase

@@ -1,26 +1,32 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import EffectOrchestrator from '../features/presentation/EffectOrchestrator';
 import EventIdBadge from '../components/EventIdBadge';
 import { useBracketDisplay } from '../features/bracket/useBracketDisplay';
+import BracketView from '../features/bracket/BracketView';
 import { useActiveEvent } from '../hooks/useActiveEvent';
 import { displayMediaPreloader } from '../lib/media';
+import { bracketTheme, kindToThemeKey } from '../styles/bracketTheme';
+import { useEventState } from '../features/scene/useEventState';
+import { shouldRestoreCompleted } from '../features/scene/sceneMachine';
+import OpeningScene from '../features/presentation/scenes/OpeningScene';
+import VsCardScene from '../features/presentation/scenes/VsCardScene';
+import ResultScene from '../features/presentation/scenes/ResultScene';
+import PlaylistPlayer from '../features/player/PlaylistPlayer';
+import { supabase } from '../lib/supabase';
 import {
-  subscribeWithReconnect,
-  type ConnectionStatus,
-} from '../lib/realtime';
-import { bracketTheme } from '../styles/bracketTheme';
-import type { RealtimeEvent } from '../types';
-import type { StageData } from '../features/bracket/layout';
+  getMatchBracketKind,
+  getMatchRoundLabel,
+  getSlotTeamUuid,
+} from '../features/progression/progression';
+import type { BracketThemeKey, Scene } from '../types';
+import type { BMMatch } from '../features/bracket/layout';
 
-type MatchConfirmed = Extract<RealtimeEvent, { type: 'match:confirmed' }>;
-
-const STATUS_LABEL: Record<ConnectionStatus, string> = {
+const STATUS_LABEL = {
   connecting: '接続中…',
   connected: '接続済み',
-  disconnected: '切断 — 再接続中',
-  error: '接続エラー — 再接続中',
-};
+  disconnected: '切断',
+  error: 'エラー',
+} as const;
 
 export default function DisplayPage() {
   const [searchParams] = useSearchParams();
@@ -40,82 +46,125 @@ export default function DisplayPage() {
     reload: reloadBracket,
   } = useBracketDisplay(event?.id);
 
-  const [matchConfirmed, setMatchConfirmed] = useState<MatchConfirmed | null>(null);
-  const [pendingEffect, setPendingEffect] = useState<MatchConfirmed | null>(null);
-  const [frozenSnapshot, setFrozenSnapshot] = useState<StageData | null>(null);
-  const [skipSignal, setSkipSignal] = useState(0);
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
-  const [mediaReady, setMediaReady] = useState(false);
-  const effectPlayingRef = useRef(false);
-  const pendingBracketReloadRef = useRef(false);
-  const snapshotRef = useRef(snapshot);
-  snapshotRef.current = snapshot;
-
-  const displaySnapshot = frozenSnapshot ?? snapshot;
+  const {
+    state: eventState,
+    loading: stateLoading,
+    reload: reloadEventState,
+    applyIncoming,
+    channelStatus,
+  } = useEventState(event?.id);
+  const [started, setStarted] = useState(false);
+  const [preloadPct, setPreloadPct] = useState(0);
+  const [eventMeta, setEventMeta] = useState<{ title: string; subtitle: string | null } | null>(
+    null,
+  );
 
   useEffect(() => {
-    let cancelled = false;
-    void displayMediaPreloader.preloadDisplayAssets().then(() => {
-      if (!cancelled) setMediaReady(true);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (!event?.id) return;
+    void supabase
+      .from('events')
+      .select('title, subtitle')
+      .eq('id', event.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          setEventMeta({
+            title: data.title as string,
+            subtitle: (data.subtitle as string | null) ?? null,
+          });
+        }
+      });
+  }, [event?.id]);
 
-  const handleEffectComplete = useCallback(() => {
-    effectPlayingRef.current = false;
-    setFrozenSnapshot(null);
-    if (pendingBracketReloadRef.current) {
-      pendingBracketReloadRef.current = false;
+  useEffect(() => {
+    if (!eventState) return;
+    if (
+      eventState.scene === 'bracket' ||
+      eventState.scene === 'result' ||
+      eventState.scene === 'match_live' ||
+      eventState.scene === 'vs_card'
+    ) {
       reloadBracket();
     }
-  }, [reloadBracket]);
+  }, [eventState?.scene_seq, eventState?.scene, reloadBracket]);
 
-  useEffect(() => {
-    if (!pendingEffect || bracketLoading || !snapshot) return;
-    setMatchConfirmed(pendingEffect);
-    setPendingEffect(null);
-  }, [pendingEffect, snapshot, bracketLoading]);
+  async function handleStart() {
+    try {
+      const Ctx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (Ctx) {
+        const ctx = new Ctx();
+        await ctx.resume();
+        void ctx.close();
+      }
+    } catch {
+      /* ignore */
+    }
+    setPreloadPct(30);
+    await displayMediaPreloader.preloadDisplayAssets();
+    setPreloadPct(100);
+    setStarted(true);
+  }
 
-  const handleReconnect = useCallback(() => {
-    reload();
-    reloadBracket();
-  }, [reload, reloadBracket]);
+  const scene: Scene = eventState?.scene ?? 'idle';
+  const restoreCompleted = shouldRestoreCompleted(scene, eventState?.scene_started_at ?? null);
+  const forceComplete = Boolean(eventState?.scene_payload?.forceComplete);
 
-  useEffect(() => {
-    if (!event) return;
-    return subscribeWithReconnect(event.id, {
-      onEvent: (payload) => {
-        if (payload.type === 'bracket:updated') {
-          if (effectPlayingRef.current) {
-            pendingBracketReloadRef.current = true;
-          } else {
-            reloadBracket();
-          }
-        }
-        if (payload.type === 'match:confirmed') {
-          effectPlayingRef.current = true;
-          if (snapshotRef.current) {
-            setFrozenSnapshot(snapshotRef.current);
-          }
-          setPendingEffect(payload);
-          reloadBracket();
-        }
-        if (payload.type === 'event:finished') {
-          reload();
-          reloadBracket();
-        }
-        if (payload.type === 'effect:skip') {
-          setSkipSignal((n) => n + 1);
-        }
-      },
-      onStatus: setConnectionStatus,
-      onReconnect: handleReconnect,
-    });
-  }, [event?.id, reload, reloadBracket, handleReconnect]);
+  const matchInfo = useMemo(() => {
+    if (!snapshot || !eventState) return null;
+    const payload = eventState.scene_payload as {
+      bmMatchId?: number;
+      winnerTeamId?: string;
+      loserTeamId?: string;
+    };
+    let match: BMMatch | undefined;
+    if (payload.bmMatchId != null) {
+      match = snapshot.match.find((m) => m.id === payload.bmMatchId);
+    } else if (currentMatchId != null) {
+      match = snapshot.match.find((m) => m.id === currentMatchId);
+    }
+    if (!match) return null;
+    const kind = getMatchBracketKind(snapshot, match);
+    const key = kindToThemeKey(kind);
+    const round = getMatchRoundLabel(snapshot, match);
+    const a = getSlotTeamUuid(snapshot, match, 0);
+    const b = getSlotTeamUuid(snapshot, match, 1);
+    return {
+      match,
+      key,
+      round,
+      teamA: a,
+      teamB: b,
+      winnerId: payload.winnerTeamId ?? null,
+      loserId: payload.loserTeamId ?? null,
+    };
+  }, [snapshot, eventState, currentMatchId]);
 
-  const isLoading = loading || bracketLoading || !mediaReady;
+  const isLoading = loading || stateLoading;
+
+  if (!started) {
+    return (
+      <div
+        className="flex min-h-screen flex-col items-center justify-center gap-6 text-white"
+        style={{ backgroundColor: bracketTheme.background }}
+      >
+        <h1 className="text-3xl font-black text-cyan-300">Display</h1>
+        <p className="text-slate-400 text-sm">音声と素材の準備のため、開始をクリックしてください</p>
+        {preloadPct > 0 && preloadPct < 100 && (
+          <p className="text-xs text-slate-500">プリロード {preloadPct}%</p>
+        )}
+        <button
+          type="button"
+          onClick={() => void handleStart()}
+          className="rounded-xl bg-cyan-600 px-10 py-4 text-xl font-bold"
+        >
+          開始
+        </button>
+        {error && <p className="text-red-400 text-sm">{error}</p>}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -124,20 +173,16 @@ export default function DisplayPage() {
     >
       <header className="px-6 py-3 border-b border-slate-800/80 flex items-center justify-between gap-4 shrink-0">
         <div>
-          <h1 className="text-xl font-black tracking-tight text-cyan-300">トーナメント表</h1>
+          <h1 className="text-xl font-black tracking-tight text-cyan-300">
+            {scene === 'opening' ? 'オープニング' : 'トーナメント表'}
+          </h1>
           {event && (
             <p className="text-slate-400 text-sm mt-0.5">
-              {event.name}
-              <span className="ml-2 text-cyan-500/80 text-xs">ダブルイリミ</span>
+              {eventMeta?.title ?? event.title}
+              <span className="ml-2 text-cyan-500/80 text-xs">{scene}</span>
               {eventStatus === 'finished' && (
                 <span className="ml-2 text-fuchsia-400 font-bold">— 終了</span>
               )}
-              {eventStatus === 'running' && (
-                <span className="ml-2 text-amber-300 font-medium">— 進行中</span>
-              )}
-              <span className="ml-2 text-slate-500 text-xs">
-                1 柱 = 1 チーム（2 名）
-              </span>
               <span className="ml-3">
                 <EventIdBadge eventId={event.id} />
               </span>
@@ -145,75 +190,126 @@ export default function DisplayPage() {
           )}
         </div>
         <div className="flex items-center gap-4 shrink-0">
-          <span
-            className={`text-xs font-mono ${
-              connectionStatus === 'connected'
-                ? 'text-emerald-400'
-                : connectionStatus === 'connecting'
-                  ? 'text-amber-300'
-                  : 'text-red-400'
-            }`}
-            title="Realtime 接続状態"
-          >
-            {STATUS_LABEL[connectionStatus]}
+          <span className="text-xs font-mono text-slate-400">
+            {STATUS_LABEL[channelStatus]} · seq {eventState?.scene_seq ?? '-'}
           </span>
           {!isKiosk && (
-            <Link to="/admin" className="text-cyan-400 text-sm underline">
-              運営画面
+            <Link to="/" className="text-sm text-slate-400 hover:text-white">
+              ホーム
             </Link>
           )}
         </div>
       </header>
 
-      <main className="flex-1 p-2 md:p-4 min-h-0 flex flex-col">
+      <main className="flex-1 relative overflow-hidden">
         {isLoading && (
-          <p className="text-slate-400 text-center py-12">
-            {!mediaReady ? '素材読み込み中…' : '読み込み中…'}
+          <p className="absolute inset-0 flex items-center justify-center text-slate-400">
+            読み込み中…
           </p>
         )}
+        {bracketError && <p className="p-4 text-red-400">{bracketError}</p>}
 
-        {(error || bracketError) && (
-          <div className="rounded border border-red-500/50 bg-red-950/50 p-4 mb-6 max-w-lg mx-auto">
-            <p className="text-red-300">{error ?? bracketError}</p>
-            <button
-              type="button"
-              onClick={() => {
-                reload();
-                reloadBracket();
-              }}
-              className="mt-3 rounded bg-red-800 px-4 py-2 text-sm"
-            >
-              再試行
-            </button>
+        {scene === 'idle' && (
+          <div className="flex h-full min-h-[50vh] items-center justify-center text-slate-500">
+            待機中
           </div>
         )}
 
-        {event && !isLoading && !error && !bracketError && (
-          <>
-            {!hasBracket && (
-              <div className="text-center py-24 text-slate-500">
-                <p className="text-lg">ブラケット未生成</p>
-                <p className="text-sm mt-2">運営画面で抽選・ブラケット生成を実行してください</p>
-              </div>
-            )}
+        {scene === 'opening' && event && (
+          <OpeningScene
+            eventId={event.id}
+            title={eventMeta?.title ?? event.title}
+            subtitle={eventMeta?.subtitle ?? null}
+          />
+        )}
 
-            {hasBracket && displaySnapshot && snapshot && (
-              <EffectOrchestrator
-                displaySnapshot={displaySnapshot}
-                layoutSnapshot={snapshot}
+        {scene === 'interval' && event && (
+          <PlaylistPlayer eventId={event.id} slot="interval" className="h-full min-h-[60vh]" />
+        )}
+
+        {scene === 'award' && event && (
+          <PlaylistPlayer eventId={event.id} slot="award" className="h-full min-h-[60vh]" />
+        )}
+
+        {(scene === 'bracket' || scene === 'match_live' || scene === 'draw') &&
+          hasBracket &&
+          snapshot && (
+            <div className="h-full p-2">
+              <BracketView
+                data={snapshot}
                 faceUrlByTeamId={faceUrlByTeamId}
                 labelByTeamId={labelByTeamId}
                 memberNamesByTeamId={memberNamesByTeamId}
                 currentMatchId={currentMatchId}
-                matchConfirmed={matchConfirmed}
-                skipSignal={skipSignal}
-                onMatchConfirmedConsumed={() => setMatchConfirmed(null)}
-                onEffectComplete={handleEffectComplete}
               />
-            )}
-          </>
+            </div>
+          )}
+
+        {scene === 'vs_card' && matchInfo && (
+          <VsCardScene
+            teamALabel={
+              matchInfo.teamA ? (labelByTeamId[matchInfo.teamA] ?? matchInfo.teamA) : 'TBD'
+            }
+            teamBLabel={
+              matchInfo.teamB ? (labelByTeamId[matchInfo.teamB] ?? matchInfo.teamB) : 'TBD'
+            }
+            teamAFaces={matchInfo.teamA ? (faceUrlByTeamId[matchInfo.teamA] ?? []) : []}
+            teamBFaces={matchInfo.teamB ? (faceUrlByTeamId[matchInfo.teamB] ?? []) : []}
+            bracketKey={matchInfo.key as BracketThemeKey}
+            round={matchInfo.round}
+            awaitingOperator={eventState?.awaiting_operator ?? false}
+            restoreCompleted={restoreCompleted}
+          />
         )}
+
+        {scene === 'result' && matchInfo && event && eventState && (
+          <ResultScene
+            key={`result-${eventState.scene_seq}`}
+            eventId={event.id}
+            sceneSeq={eventState.scene_seq}
+            winnerLabel={
+              matchInfo.winnerId ? (labelByTeamId[matchInfo.winnerId] ?? 'Winner') : 'Winner'
+            }
+            loserLabel={
+              matchInfo.loserId ? (labelByTeamId[matchInfo.loserId] ?? 'Loser') : 'Loser'
+            }
+            winnerFaces={matchInfo.winnerId ? (faceUrlByTeamId[matchInfo.winnerId] ?? []) : []}
+            loserFaces={matchInfo.loserId ? (faceUrlByTeamId[matchInfo.loserId] ?? []) : []}
+            bracketKey={matchInfo.key as BracketThemeKey}
+            round={matchInfo.round}
+            presentationMode={eventState.presentation_mode ?? 'full'}
+            forceComplete={forceComplete}
+            restoreCompleted={restoreCompleted}
+            onSceneUpdated={applyIncoming}
+          />
+        )}
+
+        {scene === 'finished' && (
+          <div className="flex h-full min-h-[50vh] items-center justify-center text-3xl font-black text-fuchsia-300">
+            FINISHED
+          </div>
+        )}
+
+        {!hasBracket &&
+          (scene === 'bracket' || scene === 'match_live') &&
+          !bracketLoading && (
+            <p className="p-8 text-center text-slate-500">ブラケット未生成</p>
+          )}
       </main>
+
+      {!isKiosk && (
+        <button
+          type="button"
+          onClick={() => {
+            reload();
+            void reloadEventState();
+            reloadBracket();
+          }}
+          className="fixed bottom-3 left-3 text-xs text-slate-600 underline"
+        >
+          再読込
+        </button>
+      )}
     </div>
   );
 }
