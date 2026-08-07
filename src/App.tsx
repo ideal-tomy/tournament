@@ -4,6 +4,7 @@ import DemoPage from './routes/DemoPage';
 import DisplayPage from './routes/DisplayPage';
 import HomePage from './routes/HomePage';
 import RehearsalPage from './routes/RehearsalPage';
+import PresentationPage from './routes/PresentationPage';
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
         <Route path="/display" element={<DisplayPage />} />
         <Route path="/demo" element={<DemoPage />} />
         <Route path="/rehearsal" element={<RehearsalPage />} />
+        <Route path="/presentation" element={<PresentationPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

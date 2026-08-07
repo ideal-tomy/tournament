@@ -24,6 +24,16 @@ export default function HomePage() {
           </h2>
 
           <Link
+            to="/presentation"
+            className="block rounded-xl border-2 border-amber-400/70 bg-gradient-to-br from-amber-950/60 to-cyan-950/50 p-5 shadow-lg shadow-amber-950/20 transition-colors hover:border-amber-300"
+          >
+            <p className="text-lg font-bold text-amber-200">▶ 操作説明を見る</p>
+            <p className="mt-1 text-sm text-slate-300">
+              約90秒で参加者登録・抽選・試合進行の流れを確認
+            </p>
+          </Link>
+
+          <Link
             to="/demo"
             className="block rounded-xl border-2 border-cyan-500/60 bg-cyan-950/40 hover:border-cyan-400 p-5 transition-colors shadow-lg shadow-cyan-950/30"
           >
