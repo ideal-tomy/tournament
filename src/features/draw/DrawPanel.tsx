@@ -69,7 +69,7 @@ export default function DrawPanel({ eventId, onBracketCreated }: DrawPanelProps)
       await broadcast(eventId, { type: 'bracket:updated', eventId });
       setHasExistingBracket(true);
       setPreview(null);
-      setStatus('ブラケットを生成しました。表示端末を確認してください。');
+      setStatus('編成を確定し、表示端末で抽選演出を開始しました。');
       onBracketCreated();
       void refresh();
     } catch (e) {
@@ -189,7 +189,7 @@ export default function DrawPanel({ eventId, onBracketCreated }: DrawPanelProps)
               disabled={busy}
               className="rounded-lg bg-emerald-600 text-white py-3 font-bold disabled:opacity-50"
             >
-              {busy ? '生成中…' : '確定 → ブラケット生成'}
+              {busy ? '生成中…' : '確定 → 抽選演出開始'}
             </button>
           </div>
         </div>

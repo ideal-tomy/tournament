@@ -12,6 +12,7 @@ import { closeVsCard, openVsCard, transitionScene } from '../scene/sceneActions'
 import { resolveMatchUuid } from '../scene/syncMatchesFromSnapshot';
 import { kindToThemeKey, roundBannerText } from '../../styles/bracketTheme';
 import { useEventState } from '../scene/useEventState';
+import { presentationRemainingMs } from '../presentation/matchPresentationTiming';
 
 interface MatchControlProps {
   eventId: string;
@@ -34,6 +35,14 @@ export default function MatchControl({ eventId, onStatusChange }: MatchControlPr
   const [pendingSlot, setPendingSlot] = useState<0 | 1 | null>(null);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [sceneBusy, setSceneBusy] = useState(false);
+  const [clockMs, setClockMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    setClockMs(Date.now());
+    if (eventState?.scene !== 'bracket' && eventState?.scene !== 'vs_card') return;
+    const id = window.setInterval(() => setClockMs(Date.now()), 250);
+    return () => window.clearInterval(id);
+  }, [eventState?.scene, eventState?.scene_seq]);
 
   useEffect(() => {
     void buildTeamVisuals(eventId).then((v) => {
@@ -83,7 +92,7 @@ export default function MatchControl({ eventId, onStatusChange }: MatchControlPr
   }
 
   async function handleShowVsCard() {
-    if (!currentMatch) return;
+    if (!currentMatch || eventState?.scene !== 'bracket' || nextMatchRemainingMs > 0) return;
     setSceneBusy(true);
     try {
       const uuid = await resolveMatchUuid(eventId, currentMatch.id);
@@ -98,6 +107,7 @@ export default function MatchControl({ eventId, onStatusChange }: MatchControlPr
   }
 
   async function handleCloseVsCard() {
+    if (eventState?.scene !== 'vs_card' || vsRemainingMs > 0) return;
     setSceneBusy(true);
     try {
       await closeVsCard(eventId);
@@ -169,6 +179,14 @@ export default function MatchControl({ eventId, onStatusChange }: MatchControlPr
     : null;
   const roundNum = currentMatch ? getMatchRoundLabel(state.stageView, currentMatch) : null;
   const scene = eventState?.scene ?? '—';
+  const scenePayload = eventState?.scene_payload as
+    | { nextMatchReadyAt?: string; minCloseAt?: string }
+    | undefined;
+  const nextMatchRemainingMs = presentationRemainingMs(
+    scenePayload?.nextMatchReadyAt,
+    clockMs,
+  );
+  const vsRemainingMs = presentationRemainingMs(scenePayload?.minCloseAt, clockMs);
 
   return (
     <div className="space-y-6">
@@ -244,18 +262,33 @@ export default function MatchControl({ eventId, onStatusChange }: MatchControlPr
           <button
             type="button"
             onClick={() => void handleShowVsCard()}
-            disabled={busy || sceneBusy || !currentMatch}
+            disabled={
+              busy ||
+              sceneBusy ||
+              !currentMatch ||
+              eventState?.scene !== 'bracket' ||
+              nextMatchRemainingMs > 0
+            }
             className="rounded-lg bg-cyan-700 text-white py-4 font-bold disabled:opacity-40"
           >
-            対戦カードを表示
+            {nextMatchRemainingMs > 0
+              ? `次試合案内（あと${Math.ceil(nextMatchRemainingMs / 1000)}秒）`
+              : '次試合案内を表示'}
           </button>
           <button
             type="button"
             onClick={() => void handleCloseVsCard()}
-            disabled={busy || sceneBusy || eventState?.scene !== 'vs_card'}
+            disabled={
+              busy ||
+              sceneBusy ||
+              eventState?.scene !== 'vs_card' ||
+              vsRemainingMs > 0
+            }
             className="rounded-lg bg-cyan-900 text-white py-4 font-bold disabled:opacity-40"
           >
-            対戦カードを閉じる
+            {vsRemainingMs > 0
+              ? `VS表示中（あと${Math.ceil(vsRemainingMs / 1000)}秒）`
+              : '対戦カードを閉じる'}
           </button>
         </div>
         <div className="grid grid-cols-3 gap-3">

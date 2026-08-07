@@ -1,5 +1,9 @@
+import { useEffect, useRef } from 'react';
+import gsap from 'gsap';
 import { bracketThemeCssVars, roundBannerText, themeForKey } from '../../../styles/bracketTheme';
 import type { BracketThemeKey } from '../../../types';
+import { TOURNAMENT_EFFECTS as FX } from '../../../lib/tournamentEffects';
+import { MATCH_PRESENTATION_TIMING } from '../matchPresentationTiming';
 
 interface VsCardSceneProps {
   teamALabel: string;
@@ -20,16 +24,44 @@ export default function VsCardScene({
   bracketKey,
   round,
   awaitingOperator,
+  restoreCompleted,
 }: VsCardSceneProps) {
   const theme = themeForKey(bracketKey);
   const vars = bracketThemeCssVars(bracketKey);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const bannerRef = useRef<HTMLDivElement>(null);
+  const leftRef = useRef<HTMLDivElement>(null);
+  const rightRef = useRef<HTMLDivElement>(null);
+  const vsRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    if (restoreCompleted) return;
+    const ctx = gsap.context(() => {
+      const intro = MATCH_PRESENTATION_TIMING.vsIntro / 1000;
+      gsap
+        .timeline()
+        .fromTo(bannerRef.current, { autoAlpha: 0, y: -24 }, { autoAlpha: 1, y: 0, duration: 0.35 })
+        .fromTo(leftRef.current, { autoAlpha: 0, x: '-18vw' }, { autoAlpha: 1, x: 0, duration: intro, ease: 'power3.out' }, 0.1)
+        .fromTo(rightRef.current, { autoAlpha: 0, x: '18vw' }, { autoAlpha: 1, x: 0, duration: intro, ease: 'power3.out' }, 0.1)
+        .fromTo(vsRef.current, { autoAlpha: 0, scale: 0.25, rotation: -8 }, { autoAlpha: 1, scale: 1, rotation: 0, duration: 0.55, ease: 'back.out(1.8)' }, 0.45);
+    }, rootRef);
+    return () => ctx.revert();
+  }, [restoreCompleted]);
 
   return (
     <div
+      ref={rootRef}
       className="relative flex h-full min-h-[60vh] flex-col items-center justify-center gap-8 px-8"
-      style={{ ...vars, background: theme.fill }}
+      style={{
+        ...vars,
+        backgroundColor: theme.fill,
+        backgroundImage: `linear-gradient(rgba(0,0,0,.2), rgba(0,0,0,.45)), url(${FX.backgrounds.tournament})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
     >
       <div
+        ref={bannerRef}
         className="rounded px-6 py-2 text-sm font-black tracking-[0.3em]"
         style={{
           color: theme.labelColor,
@@ -45,9 +77,9 @@ export default function VsCardScene({
       </div>
 
       <div className="flex w-full max-w-5xl items-center justify-center gap-6">
-        <TeamBlock label={teamALabel} faces={teamAFaces} accent={theme.accent} />
-        <div className="text-5xl font-black text-white/90">VS</div>
-        <TeamBlock label={teamBLabel} faces={teamBFaces} accent={theme.accent} />
+        <div ref={leftRef} className="flex flex-1"><TeamBlock label={teamALabel} faces={teamAFaces} accent={theme.accent} /></div>
+        <img ref={vsRef} src={FX.effects.vsMark} alt="VS" className="h-36 w-36 object-contain drop-shadow-[0_0_28px_rgba(250,204,21,.8)]" />
+        <div ref={rightRef} className="flex flex-1"><TeamBlock label={teamBLabel} faces={teamBFaces} accent={theme.accent} /></div>
       </div>
 
       {awaitingOperator && (
@@ -73,13 +105,10 @@ function TeamBlock({
       <div className="flex gap-2">
         {faces.length > 0 ? (
           faces.map((url) => (
-            <img
-              key={url}
-              src={url}
-              alt=""
-              className="h-28 w-28 rounded-lg object-cover"
-              style={{ boxShadow: `0 0 24px ${accent}66` }}
-            />
+            <div key={url} className="relative h-36 w-36 p-4">
+              <img src={url} alt="" className="h-full w-full rounded-lg object-cover" style={{ boxShadow: `0 0 24px ${accent}66` }} />
+              <img src={FX.frames.player} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-contain" />
+            </div>
           ))
         ) : (
           <div
@@ -90,7 +119,10 @@ function TeamBlock({
           </div>
         )}
       </div>
-      <p className="text-center text-xl font-bold text-white">{label}</p>
+      <div className="relative min-w-64 px-8 py-3 text-center">
+        <img src={FX.frames.teamPlate} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-fill opacity-80" />
+        <p className="relative truncate text-xl font-bold text-white">{label}</p>
+      </div>
     </div>
   );
 }

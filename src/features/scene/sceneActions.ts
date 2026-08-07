@@ -1,6 +1,11 @@
 import { supabase } from '../../lib/supabase';
 import type { EventStateRow, Scene } from '../../types';
 import { canTransition } from './sceneMachine';
+import {
+  MATCH_PRESENTATION_TIMING,
+  presentationDeadlineIso,
+  presentationRemainingMs,
+} from '../presentation/matchPresentationTiming';
 
 export interface TransitionOpts {
   payload?: Record<string, unknown>;
@@ -101,6 +106,40 @@ export async function transitionScene(
   return data as EventStateRow;
 }
 
+/** 古いシーンの cleanup が最新状態を上書きしないための条件付き遷移。 */
+export async function transitionSceneIfCurrent(
+  eventId: string,
+  expectedScene: Scene,
+  expectedSeq: number,
+  to: Scene,
+  opts: TransitionOpts = {},
+): Promise<EventStateRow | null> {
+  if (!canTransition(expectedScene, to, opts.force)) {
+    throw new Error(`許可されていないシーン遷移: ${expectedScene} → ${to}`);
+  }
+
+  const next: Record<string, unknown> = {
+    scene: to,
+    scene_seq: expectedSeq + 1,
+    scene_started_at: new Date().toISOString(),
+    scene_payload: opts.payload ?? {},
+    awaiting_operator: opts.awaitingOperator ?? false,
+  };
+  if (opts.currentMatchId !== undefined) next.current_match_id = opts.currentMatchId;
+  if (opts.presentationMode) next.presentation_mode = opts.presentationMode;
+
+  const { data, error } = await supabase
+    .from('event_state')
+    .update(next)
+    .eq('event_id', eventId)
+    .eq('scene', expectedScene)
+    .eq('scene_seq', expectedSeq)
+    .select('*')
+    .maybeSingle();
+  if (error) throw error;
+  return (data as EventStateRow | null) ?? null;
+}
+
 export async function requestForceComplete(eventId: string): Promise<void> {
   const current = await fetchState(eventId);
   if (!current) return;
@@ -135,11 +174,23 @@ export async function openVsCard(
   await transitionScene(eventId, 'vs_card', {
     awaitingOperator: true,
     currentMatchId: matchUuid,
-    payload: { matchId: matchUuid },
+    payload: {
+      matchId: matchUuid,
+      minCloseAt: presentationDeadlineIso(MATCH_PRESENTATION_TIMING.vsMinimumHold),
+    },
   });
 }
 
 export async function closeVsCard(eventId: string): Promise<void> {
+  const current = await fetchState(eventId);
+  if (!current || current.scene !== 'vs_card') {
+    throw new Error('対戦カードは現在表示されていません');
+  }
+  const payload = current.scene_payload as { minCloseAt?: string } | null;
+  const remaining = presentationRemainingMs(payload?.minCloseAt);
+  if (remaining > 0) {
+    throw new Error(`NEXT MATCH は最低5秒表示します（あと${Math.ceil(remaining / 1000)}秒）`);
+  }
   await transitionScene(eventId, 'match_live', {
     awaitingOperator: false,
   });

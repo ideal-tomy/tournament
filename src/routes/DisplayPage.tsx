@@ -11,6 +11,7 @@ import { shouldRestoreCompleted } from '../features/scene/sceneMachine';
 import OpeningScene from '../features/presentation/scenes/OpeningScene';
 import VsCardScene from '../features/presentation/scenes/VsCardScene';
 import ResultScene from '../features/presentation/scenes/ResultScene';
+import DrawScene from '../features/presentation/scenes/DrawScene';
 import PlaylistPlayer from '../features/player/PlaylistPlayer';
 import { supabase } from '../lib/supabase';
 import {
@@ -110,6 +111,15 @@ export default function DisplayPage() {
   const scene: Scene = eventState?.scene ?? 'idle';
   const restoreCompleted = shouldRestoreCompleted(scene, eventState?.scene_started_at ?? null);
   const forceComplete = Boolean(eventState?.scene_payload?.forceComplete);
+  const drawPayload = eventState?.scene_payload as
+    | { drawSessionId?: string; durationSec?: number }
+    | undefined;
+  const drawRestoreCompleted = useMemo(() => {
+    if (scene !== 'draw' || !eventState?.scene_started_at) return false;
+    const duration = Number(drawPayload?.durationSec);
+    if (!Number.isFinite(duration) || duration <= 0) return restoreCompleted;
+    return Date.now() - new Date(eventState.scene_started_at).getTime() >= duration * 1000;
+  }, [scene, eventState?.scene_started_at, drawPayload?.durationSec, restoreCompleted]);
 
   const matchInfo = useMemo(() => {
     if (!snapshot || !eventState) return null;
@@ -117,6 +127,9 @@ export default function DisplayPage() {
       bmMatchId?: number;
       winnerTeamId?: string;
       loserTeamId?: string;
+      nextBmMatchId?: number | null;
+      tournamentFinished?: boolean;
+      championTeamId?: string | null;
     };
     let match: BMMatch | undefined;
     if (payload.bmMatchId != null) {
@@ -138,6 +151,9 @@ export default function DisplayPage() {
       teamB: b,
       winnerId: payload.winnerTeamId ?? null,
       loserId: payload.loserTeamId ?? null,
+      nextBmMatchId: payload.nextBmMatchId ?? null,
+      tournamentFinished: payload.tournamentFinished ?? false,
+      championTeamId: payload.championTeamId ?? null,
     };
   }, [snapshot, eventState, currentMatchId]);
 
@@ -174,7 +190,7 @@ export default function DisplayPage() {
       <header className="px-6 py-3 border-b border-slate-800/80 flex items-center justify-between gap-4 shrink-0">
         <div>
           <h1 className="text-xl font-black tracking-tight text-cyan-300">
-            {scene === 'opening' ? 'オープニング' : 'トーナメント表'}
+            {scene === 'opening' ? 'オープニング' : scene === 'draw' ? 'チーム抽選' : 'トーナメント表'}
           </h1>
           {event && (
             <p className="text-slate-400 text-sm mt-0.5">
@@ -231,7 +247,7 @@ export default function DisplayPage() {
           <PlaylistPlayer eventId={event.id} slot="award" className="h-full min-h-[60vh]" />
         )}
 
-        {(scene === 'bracket' || scene === 'match_live' || scene === 'draw') &&
+        {(scene === 'bracket' || scene === 'match_live') &&
           hasBracket &&
           snapshot && (
             <div className="h-full p-2">
@@ -244,6 +260,20 @@ export default function DisplayPage() {
               />
             </div>
           )}
+
+        {scene === 'draw' && event && eventState && (
+          <DrawScene
+            key={`draw-${eventState.scene_seq}`}
+            eventId={event.id}
+            sceneSeq={eventState.scene_seq}
+            drawSessionId={drawPayload?.drawSessionId}
+            presentationMode={eventState.presentation_mode ?? 'full'}
+            audioEnabled={eventState.audio_enabled ?? true}
+            forceComplete={forceComplete}
+            restoreCompleted={drawRestoreCompleted}
+            onSceneUpdated={applyIncoming}
+          />
+        )}
 
         {scene === 'vs_card' && matchInfo && (
           <VsCardScene
@@ -280,6 +310,9 @@ export default function DisplayPage() {
             presentationMode={eventState.presentation_mode ?? 'full'}
             forceComplete={forceComplete}
             restoreCompleted={restoreCompleted}
+            nextBmMatchId={matchInfo.nextBmMatchId}
+            tournamentFinished={matchInfo.tournamentFinished}
+            championTeamId={matchInfo.championTeamId}
             onSceneUpdated={applyIncoming}
           />
         )}

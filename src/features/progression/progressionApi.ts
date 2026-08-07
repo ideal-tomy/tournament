@@ -142,6 +142,9 @@ export async function confirmMatchResult(
       matchId: matchUuid,
       winnerTeamId,
       loserTeamId,
+      nextBmMatchId: nextMatch?.id ?? null,
+      tournamentFinished: finished,
+      championTeamId,
     },
   });
 

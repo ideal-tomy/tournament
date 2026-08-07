@@ -93,3 +93,8 @@ export function makeTeams(
 export function teamCount(participants: RatedParticipant[], strategy: DrawStrategy): number {
   return makeBalancedTeams(participants, strategy).length;
 }
+
+/** 確定チームを演出用の公開順へ変換する。演出側では組み合わせを変更しない。 */
+export function buildRevealOrder(teams: string[][]): string[] {
+  return teams.flatMap((members) => members);
+}

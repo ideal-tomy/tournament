@@ -1,4 +1,5 @@
 import type { Scene } from '../../types';
+import { MATCH_PRESENTATION_TIMING } from '../presentation/matchPresentationTiming';
 
 export const SCENES = [
   'idle',
@@ -21,7 +22,7 @@ export const TRANSITIONS: Record<Scene, Scene[]> = {
   bracket: ['vs_card', 'interval', 'award', 'finished', 'opening', 'idle', 'match_live'],
   vs_card: ['match_live', 'bracket'],
   match_live: ['result', 'bracket', 'vs_card'],
-  result: ['bracket'],
+  result: ['bracket', 'finished'],
   interval: ['bracket', 'vs_card', 'opening'],
   award: ['finished', 'bracket'],
   finished: ['idle', 'bracket'],
@@ -35,7 +36,7 @@ export function canTransition(from: Scene, to: Scene, force = false): boolean {
 
 /** 演出尺（秒）。復帰時に経過超過なら最終フレーム */
 export const SCENE_DURATION_SEC: Partial<Record<Scene, number>> = {
-  result: 3.5,
+  result: MATCH_PRESENTATION_TIMING.resultTotal / 1000,
   draw: 120,
 };
 

@@ -2,7 +2,12 @@ import { useEffect, useRef } from 'react';
 import gsap from 'gsap';
 import { bracketThemeCssVars, roundBannerText, themeForKey } from '../../../styles/bracketTheme';
 import type { BracketThemeKey, EventStateRow, PresentationMode } from '../../../types';
-import { transitionScene } from '../../scene/sceneActions';
+import { transitionSceneIfCurrent } from '../../scene/sceneActions';
+import { TOURNAMENT_EFFECTS as FX } from '../../../lib/tournamentEffects';
+import {
+  MATCH_PRESENTATION_TIMING,
+  presentationDeadlineIso,
+} from '../matchPresentationTiming';
 
 interface ResultSceneProps {
   eventId: string;
@@ -17,6 +22,9 @@ interface ResultSceneProps {
   presentationMode: PresentationMode;
   forceComplete?: boolean;
   restoreCompleted?: boolean;
+  nextBmMatchId?: number | null;
+  tournamentFinished?: boolean;
+  championTeamId?: string | null;
   /** DB 更新後に Display のローカル state へ即反映 */
   onSceneUpdated?: (row: EventStateRow) => void;
 }
@@ -33,12 +41,15 @@ export default function ResultScene({
   presentationMode,
   forceComplete,
   restoreCompleted,
+  nextBmMatchId,
+  tournamentFinished = false,
+  championTeamId,
   onSceneUpdated,
 }: ResultSceneProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const winnerRef = useRef<HTMLDivElement>(null);
   const loserRef = useRef<HTMLDivElement>(null);
-  const petalRef = useRef<HTMLVideoElement>(null);
+  const petalRef = useRef<HTMLImageElement>(null);
   const doneRef = useRef(false);
   const theme = themeForKey(bracketKey);
   const lite = presentationMode === 'lite';
@@ -52,8 +63,24 @@ export default function ResultScene({
       if (doneRef.current) return;
       doneRef.current = true;
       try {
-        const row = await transitionScene(eventId, 'bracket', { force: true });
-        if (!cancelled) onSceneUpdated?.(row);
+        const row = await transitionSceneIfCurrent(
+          eventId,
+          'result',
+          sceneSeq,
+          tournamentFinished ? 'finished' : 'bracket',
+          tournamentFinished
+            ? { payload: { championTeamId }, force: false }
+            : {
+                payload: {
+                  nextBmMatchId,
+                  nextMatchReadyAt: presentationDeadlineIso(
+                    MATCH_PRESENTATION_TIMING.bracketSettle,
+                  ),
+                },
+                force: false,
+              },
+        );
+        if (!cancelled && row) onSceneUpdated?.(row);
       } catch (e) {
         console.warn('[ResultScene] transition to bracket failed', e);
         // 失敗時はやり直せるように戻す
@@ -94,7 +121,7 @@ export default function ResultScene({
           }
         }, 300),
       );
-      timers.push(window.setTimeout(() => void finish(), 3500));
+      timers.push(window.setTimeout(() => void finish(), MATCH_PRESENTATION_TIMING.resultTotal));
       return () => {
         cancelled = true;
         timers.forEach((t) => window.clearTimeout(t));
@@ -118,27 +145,17 @@ export default function ResultScene({
         { scale: 0.75, opacity: 0.35, duration: 0.7 },
         0.5,
       )
-      .call(
-        () => {
-          const v = petalRef.current;
-          if (v) {
-            v.currentTime = 0;
-            void v.play().catch(() => undefined);
-          }
-        },
-        [],
+      .fromTo(
+        petalRef.current,
+        { opacity: 0, y: -60, scale: 1.08 },
+        { opacity: 0.92, y: 0, scale: 1, duration: 0.65 },
         1.0,
       )
-      .to({}, { duration: 2.5 });
+      .to({}, { duration: MATCH_PRESENTATION_TIMING.resultTotal / 1000 }, 0);
 
     return () => {
       cancelled = true;
-      // kill すると onComplete が飛ばないので、未完了なら遷移を保証
-      const progressed = tl.progress() > 0 && !doneRef.current;
       tl.kill();
-      if (progressed) {
-        void finish();
-      }
     };
   }, [
     eventId,
@@ -146,6 +163,9 @@ export default function ResultScene({
     forceComplete,
     restoreCompleted,
     lite,
+    nextBmMatchId,
+    tournamentFinished,
+    championTeamId,
     onSceneUpdated,
   ]);
 
@@ -155,7 +175,13 @@ export default function ResultScene({
     <div
       ref={rootRef}
       className="relative flex h-full min-h-[60vh] flex-col items-center justify-center gap-8 overflow-hidden px-8"
-      style={{ ...vars, background: theme.fill }}
+      style={{
+        ...vars,
+        backgroundColor: theme.fill,
+        backgroundImage: `linear-gradient(rgba(0,0,0,.28), rgba(0,0,0,.5)), url(${FX.backgrounds.tournament})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
     >
       <div
         className="rounded px-6 py-2 text-sm font-black tracking-[0.3em]"
@@ -177,12 +203,11 @@ export default function ResultScene({
       </div>
 
       {!lite && (
-        <video
+        <img
           ref={petalRef}
           className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-          src="/images/test_mv.webm"
-          muted
-          playsInline
+          src={FX.effects.celebrationConfetti}
+          alt=""
           style={{ mixBlendMode: 'screen' }}
         />
       )}

@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { makeBalancedTeams, teamRatingSum } from './draw';
+import { buildRevealOrder, makeBalancedTeams, teamRatingSum } from './draw';
 
 function rated(entries: [string, number][]) {
   return entries.map(([id, rating]) => ({ id, rating }));
 }
 
 describe('makeBalancedTeams', () => {
+  it('確定チームの隣接関係を公開順で維持する', () => {
+    expect(buildRevealOrder([['a', 'd'], ['b', 'c']])).toEqual(['a', 'd', 'b', 'c']);
+  });
   it('偶数6名: 高低ペアで合計が均等', () => {
     const teams = makeBalancedTeams(
       rated([

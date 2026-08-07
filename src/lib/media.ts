@@ -1,8 +1,12 @@
 /** 演出素材・顔写真のプリロード */
 
 import placeholderFace from '../assets/placeholder_face.svg';
+import {
+  TOURNAMENT_EFFECT_AUDIO_URLS,
+  TOURNAMENT_EFFECT_IMAGE_URLS,
+} from './tournamentEffects';
 
-export const DISPLAY_STATIC_ASSET_URLS = [placeholderFace];
+export const DISPLAY_STATIC_ASSET_URLS = [placeholderFace, ...TOURNAMENT_EFFECT_IMAGE_URLS];
 
 /** 透過 WebM — 衝突・爆発演出（5秒） */
 export const HIT_EXPLOSION_WEBM = '/images/test_mv.webm';
@@ -57,6 +61,17 @@ function isVideoUrl(url: string): boolean {
   return /\.(webm|mp4)(\?|$)/i.test(url);
 }
 
+export async function preloadAudio(url: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const audio = new Audio();
+    audio.preload = 'auto';
+    audio.oncanplaythrough = () => resolve();
+    audio.onerror = () => reject(new Error(`Failed to preload audio: ${url}`));
+    audio.src = url;
+    audio.load();
+  });
+}
+
 export class MediaPreloader {
   private loadedUrls = new Set<string>();
   private inFlight = new Map<string, Promise<void>>();
@@ -81,7 +96,11 @@ export class MediaPreloader {
 
   /** Display マウント時の静的素材 */
   async preloadDisplayAssets(): Promise<void> {
-    await this.preloadAll([...DISPLAY_STATIC_ASSET_URLS, ...OPTIONAL_VIDEO_URLS]);
+    await this.preloadAll([
+      ...DISPLAY_STATIC_ASSET_URLS,
+      ...TOURNAMENT_EFFECT_AUDIO_URLS,
+      ...OPTIONAL_VIDEO_URLS,
+    ]);
   }
 
   private async preloadOne(url: string): Promise<void> {
@@ -100,6 +119,10 @@ export class MediaPreloader {
   }
 
   private async loadUrl(url: string): Promise<void> {
+    if (/\.mp3(\?|$)/i.test(url)) {
+      await preloadAudio(url);
+      return;
+    }
     if (isVideoUrl(url)) {
       try {
         await preloadVideo(url);

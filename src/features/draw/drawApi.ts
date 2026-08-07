@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabase';
 import {
+  buildRevealOrder,
   makeBalancedTeams,
   teamRatingAvg,
   type DrawStrategy,
@@ -9,6 +10,7 @@ import { buildDoubleElimination, toStageData, type BracketSnapshot } from '../br
 import { getNextMatch } from '../progression/progression';
 import { syncMatchesFromSnapshot } from '../scene/syncMatchesFromSnapshot';
 import { transitionScene } from '../scene/sceneActions';
+import { estimateDrawDurationSec } from '../presentation/drawAnimationTiming';
 
 export interface DrawPreviewTeam {
   memberIds: string[];
@@ -17,10 +19,72 @@ export interface DrawPreviewTeam {
   totalRating: number;
 }
 
+export interface DrawRevealParticipant {
+  id: string;
+  displayName: string;
+  faceUrl: string | null;
+}
+
+export interface DrawPresentationData {
+  sessionId: string;
+  teamSize: number;
+  participants: DrawRevealParticipant[];
+}
+
 export async function clearEventTeams(eventId: string): Promise<void> {
   await supabase.from('matches').delete().eq('event_id', eventId);
   const { error } = await supabase.from('teams').delete().eq('event_id', eventId);
   if (error) throw error;
+}
+
+export async function fetchDrawPresentation(
+  eventId: string,
+  drawSessionId?: string,
+): Promise<DrawPresentationData> {
+  let sessionQuery = supabase
+    .from('draw_sessions')
+    .select('id, reveal_order')
+    .eq('event_id', eventId)
+    .not('committed_at', 'is', null);
+  sessionQuery = drawSessionId
+    ? sessionQuery.eq('id', drawSessionId)
+    : sessionQuery.order('committed_at', { ascending: false }).limit(1);
+
+  const { data: session, error: sessionError } = await sessionQuery.maybeSingle();
+  if (sessionError) throw sessionError;
+  if (!session) throw new Error('確定済みの抽選セッションがありません');
+
+  const revealOrder = Array.isArray(session.reveal_order)
+    ? session.reveal_order.filter((id): id is string => typeof id === 'string')
+    : [];
+  const [{ data: event, error: eventError }, { data: participants, error: participantError }] =
+    await Promise.all([
+      supabase.from('events').select('team_size').eq('id', eventId).single(),
+      supabase
+        .from('participants')
+        .select('id, display_name, face_crop_path, photo_url')
+        .eq('event_id', eventId),
+    ]);
+  if (eventError) throw eventError;
+  if (participantError) throw participantError;
+
+  const byId = new Map((participants ?? []).map((participant) => [participant.id, participant]));
+  return {
+    sessionId: session.id as string,
+    teamSize: Math.max(1, Number(event.team_size) || 2),
+    participants: revealOrder.map((id) => {
+      const participant = byId.get(id);
+      const path = participant?.face_crop_path as string | null | undefined;
+      const publicFace = path
+        ? supabase.storage.from('participant-faces').getPublicUrl(path).data.publicUrl
+        : null;
+      return {
+        id,
+        displayName: (participant?.display_name as string | undefined) ?? '参加者',
+        faceUrl: publicFace ?? (participant?.photo_url as string | null | undefined) ?? null,
+      };
+    }),
+  };
 }
 
 export async function confirmDrawAndBuildBracket(
@@ -91,7 +155,32 @@ export async function confirmDrawAndBuildBracket(
   if (eventError) throw eventError;
 
   await syncMatchesFromSnapshot(eventId, stage);
-  await transitionScene(eventId, 'bracket', { force: true });
+
+  const revealOrder = buildRevealOrder(teams);
+  const { data: drawSession, error: drawSessionError } = await supabase
+    .from('draw_sessions')
+    .insert({
+      event_id: eventId,
+      mode: 'rating_balanced',
+      reveal_order: revealOrder,
+      committed_at: new Date().toISOString(),
+    })
+    .select('id')
+    .single();
+  if (drawSessionError || !drawSession) {
+    throw drawSessionError ?? new Error('抽選セッションの保存に失敗しました');
+  }
+
+  await transitionScene(eventId, 'draw', {
+    force: true,
+    presentationMode: 'full',
+    payload: {
+      drawSessionId: drawSession.id,
+      participantCount: revealOrder.length,
+      teamCount: teams.length,
+      durationSec: estimateDrawDurationSec(revealOrder.length, 'full', teams.length),
+    },
+  });
   return snapshot;
 }
 
@@ -111,6 +200,11 @@ export function previewDraw(
 
 export async function resetBracket(eventId: string): Promise<void> {
   await clearEventTeams(eventId);
+  const { error: sessionsError } = await supabase
+    .from('draw_sessions')
+    .delete()
+    .eq('event_id', eventId);
+  if (sessionsError) throw sessionsError;
   const { error } = await supabase
     .from('events')
     .update({
