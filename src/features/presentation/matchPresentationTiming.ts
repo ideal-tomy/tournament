@@ -1,5 +1,6 @@
 export const MATCH_PRESENTATION_TIMING = {
-  resultTotal: 4000,
+  /** 勝者の登場・約5秒の保持・退場を含む */
+  resultTotal: 5800,
   bracketSettle: 2000,
   vsIntro: 900,
   vsMinimumHold: 5000,

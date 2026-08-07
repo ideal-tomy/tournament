@@ -22,7 +22,7 @@ export const TRANSITIONS: Record<Scene, Scene[]> = {
   bracket: ['vs_card', 'interval', 'award', 'finished', 'opening', 'idle', 'match_live'],
   vs_card: ['match_live', 'bracket'],
   match_live: ['result', 'bracket', 'vs_card'],
-  result: ['bracket', 'finished'],
+  result: ['vs_card', 'bracket', 'finished'],
   interval: ['bracket', 'vs_card', 'opening'],
   award: ['finished', 'bracket'],
   finished: ['idle', 'bracket'],

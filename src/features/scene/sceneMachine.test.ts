@@ -10,6 +10,10 @@ describe('sceneMachine', () => {
     expect(canTransition('result', 'bracket')).toBe(true);
   });
 
+  it('allows result → vs_card for automatic next-match reveal', () => {
+    expect(canTransition('result', 'vs_card')).toBe(true);
+  });
+
   it('rejects vs_card → result', () => {
     expect(canTransition('vs_card', 'result')).toBe(false);
   });

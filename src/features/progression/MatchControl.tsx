@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import BracketView from '../bracket/BracketView';
 import { buildTeamVisuals } from '../bracket/teamFaces';
 import {
@@ -35,6 +35,7 @@ export default function MatchControl({ eventId, onStatusChange }: MatchControlPr
   const [pendingSlot, setPendingSlot] = useState<0 | 1 | null>(null);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [sceneBusy, setSceneBusy] = useState(false);
+  const startLockRef = useRef(false);
   const [clockMs, setClockMs] = useState(() => Date.now());
 
   useEffect(() => {
@@ -107,7 +108,8 @@ export default function MatchControl({ eventId, onStatusChange }: MatchControlPr
   }
 
   async function handleCloseVsCard() {
-    if (eventState?.scene !== 'vs_card' || vsRemainingMs > 0) return;
+    if (eventState?.scene !== 'vs_card' || vsRemainingMs > 0 || startLockRef.current) return;
+    startLockRef.current = true;
     setSceneBusy(true);
     try {
       await closeVsCard(eventId);
@@ -117,6 +119,7 @@ export default function MatchControl({ eventId, onStatusChange }: MatchControlPr
       setStatusMsg(e instanceof Error ? e.message : 'クローズに失敗');
     } finally {
       setSceneBusy(false);
+      startLockRef.current = false;
     }
   }
 
@@ -288,7 +291,7 @@ export default function MatchControl({ eventId, onStatusChange }: MatchControlPr
           >
             {vsRemainingMs > 0
               ? `VS表示中（あと${Math.ceil(vsRemainingMs / 1000)}秒）`
-              : '対戦カードを閉じる'}
+              : sceneBusy ? '開始処理中…' : '試合開始 / START MATCH'}
           </button>
         </div>
         <div className="grid grid-cols-3 gap-3">

@@ -12,6 +12,7 @@ interface VsCardSceneProps {
   teamBFaces: string[];
   bracketKey: BracketThemeKey;
   round: number;
+  matchNumber: number;
   awaitingOperator: boolean;
   restoreCompleted?: boolean;
 }
@@ -23,6 +24,7 @@ export default function VsCardScene({
   teamBFaces,
   bracketKey,
   round,
+  matchNumber,
   awaitingOperator,
   restoreCompleted,
 }: VsCardSceneProps) {
@@ -60,20 +62,24 @@ export default function VsCardScene({
         backgroundPosition: 'center',
       }}
     >
-      <div
-        ref={bannerRef}
-        className="rounded px-6 py-2 text-sm font-black tracking-[0.3em]"
-        style={{
-          color: theme.labelColor,
-          border:
-            theme.frame === 'dashed'
-              ? `2px dashed ${theme.accent}`
-              : theme.frame === 'double'
-                ? `4px double ${theme.accent}`
-                : `2px solid ${theme.accent}`,
-        }}
-      >
-        {roundBannerText(bracketKey, round)}
+      <div ref={bannerRef} className="flex flex-col items-center gap-3">
+        <p className="text-3xl font-black tracking-[0.28em] text-white drop-shadow-[0_0_18px_rgba(255,255,255,.35)]">
+          NEXT MATCH
+        </p>
+        <div
+          className="rounded px-6 py-2 text-sm font-black tracking-[0.3em]"
+          style={{
+            color: theme.labelColor,
+            border:
+              theme.frame === 'dashed'
+                ? `2px dashed ${theme.accent}`
+                : theme.frame === 'double'
+                  ? `4px double ${theme.accent}`
+                  : `2px solid ${theme.accent}`,
+          }}
+        >
+          {roundBannerText(bracketKey, round)} · MATCH {matchNumber}
+        </div>
       </div>
 
       <div className="flex w-full max-w-5xl items-center justify-center gap-6">

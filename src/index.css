@@ -159,6 +159,27 @@ body {
   }
 }
 
+/* ResultScene の画像紙吹雪は、勝者表示中ずっとゆっくり落下させる。 */
+.result-confetti-loop {
+  animation: result-confetti-drift 3.2s linear infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes result-confetti-drift {
+  0% {
+    transform: translate3d(0, -24%, 0) rotate(-0.5deg);
+    opacity: 0.72;
+  }
+  50% {
+    transform: translate3d(1.5%, -12%, 0) rotate(0.5deg);
+    opacity: 0.94;
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(-0.5deg);
+    opacity: 0.72;
+  }
+}
+
 .effect-clash-burst {
   position: absolute;
   left: 50%;

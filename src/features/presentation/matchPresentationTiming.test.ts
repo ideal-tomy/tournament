@@ -8,7 +8,7 @@ import {
 
 describe('match presentation timing', () => {
   it('keeps the requested winner, bracket and next-match holds', () => {
-    expect(MATCH_PRESENTATION_TIMING.resultTotal).toBe(4000);
+    expect(MATCH_PRESENTATION_TIMING.resultTotal).toBe(5800);
     expect(MATCH_PRESENTATION_TIMING.bracketSettle).toBe(2000);
     expect(MATCH_PRESENTATION_TIMING.vsMinimumHold).toBe(5000);
   });

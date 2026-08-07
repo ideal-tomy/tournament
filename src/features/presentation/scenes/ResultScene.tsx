@@ -23,6 +23,7 @@ interface ResultSceneProps {
   forceComplete?: boolean;
   restoreCompleted?: boolean;
   nextBmMatchId?: number | null;
+  nextMatchId?: string | null;
   tournamentFinished?: boolean;
   championTeamId?: string | null;
   /** DB 更新後に Display のローカル state へ即反映 */
@@ -42,6 +43,7 @@ export default function ResultScene({
   forceComplete,
   restoreCompleted,
   nextBmMatchId,
+  nextMatchId,
   tournamentFinished = false,
   championTeamId,
   onSceneUpdated,
@@ -67,16 +69,19 @@ export default function ResultScene({
           eventId,
           'result',
           sceneSeq,
-          tournamentFinished ? 'finished' : 'bracket',
+          tournamentFinished ? 'finished' : 'vs_card',
           tournamentFinished
             ? { payload: { championTeamId }, force: false }
             : {
                 payload: {
-                  nextBmMatchId,
-                  nextMatchReadyAt: presentationDeadlineIso(
-                    MATCH_PRESENTATION_TIMING.bracketSettle,
+                  bmMatchId: nextBmMatchId,
+                  matchId: nextMatchId,
+                  minCloseAt: presentationDeadlineIso(
+                    MATCH_PRESENTATION_TIMING.vsMinimumHold,
                   ),
                 },
+                currentMatchId: nextMatchId,
+                awaitingOperator: true,
                 force: false,
               },
         );
@@ -92,10 +97,12 @@ export default function ResultScene({
       if (winnerRef.current) {
         winnerRef.current.style.transform = 'scale(1.5)';
         winnerRef.current.style.opacity = '1';
+        winnerRef.current.style.filter = 'brightness(1.18) saturate(1.12)';
       }
       if (loserRef.current) {
         loserRef.current.style.transform = 'scale(0.75)';
-        loserRef.current.style.opacity = '0.35';
+        loserRef.current.style.opacity = '0.4';
+        loserRef.current.style.filter = 'brightness(0.45) grayscale(0.3)';
       }
       void finish();
       return () => {
@@ -107,17 +114,20 @@ export default function ResultScene({
       const w = winnerRef.current;
       const l = loserRef.current;
       if (w) {
-        w.style.transition = 'transform 0.7s ease, opacity 0.7s ease';
+        w.style.transition = 'transform 0.7s ease, opacity 0.7s ease, filter 0.7s ease';
         requestAnimationFrame(() => {
           w.style.transform = 'scale(1.5)';
+          w.style.opacity = '1';
+          w.style.filter = 'brightness(1.18) saturate(1.12)';
         });
       }
       timers.push(
         window.setTimeout(() => {
           if (l) {
-            l.style.transition = 'transform 0.7s ease, opacity 0.7s ease';
+            l.style.transition = 'transform 0.7s ease, opacity 0.7s ease, filter 0.7s ease';
             l.style.transform = 'scale(0.75)';
-            l.style.opacity = '0.35';
+            l.style.opacity = '0.4';
+            l.style.filter = 'brightness(0.45) grayscale(0.3)';
           }
         }, 300),
       );
@@ -134,22 +144,25 @@ export default function ResultScene({
       },
     });
 
-    tl.to(rootRef.current, { filter: 'brightness(0.35)', duration: 0.2 }, 0)
-      .to(
+    tl.to(
         winnerRef.current,
-        { scale: 1.5, filter: 'brightness(1.15)', duration: 0.7 },
+        {
+          scale: 1.5,
+          filter: 'brightness(1.18) saturate(1.12)',
+          opacity: 1,
+          duration: 0.7,
+        },
         0.2,
       )
       .to(
         loserRef.current,
-        { scale: 0.75, opacity: 0.35, duration: 0.7 },
+        {
+          scale: 0.75,
+          opacity: 0.4,
+          filter: 'brightness(0.45) grayscale(0.3)',
+          duration: 0.7,
+        },
         0.5,
-      )
-      .fromTo(
-        petalRef.current,
-        { opacity: 0, y: -60, scale: 1.08 },
-        { opacity: 0.92, y: 0, scale: 1, duration: 0.65 },
-        1.0,
       )
       .to({}, { duration: MATCH_PRESENTATION_TIMING.resultTotal / 1000 }, 0);
 
@@ -164,6 +177,7 @@ export default function ResultScene({
     restoreCompleted,
     lite,
     nextBmMatchId,
+    nextMatchId,
     tournamentFinished,
     championTeamId,
     onSceneUpdated,
@@ -191,12 +205,12 @@ export default function ResultScene({
       </div>
 
       <div className="flex w-full max-w-5xl items-center justify-center gap-10">
-        <div ref={winnerRef} className="flex flex-1 flex-col items-center gap-3 origin-center">
+        <div ref={winnerRef} className="relative z-20 flex flex-1 flex-col items-center gap-3 origin-center opacity-100">
           <FaceRow faces={winnerFaces} />
           <p className="text-2xl font-black text-amber-200">WIN</p>
           <p className="text-xl font-bold text-white">{winnerLabel}</p>
         </div>
-        <div ref={loserRef} className="flex flex-1 flex-col items-center gap-3 origin-center">
+        <div ref={loserRef} className="relative z-10 flex flex-1 flex-col items-center gap-3 origin-center">
           <FaceRow faces={loserFaces} />
           <p className="text-xl font-bold text-white/80">{loserLabel}</p>
         </div>
@@ -205,7 +219,7 @@ export default function ResultScene({
       {!lite && (
         <img
           ref={petalRef}
-          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+          className="result-confetti-loop pointer-events-none absolute inset-0 z-30 h-[140%] w-full object-cover"
           src={FX.effects.celebrationConfetti}
           alt=""
           style={{ mixBlendMode: 'screen' }}

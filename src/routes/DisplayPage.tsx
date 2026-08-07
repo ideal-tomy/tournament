@@ -128,6 +128,7 @@ export default function DisplayPage() {
       winnerTeamId?: string;
       loserTeamId?: string;
       nextBmMatchId?: number | null;
+      nextMatchId?: string | null;
       tournamentFinished?: boolean;
       championTeamId?: string | null;
     };
@@ -152,6 +153,7 @@ export default function DisplayPage() {
       winnerId: payload.winnerTeamId ?? null,
       loserId: payload.loserTeamId ?? null,
       nextBmMatchId: payload.nextBmMatchId ?? null,
+      nextMatchId: payload.nextMatchId ?? null,
       tournamentFinished: payload.tournamentFinished ?? false,
       championTeamId: payload.championTeamId ?? null,
     };
@@ -287,6 +289,7 @@ export default function DisplayPage() {
             teamBFaces={matchInfo.teamB ? (faceUrlByTeamId[matchInfo.teamB] ?? []) : []}
             bracketKey={matchInfo.key as BracketThemeKey}
             round={matchInfo.round}
+            matchNumber={matchInfo.match.number}
             awaitingOperator={eventState?.awaiting_operator ?? false}
             restoreCompleted={restoreCompleted}
           />
@@ -311,6 +314,7 @@ export default function DisplayPage() {
             forceComplete={forceComplete}
             restoreCompleted={restoreCompleted}
             nextBmMatchId={matchInfo.nextBmMatchId}
+            nextMatchId={matchInfo.nextMatchId}
             tournamentFinished={matchInfo.tournamentFinished}
             championTeamId={matchInfo.championTeamId}
             onSceneUpdated={applyIncoming}

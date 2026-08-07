@@ -132,6 +132,9 @@ export async function confirmMatchResult(
 
   const bmToUuid = await syncMatchesFromSnapshot(eventId, updatedView);
   const matchUuid = bmToUuid.get(matchId) ?? (await resolveMatchUuid(eventId, matchId));
+  const nextMatchUuid = nextMatch
+    ? (bmToUuid.get(nextMatch.id) ?? (await resolveMatchUuid(eventId, nextMatch.id)))
+    : null;
 
   await transitionScene(eventId, 'result', {
     force: true,
@@ -143,6 +146,7 @@ export async function confirmMatchResult(
       winnerTeamId,
       loserTeamId,
       nextBmMatchId: nextMatch?.id ?? null,
+      nextMatchId: nextMatchUuid,
       tournamentFinished: finished,
       championTeamId,
     },
