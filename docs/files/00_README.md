@@ -15,26 +15,16 @@
 | `sql/03_seed.sql` | 注意事項プレイリスト・演出プリセット | 4 番目に実行 |
 | `sql/04_reports.sql` | スポンサー報告・進行実績の集計（参照のみ） | 大会後 |
 
-## 実行順（v2 ハイブリッド）
+## 実行順
 
 ```
-00_inspect → 出力を確認
-→ 05_archive_v1_rename（旧同名テーブルを *_v1 へ退避）
-→ 01_schema → 02_rls_realtime → 03_seed
-→ 06_hybrid_patch（bracket_snapshot / 写真パス等）
-→ 07_fix_grants_rls（anon GRANT + トリガー SECURITY DEFINER。必須）
-→ 08_realtime_replica_identity（Display のシーン同期用。推奨）
+00_inspect → 出力を確認 → 01_schema → 02_rls_realtime → 03_seed
 ```
-
-`events` 作成で RLS / 401 が出る場合は、まず `07_fix_grants_rls.sql` だけ再実行する。
-Display がシーンから動かない場合は `08_realtime_replica_identity.sql` を実行する。
-
-SQL はリポジトリの `supabase/migrations/` 配下を正とする。
 
 `00_inspect` の (9) で同名テーブルが検出された場合は、
 `02_データベース設計書.md` の 0 章「同名テーブルが存在した場合の判断」に従うこと。
 
-**SQL は DROP 文を 1 つも含まない。** 既存テーブルは rename 退避するか、形が同じならスキップされる。
+**SQL は DROP 文を 1 つも含まない。** 既存テーブルは上書きされずスキップされる。
 
 ## この設計の要点（これだけは崩さない）
 

@@ -1,0 +1,15 @@
+.pm-stage { position:relative; width:100%; aspect-ratio:16/9; overflow:hidden; container-type:inline-size; color:#f8fafc; background:radial-gradient(ellipse at 50% 60%,#17304b,#060c18 75%); }
+.pm-title { position:absolute; top:5%; left:6%; font-size:1.4cqw; letter-spacing:.25em; color:#94a3b8; }
+.pm-title span { display:block; font-size:1cqw; margin-top:.6em; }
+.pm-win,.pm-next { position:absolute; left:0; top:17%; width:100%; text-align:center; color:#fde68a; font-size:4cqw; font-weight:900; letter-spacing:.12em; }
+.pm-win small,.pm-next small { display:block; font-size:1.4cqw; letter-spacing:.05em; margin-top:.6em; }
+.pm-next { top:78%; color:#67e8f9; font-size:2.5cqw; }
+.pm-bracket { position:absolute; inset:0; width:100%; height:100%; }
+.pm-team { position:absolute; width:25%; text-align:center; z-index:2; }
+.pm-team h2 { margin-top:1.2cqw; font-size:2cqw; font-weight:900; color:#fff; }
+.pm-faces { display:flex; justify-content:center; gap:1cqw; }
+.pm-faces img { width:10cqw; height:10cqw; object-fit:cover; background:#1e293b; border:2px solid #64748b; border-radius:1cqw; }
+.pm-winner img { border-color:#fbbf24; box-shadow:0 0 2cqw #fbbf2425; }
+.pm-faces p { font-size:1.2cqw; margin-top:.7cqw; }
+.pm-vs { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); font-size:5cqw; font-weight:900; font-style:italic; color:#fde68a; z-index:4; }
+.pm-impact { position:absolute; width:18%; aspect-ratio:1; left:41%; top:34%; border-radius:50%; background:radial-gradient(circle,#fef3c7, #fbbf2440 40%,transparent 70%); z-index:3; pointer-events:none; }

@@ -19,6 +19,10 @@ export default function HomePage() {
         </p>
 
         <section className="mt-10 space-y-4">
+          <Link to="/show-preview" className="block rounded-xl border border-amber-500 bg-amber-950/40 p-5">
+            <p className="text-lg font-bold text-amber-200">連続演出プレビュー</p>
+            <p className="mt-1 text-sm text-slate-300">本番データを使わず、結果から次試合まで確認</p>
+          </Link>
           <h2 className="text-xs font-black tracking-widest text-slate-500 uppercase">
             体験メニュー
           </h2>

@@ -1,23 +1,29 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import AdminPage from './routes/AdminPage';
-import DemoPage from './routes/DemoPage';
-import DisplayPage from './routes/DisplayPage';
-import HomePage from './routes/HomePage';
-import RehearsalPage from './routes/RehearsalPage';
-import PresentationPage from './routes/PresentationPage';
+const AdminPage = lazy(() => import('./routes/AdminPage'));
+const DemoPage = lazy(() => import('./routes/DemoPage'));
+const DisplayPage = lazy(() => import('./routes/DisplayPage'));
+const HomePage = lazy(() => import('./routes/HomePage'));
+const RehearsalPage = lazy(() => import('./routes/RehearsalPage'));
+const PresentationPage = lazy(() => import('./routes/PresentationPage'));
+
+const ShowPreviewPage = lazy(() => import('./routes/ShowPreviewPage'));
 
 export default function App() {
   return (
     <BrowserRouter>
+      <Suspense fallback={<p className="p-8 text-white">読み込み中…</p>}>
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/display" element={<DisplayPage />} />
         <Route path="/demo" element={<DemoPage />} />
         <Route path="/rehearsal" element={<RehearsalPage />} />
+        <Route path="/show-preview" element={<ShowPreviewPage />} />
         <Route path="/presentation" element={<PresentationPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

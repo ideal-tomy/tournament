@@ -73,10 +73,12 @@ https://your-app.vercel.app/display?eventId=<UUID>&kiosk=1
 
 | ファイル | 内容 |
 |---|---|
+| [docs/TOURNAMENT_SHOW_DESIGN_AND_CONTROL_PROPOSAL.md](./docs/TOURNAMENT_SHOW_DESIGN_AND_CONTROL_PROPOSAL.md) | 今後の演出・進行制御・Cloudflare移行の正本 |
+| [docs/CLOUDFLARE_MIGRATION_UIUX_CURRENT_STATE_AUDIT.md](./docs/CLOUDFLARE_MIGRATION_UIUX_CURRENT_STATE_AUDIT.md) | 現行コードと移行課題の技術監査 |
 | [docs/KIOSK_SETUP.md](./docs/KIOSK_SETUP.md) | 表示端末キオスク手順 |
 | [docs/RUNBOOK.md](./docs/RUNBOOK.md) | 当日運営フロー |
-| [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) | 全体計画 |
-| [phase0.md](./phase0.md) 〜 [phase6.md](./phase6.md) | フェーズ別手順 |
+
+詳細な位置づけは [docs/README.md](./docs/README.md) を参照してください。
 
 ## 主要機能
 
