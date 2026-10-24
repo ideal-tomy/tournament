@@ -15,10 +15,12 @@ export interface StageControls {
 interface Props {
   mode: PresentationMode;
   onProgress(time: number, playing: boolean): void;
+  winnerTeam?: { name: string; members: string[]; faces: string[] };
+  opponentTeam?: { name: string; members: string[]; faces: string[] };
 }
 
 /** Sample-only stage. No event IDs, API imports, or persistent scene transitions. */
-const PostMatchStage = forwardRef<StageControls, Props>(function PostMatchStage({ mode, onProgress }, ref) {
+const PostMatchStage = forwardRef<StageControls, Props>(function PostMatchStage({ mode, onProgress, winnerTeam, opponentTeam }, ref) {
   const root = useRef<HTMLDivElement>(null);
   const timeline = useRef<gsap.core.Timeline>();
   useImperativeHandle(ref, () => ({
@@ -57,25 +59,27 @@ const PostMatchStage = forwardRef<StageControls, Props>(function PostMatchStage(
     return () => { ctx.revert(); timeline.current = undefined; };
   }, [mode, onProgress]);
 
-  return <div ref={root} className="pm-stage" aria-label="サンプル大会：BLUE ARROWSの勝利から次試合への連続演出">
+  const leftName = winnerTeam?.name ?? 'BLUE ARROWS';
+  const rightName = opponentTeam?.name ?? 'GOLD STARS';
+  return <div ref={root} className="pm-stage" aria-label={`${leftName}の勝利から次試合への連続演出`}>
     <div className="pm-title">DARTS TOURNAMENT <span>サンプル大会</span></div>
-    <div className="pm-win">WINNER <small>準決勝 · BLUE ARROWS 勝利 / RED FLAMES 敗退</small></div>
+    <div className="pm-win">WINNER <small>{leftName} 勝利</small></div>
     <svg className="pm-bracket" viewBox="0 0 1600 900" aria-label="勝者が決勝へ進出">
       <path d="M180 320 H350 V470 H800 M180 620 H350 V470 M1420 320 H1250 V470 H800 M1420 620 H1250 V470" fill="none" stroke="#334155" strokeWidth="4" />
       <path className="pm-line" pathLength="1" strokeDasharray="1" d="M350 470 H800" fill="none" stroke="#fbbf24" strokeWidth="8" />
-      <text x="700" y="390" fill="#fbbf24" fontSize="28">FINAL</text>
+      <text x="700" y="390" fill="#fbbf24" fontSize="28">{winnerTeam ? 'ADVANCE' : 'FINAL'}</text>
     </svg>
-    <Team className="pm-winner" name="BLUE ARROWS" members={['青木 翔', '佐藤 蓮']} />
-    <Team className="pm-opponent" name="GOLD STARS" members={['高橋 凛', '田中 光']} />
+    <Team className="pm-winner" name={leftName} members={winnerTeam?.members ?? ['青木 翔', '佐藤 蓮']} faces={winnerTeam?.faces} />
+    <Team className="pm-opponent" name={rightName} members={opponentTeam?.members ?? ['高橋 凛', '田中 光']} faces={opponentTeam?.faces} />
     <div className="pm-impact" />
     <div className="pm-vs">VS</div>
-    <div className="pm-next">NEXT MATCH <small>決勝 · BLUE ARROWS vs GOLD STARS</small></div>
+    <div className="pm-next">NEXT MATCH <small>{leftName} vs {rightName}</small></div>
   </div>;
 });
 
-function Team({ className, name, members }: { className: string; name: string; members: string[] }) {
+function Team({ className, name, members, faces }: { className: string; name: string; members: string[]; faces?: string[] }) {
   return <div className={`pm-team ${className}`}>
-    <div className="pm-faces">{members.map(member => <div key={member}><img src={placeholder} alt={`${member}のサンプル写真`} /><p>{member}</p></div>)}</div>
+    <div className="pm-faces">{members.map((member, index) => <div key={`${member}-${index}`}><img src={faces?.[index] ?? placeholder} alt={member} /><p>{member}</p></div>)}</div>
     <h2>{name}</h2>
   </div>;
 }

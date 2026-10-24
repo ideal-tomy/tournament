@@ -12,6 +12,11 @@
 
 ## 現行環境の運用資料
 
+- [`CLOUDFLARE_CHECK.md`](./CLOUDFLARE_CHECK.md): M1.1の読取確認画面、localhost専用proxy、秘密設定、検証結果と残課題。
+- [`CLOUDFLARE_REQUIRED_ACTIONS.md`](./CLOUDFLARE_REQUIRED_ACTIONS.md): D1・R2の所在と初回調査記録。冒頭にWorker公開・接続確認完了の最新状態を追記。
+- [`REHEARSAL_PREVIEW_GUIDE.md`](./REHEARSAL_PREVIEW_GUIDE.md): 2026-10-24の新規クローン照合結果、DB不要の演出確認の起動・操作手順。
+- [`../PLAN.md`](../PLAN.md): 初期接続完了後のアプリ実装計画。次の最小単位、変更ファイル、実装順序、各段階の確認方法。
+
 - [`CLOUDFLARE_API_RUNBOOK.md`](./CLOUDFLARE_API_RUNBOOK.md): 準備完了後の読取専用Worker APIのローカル認証・D1接続確認。
 
 - [`CLOUDFLARE_SETUP_RUNBOOK.md`](./CLOUDFLARE_SETUP_RUNBOOK.md): 次段階の検証用D1・非公開R2の準備手順。実行用SQLは `cloudflare/` に配置。アプリ切替は別の開発段階。

@@ -19,6 +19,14 @@ export default function HomePage() {
         </p>
 
         <section className="mt-10 space-y-4">
+          <Link to="/cloudflare-check" className="block rounded-xl border border-emerald-600 bg-emerald-950/40 p-5">
+            <p className="text-lg font-bold text-emerald-200">Cloudflare接続確認（開発専用・読取のみ）</p>
+            <p className="mt-1 text-sm text-slate-300">検証大会の大会名・scene・versionを公開Workerから取得</p>
+          </Link>
+          <Link to="/local-rehearsal" className="block rounded-xl border-2 border-cyan-400 bg-cyan-950/40 p-5">
+            <p className="text-lg font-bold text-cyan-200">ローカル・リハーサル（DB不要）</p>
+            <p className="mt-1 text-sm text-slate-300">8・16・32名のサンプル／カメラ撮影 → 抽選 → 勝敗 → 優勝。保存はこのブラウザのみ。</p>
+          </Link>
           <Link to="/show-preview" className="block rounded-xl border border-amber-500 bg-amber-950/40 p-5">
             <p className="text-lg font-bold text-amber-200">連続演出プレビュー</p>
             <p className="mt-1 text-sm text-slate-300">本番データを使わず、結果から次試合まで確認</p>
@@ -61,9 +69,9 @@ export default function HomePage() {
             to="/rehearsal"
             className="block rounded-xl border border-emerald-800/60 bg-emerald-950/40 hover:border-emerald-500/50 p-5 transition-colors"
           >
-            <p className="text-lg font-bold text-emerald-200">リハーサル（サンプル 32 名）</p>
+            <p className="text-lg font-bold text-emerald-200">旧Supabaseリハーサル（接続設定が必要）</p>
             <p className="text-sm text-slate-400 mt-1">
-              サンプルデータで演出・Display を何度でも確認。終了してもデータは残ります。
+              旧環境用です。DBなしの演出調整は上の「ローカル・リハーサル」を使ってください。
             </p>
           </Link>
         </section>

@@ -8,6 +8,8 @@ const RehearsalPage = lazy(() => import('./routes/RehearsalPage'));
 const PresentationPage = lazy(() => import('./routes/PresentationPage'));
 
 const ShowPreviewPage = lazy(() => import('./routes/ShowPreviewPage'));
+const LocalRehearsalPage = lazy(() => import('./routes/LocalRehearsalPage'));
+const CloudflareCheckPage = lazy(() => import('./routes/CloudflareCheckPage'));
 
 export default function App() {
   return (
@@ -20,6 +22,8 @@ export default function App() {
         <Route path="/demo" element={<DemoPage />} />
         <Route path="/rehearsal" element={<RehearsalPage />} />
         <Route path="/show-preview" element={<ShowPreviewPage />} />
+        <Route path="/local-rehearsal" element={<LocalRehearsalPage />} />
+        <Route path="/cloudflare-check" element={<CloudflareCheckPage />} />
         <Route path="/presentation" element={<PresentationPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

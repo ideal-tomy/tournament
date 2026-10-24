@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:rehearsal": "vite --config vite.rehearsal.config.ts --host 127.0.0.1 --port 5174 --strictPort",
+    "test:rehearsal": "vitest run --config vite.rehearsal.config.ts",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",

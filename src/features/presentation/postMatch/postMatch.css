@@ -8,6 +8,8 @@
 .pm-team { position:absolute; width:25%; text-align:center; z-index:2; }
 .pm-team h2 { margin-top:1.2cqw; font-size:2cqw; font-weight:900; color:#fff; }
 .pm-faces { display:flex; justify-content:center; gap:1cqw; }
+.pm-faces > div { flex:1; min-width:0; }
+.pm-faces > div img { width:100%; max-width:10cqw; height:auto; aspect-ratio:1; margin-inline:auto; }
 .pm-faces img { width:10cqw; height:10cqw; object-fit:cover; background:#1e293b; border:2px solid #64748b; border-radius:1cqw; }
 .pm-winner img { border-color:#fbbf24; box-shadow:0 0 2cqw #fbbf2425; }
 .pm-faces p { font-size:1.2cqw; margin-top:.7cqw; }
