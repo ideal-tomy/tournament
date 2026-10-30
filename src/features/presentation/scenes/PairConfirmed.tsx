@@ -1,5 +1,5 @@
 import { TOURNAMENT_EFFECTS as FX } from '../../../lib/tournamentEffects';
-import type { DrawRevealParticipant } from '../../draw/drawApi';
+import type { DrawRevealParticipant } from '../../draw/presentationTypes';
 
 interface PairConfirmedProps {
   teamNumber: number;

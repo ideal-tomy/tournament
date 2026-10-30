@@ -1,0 +1,49 @@
+{
+  "root": "http://localhost:5174",
+  "started": "2026-10-30T11:57:29.252Z",
+  "camera": "PC Edge simulated camera with mobile viewport; physical smartphone unverified",
+  "routes": [
+    {
+      "route": "/",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/checkin",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/admin",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/display",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/rehearsal",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/show-preview",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/cloudflare-check",
+      "direct": 200,
+      "reload": 200
+    }
+  ],
+  "participants": [],
+  "states": [],
+  "errors": [],
+  "httpFailures": [],
+  "run": "cf-through-b3b73dfb-cc5c-4bbd-98ad-909c46f274a3",
+  "complete": true,
+  "finished": "2026-10-30T11:57:37.664Z"
+}

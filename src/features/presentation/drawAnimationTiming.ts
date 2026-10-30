@@ -1,4 +1,5 @@
 import type { PresentationMode } from '../../types';
+import type { RehearsalTimingPreset } from '../../lib/rehearsalTiming';
 
 /**
  * 抽選演出の調整値（ミリ秒）。
@@ -29,18 +30,22 @@ export const DRAW_ANIMATION_TIMING = {
 
 export type DrawAnimationTimingKey = keyof typeof DRAW_ANIMATION_TIMING;
 
-export function drawSeconds(key: DrawAnimationTimingKey): number {
-  return DRAW_ANIMATION_TIMING[key] / 1000;
+export function drawTiming(preset:RehearsalTimingPreset='show') {
+  return preset==='fast'?{...DRAW_ANIMATION_TIMING,introHold:150,impactHold:450,pairConfirmHold:1400,summaryHold:1200}:DRAW_ANIMATION_TIMING;
+}
+export function drawSeconds(key: DrawAnimationTimingKey,preset:RehearsalTimingPreset='show'): number {
+  return drawTiming(preset)[key] / 1000;
 }
 
 export function estimateDrawDurationMs(
   participantCount: number,
   mode: PresentationMode,
   teamCount = Math.ceil(Math.max(0, Math.floor(participantCount)) / 2),
+  preset:RehearsalTimingPreset='show',
 ): number {
   const count = Math.max(0, Math.floor(participantCount));
   const confirmedTeams = Math.max(0, Math.floor(teamCount));
-  const t = DRAW_ANIMATION_TIMING;
+  const t = drawTiming(preset);
 
   if (mode === 'lite') return t.liteHold;
   if (mode === 'short') {
@@ -66,6 +71,7 @@ export function estimateDrawDurationSec(
   participantCount: number,
   mode: PresentationMode,
   teamCount?: number,
+  preset:RehearsalTimingPreset='show',
 ): number {
-  return Math.ceil(estimateDrawDurationMs(participantCount, mode, teamCount) / 1000);
+  return Math.ceil(estimateDrawDurationMs(participantCount, mode, teamCount,preset) / 1000);
 }

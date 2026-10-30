@@ -1,0 +1,15 @@
+{
+  "run": "cf-through-81b47523-4b12-43b8-80e3-9ba6496e75b2",
+  "createdAt": "2026-10-30T11:59:50.142Z",
+  "participants": 0,
+  "checkinStatus": "open",
+  "timingPreset": "show",
+  "urls": {
+    "/": "https://tournament-through-rehearsal.pine-shaken.workers.dev/?run=cf-through-81b47523-4b12-43b8-80e3-9ba6496e75b2",
+    "/checkin": "https://tournament-through-rehearsal.pine-shaken.workers.dev/checkin?run=cf-through-81b47523-4b12-43b8-80e3-9ba6496e75b2",
+    "/admin": "https://tournament-through-rehearsal.pine-shaken.workers.dev/admin?run=cf-through-81b47523-4b12-43b8-80e3-9ba6496e75b2",
+    "/display": "https://tournament-through-rehearsal.pine-shaken.workers.dev/display?run=cf-through-81b47523-4b12-43b8-80e3-9ba6496e75b2",
+    "/rehearsal": "https://tournament-through-rehearsal.pine-shaken.workers.dev/rehearsal?run=cf-through-81b47523-4b12-43b8-80e3-9ba6496e75b2",
+    "/show-preview": "https://tournament-through-rehearsal.pine-shaken.workers.dev/show-preview?run=cf-through-81b47523-4b12-43b8-80e3-9ba6496e75b2"
+  }
+}

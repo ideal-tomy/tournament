@@ -1,0 +1,26 @@
+{
+  "root": "https://tournament-animation-preview.pine-shaken.workers.dev",
+  "scenes": [
+    "draw",
+    "result",
+    "bracket",
+    "vs",
+    "next",
+    "champion"
+  ],
+  "viewportChecks": [
+    360,
+    390,
+    844,
+    1366,
+    1440,
+    1920
+  ],
+  "browser": "installed Chromium (automated, not physical devices)",
+  "jsErrors": [],
+  "externalRequests": [],
+  "writes": [],
+  "failedResponses": [],
+  "nextMatchHold": true,
+  "reducedMotion": true
+}

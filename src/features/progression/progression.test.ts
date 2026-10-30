@@ -54,6 +54,12 @@ async function runToCompletion(
 }
 
 describe('progression — full tournament', () => {
+  it.each([0,1] as const)('2 チームの保存済み決勝結果から優勝を取得（slot %i）',async slot=>{
+    let snapshot=await buildSnapshotForTeamCount(2);const before=createManagerFromSnapshot(snapshot);
+    expect(await getChampionTeamId(before)).toBeNull();expect(await isTournamentFinished(before)).toBe(false);
+    snapshot=await playNext(snapshot,()=>slot);const manager=createManagerFromSnapshot(snapshot);
+    expect(await getChampionTeamId(manager)).toBe(`team-${slot}`);expect(await isTournamentFinished(manager)).toBe(true);
+  });
   it('4 チーム DE: 全試合完走・優勝 1 チーム', async () => {
     const { snapshot, champion } = await runToCompletion(4);
     const manager = createManagerFromSnapshot(snapshot);

@@ -1,0 +1,22 @@
+{
+  "root": "http://127.0.0.1:8795",
+  "participantId": "checkin-7f01a1b0-99fd-498c-b619-5f9e690203ed",
+  "participantName": "受付検証 2026-10-24 4f8db9",
+  "photoUrl": "/api/participants/checkin-7f01a1b0-99fd-498c-b619-5f9e690203ed/photo",
+  "photoDimensions": [
+    480,
+    480
+  ],
+  "newParticipants": 1,
+  "independentDisplaySession": true,
+  "displayPolling": true,
+  "photoByteMatch": true,
+  "duplicateRetryPrevented": true,
+  "anonymousPhotoStatus": 401,
+  "crossOriginWriteStatus": 403,
+  "secretsAbsentFromBundle": true,
+  "jsErrors": [],
+  "externalRequests": [],
+  "failedResponses": [],
+  "camera": "Chromium simulated camera; not a physical smartphone"
+}

@@ -6,14 +6,7 @@ import type { StageData } from './layout';
 /** brackets-manager の完全 DB（真実源。stage/tournament 含む） */
 export type BracketSnapshot = Database;
 
-export function toStageData(db: Database | BracketSnapshot | StageData): StageData {
-  return {
-    group: (db.group ?? []) as StageData['group'],
-    round: (db.round ?? []) as StageData['round'],
-    match: (db.match ?? []) as StageData['match'],
-    participant: (db.participant ?? []) as StageData['participant'],
-  };
-}
+export { toStageData } from './stageData';
 
 export function isFullSnapshot(snapshot: unknown): snapshot is BracketSnapshot {
   return (
@@ -40,6 +33,17 @@ export async function buildDoubleElimination(teamIds: string[]): Promise<Bracket
     settings: { grandFinal: 'double', seedOrdering: ['natural'], balanceByes: true },
   });
 
+  return manager.get.stageData(0);
+}
+
+export async function buildSingleElimination(teamIds: string[]): Promise<BracketSnapshot> {
+  const storage = new InMemoryDatabase();
+  const manager = new BracketsManager(storage);
+  const size = 1 << Math.ceil(Math.log2(Math.max(2, teamIds.length)));
+  const seeding: (string | null)[] = [...teamIds];
+  while (seeding.length < size) seeding.push(null);
+  await manager.create.stage({ tournamentId: 0, name: 'Single Elimination', type: 'single_elimination', seeding,
+    settings: { seedOrdering: ['natural'], balanceByes: true, consolationFinal: false } });
   return manager.get.stageData(0);
 }
 

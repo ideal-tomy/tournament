@@ -1,0 +1,16 @@
+{
+  "readyRun": "cf-through-81b47523-4b12-43b8-80e3-9ba6496e75b2",
+  "routes": [
+    "/",
+    "/checkin",
+    "/admin",
+    "/display",
+    "/rehearsal",
+    "/show-preview"
+  ],
+  "adminRun": "cf-through-37ae44d6-6ff8-46e6-baa5-e5137008780a",
+  "adminDecodedPortraits": 8,
+  "secretsAbsentFromBundle": true,
+  "complete": true,
+  "checkedAt": "2026-10-30T12:05:30.493Z"
+}

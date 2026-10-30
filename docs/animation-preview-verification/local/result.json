@@ -1,0 +1,26 @@
+{
+  "root": "http://127.0.0.1:4175",
+  "scenes": [
+    "draw",
+    "result",
+    "bracket",
+    "vs",
+    "next",
+    "champion"
+  ],
+  "viewportChecks": [
+    360,
+    390,
+    844,
+    1366,
+    1440,
+    1920
+  ],
+  "browser": "installed Chromium (automated, not physical devices)",
+  "jsErrors": [],
+  "externalRequests": [],
+  "writes": [],
+  "failedResponses": [],
+  "nextMatchHold": true,
+  "reducedMotion": true
+}

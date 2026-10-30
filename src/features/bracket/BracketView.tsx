@@ -19,6 +19,8 @@ interface BracketViewProps {
   compact?: boolean;
   /** 棒上昇演出中は勝ち上がり線のハイライトを抑止 */
   suppressConnectorHighlight?: boolean;
+  /** Presentation only: keep frozen/updated layers in the same coordinate space. */
+  layoutData?: StageData;
 }
 
 export default function BracketView({
@@ -29,8 +31,9 @@ export default function BracketView({
   currentMatchId = null,
   compact = false,
   suppressConnectorHighlight = false,
+  layoutData,
 }: BracketViewProps) {
-  const L = computeBracketLayout(data);
+  const L = computeBracketLayout(layoutData??data);
 
   const wbMatches = L.matches.filter((m) => m.bracket === 'winner');
   const lbMatches = L.matches.filter((m) => m.bracket === 'loser');
@@ -179,13 +182,14 @@ export default function BracketView({
               visibility={m.isLeafRound ? undefined : 'hidden'}
             />
             {m.slots.map((s) => {
-              const teamId = resolveTeamId(s.teamRef, data.participant);
+              const teamRef=layoutData?(s.slot===0?bm?.opponent1?.id:bm?.opponent2?.id)??null:s.teamRef;
+              const teamId = resolveTeamId(teamRef, data.participant);
               const faces = teamId ? faceUrlByTeamId[teamId] ?? [] : [];
               const label = teamId ? labelByTeamId[teamId] ?? '' : '';
               const memberNames = teamId
                 ? memberNamesByTeamId[teamId] ?? parseMemberNames(label)
                 : [];
-              const isBye = teamId == null && s.teamRef == null;
+              const isBye = teamId == null && teamRef == null;
               const slotWon =
                 bm &&
                 ((s.slot === 0 && bm.opponent1?.result === 'win') ||
@@ -199,6 +203,7 @@ export default function BracketView({
                 <g
                   key={s.slot}
                   data-slot={s.slot}
+                  data-team-id={teamId??''}
                   data-center-x={s.center.x}
                   data-center-y={s.center.y}
                   opacity={slotLost ? 0.4 : 1}
@@ -222,7 +227,7 @@ export default function BracketView({
                     faces={faces}
                     memberNames={memberNames}
                     label={label}
-                    isEmpty={isBye || (!teamId && s.teamRef == null)}
+                    isEmpty={isBye || (!teamId && teamRef == null)}
                     accent={theme.stroke}
                     compact={compact}
                     facesOnly

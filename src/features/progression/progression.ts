@@ -75,12 +75,7 @@ export function deriveEventStatus(
 export async function isTournamentFinished(
   manager: BracketsManager,
 ): Promise<boolean> {
-  try {
-    await manager.get.finalStandings(0);
-    return true;
-  } catch {
-    return false;
-  }
+  return await getChampionTeamId(manager) !== null;
 }
 
 export async function getChampionTeamId(
@@ -92,6 +87,15 @@ export async function getChampionTeamId(
     if (!top?.name) return null;
     return String(top.name);
   } catch {
+    // brackets-manager emits only a winners group for size=2 DE, while
+    // finalStandings expects a grand-final group. Read the already committed
+    // sole final's result; never infer a winner from seeding or pending matches.
+    const snapshot=await manager.get.stageData(0),data=toStageData(snapshot);
+    if(snapshot.stage[0]?.settings.size!==2||data.participant.length!==2||data.match.length!==1)return null;
+    const final=data.match[0];
+    if(final.status<Status.Completed)return null;
+    if(final.opponent1?.result==='win'&&final.opponent2?.result==='loss')return getSlotTeamUuid(data,final,0);
+    if(final.opponent2?.result==='win'&&final.opponent1?.result==='loss')return getSlotTeamUuid(data,final,1);
     return null;
   }
 }

@@ -1,5 +1,7 @@
 # リハーサルで演出を確認するための手順
 
+**履歴：以下は旧独立プレビューの記録です。現行Cloudflare版は [REHEARSAL32.md](REHEARSAL32.md) とルートREADMEを使用してください。** `dev:rehearsal`は現在Cloudflare版へ統一済みです。旧 `/local-rehearsal` 等は `npm run dev:legacy-rehearsal`（localhost:5175）で確認できます。
+
 作成日: 2026-10-24。対象: 新規クローンした `ideal-tomy/tournament` の `c40cfb71ea1cce6905e535f72b216384bd6243b9`。
 
 本書は現在のコードでできる演出確認と、その先に必要な作業を記す。写真撮影から大会完走までの実装は [PLAN.md](../PLAN.md) を参照する。演出・進行の設計方針は既存の [提案書](./TOURNAMENT_SHOW_DESIGN_AND_CONTROL_PROPOSAL.md) を継承する。

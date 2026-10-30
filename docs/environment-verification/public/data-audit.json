@@ -1,0 +1,78 @@
+{
+  "run": "cf-through-37ae44d6-6ff8-46e6-baa5-e5137008780a",
+  "checkedAt": "2026-10-30T12:03:33.203Z",
+  "d1Count": 8,
+  "portraits": [
+    {
+      "id": "checkin-0e1ea0e1-9a4f-4907-9c36-064e32503ec4",
+      "d1Name": "公開撮影検証 01",
+      "r2Bytes": 5103,
+      "apiStatus": 200,
+      "byteMatch": true,
+      "sha256": "8e8b80e5d8f20978912ab2dec42d47f5c4e791a82060fe1adf498314b8f0db82"
+    },
+    {
+      "id": "checkin-d1ae61e7-9298-41b2-b8ba-38d2af213f5c",
+      "d1Name": "公開撮影検証 02",
+      "r2Bytes": 3080,
+      "apiStatus": 200,
+      "byteMatch": true,
+      "sha256": "5d041477f55b3e921253cd1e54add435acde17104de467833aa4d74283528f8b"
+    },
+    {
+      "id": "checkin-cf2d5c1b-a99a-40b1-a49b-da1a248dcf17",
+      "d1Name": "公開撮影検証 03",
+      "r2Bytes": 3146,
+      "apiStatus": 200,
+      "byteMatch": true,
+      "sha256": "8fd8d97be68a7eef532827a59624f3164c7bf7d2828e265bc3d895b485944592"
+    },
+    {
+      "id": "checkin-8626f3bf-3a4d-4781-b79e-d2488c98191d",
+      "d1Name": "公開撮影検証 04",
+      "r2Bytes": 3146,
+      "apiStatus": 200,
+      "byteMatch": true,
+      "sha256": "8fd8d97be68a7eef532827a59624f3164c7bf7d2828e265bc3d895b485944592"
+    },
+    {
+      "id": "checkin-bd6ed4ec-5c29-4fa7-911d-1133e1866a11",
+      "d1Name": "公開撮影検証 05",
+      "r2Bytes": 3080,
+      "apiStatus": 200,
+      "byteMatch": true,
+      "sha256": "5d041477f55b3e921253cd1e54add435acde17104de467833aa4d74283528f8b"
+    },
+    {
+      "id": "checkin-22d1bdd4-59d1-4435-818e-92cd988562c0",
+      "d1Name": "公開撮影検証 06",
+      "r2Bytes": 3146,
+      "apiStatus": 200,
+      "byteMatch": true,
+      "sha256": "8fd8d97be68a7eef532827a59624f3164c7bf7d2828e265bc3d895b485944592"
+    },
+    {
+      "id": "checkin-493e27d3-2325-46be-a13d-f01b1f087e3f",
+      "d1Name": "公開撮影検証 07",
+      "r2Bytes": 3080,
+      "apiStatus": 200,
+      "byteMatch": true,
+      "sha256": "5d041477f55b3e921253cd1e54add435acde17104de467833aa4d74283528f8b"
+    },
+    {
+      "id": "checkin-73c636ba-aabe-4f04-8a98-6e2401104094",
+      "d1Name": "公開撮影検証 08",
+      "r2Bytes": 3146,
+      "apiStatus": 200,
+      "byteMatch": true,
+      "sha256": "8fd8d97be68a7eef532827a59624f3164c7bf7d2828e265bc3d895b485944592"
+    }
+  ],
+  "matches": [
+    {
+      "status": "done",
+      "n": 3
+    }
+  ],
+  "complete": true
+}

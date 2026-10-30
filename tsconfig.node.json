@@ -16,5 +16,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["vite.config.ts", "vite.rehearsal.config.ts", "scripts/dev/**/*.ts"]
+  "include": ["vite.config.ts", "vite.rehearsal.config.ts", "vite.animation-preview.config.ts", "vite.checkin.config.ts", "scripts/dev/**/*.ts"]
 }

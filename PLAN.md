@@ -1,5 +1,281 @@
 # Cloudflareアプリ実装 PLAN
 
+## 現在：32人・16チーム・15試合の観客通し確認（docs/依頼.md）
+
+前段の8名ローカル確認を土台とし、今回は公開まで実行する。canonicalは既存 `tournament-through-rehearsal`。新しい公開Workerを作らず、通常大会と過去の検証大会を保持する。UIデザイン変更・依存追加・Git push・公開DBの破壊的変更を行わない。
+
+1. **Phase 0 / 構成監査**：標準dev/build/previewとlegacyを照合。既存Admin、Display、受付、Rehearsal、show-previewの直アクセス・reload・Worker assets・API routingをlocal/publicで検証。複数Workerのうち既存通しWorkerへ入口を統一する。
+2. **Phase 1–3 / 永続32人大会**：既存participant登録・R2 portrait・rating均等ペアを再利用。新規runのみsingle_eliminationを指定し、既存brackets-managerで16チーム15試合を作る。従来doubleの大会は変更しない。format・人数・timing presetを大会に保存し、リロード・別端末で一致させる。既存列を使用しschema変更を避ける。
+3. **SHOW / FAST CHECK**：同じDraw、Winner、実Bracket進出演出、VSへtiming presetを渡す。FASTも全16ペアと全15試合の構造を省略せず、holdだけ短縮する。サーバー側の遷移可能時刻とDisplayのtimelineを同じ設定から算出する。
+4. **手動・自動進行**：手動ではVSで停止し、Adminの試合開始だけで進める。自動ではVSが見えた後に明示的な模擬STARTコマンドを実行。停止・再開・新規run作成・現在step/round/match/nextを維持。初期化や再開で再抽選・二重結果入力をしない。
+5. **local受入**：32名・16ペア・15match、全ペア発表、R16/QF/SF/Final、15回のVSと開始待機、WINNER→実進出線→NEXT/VS連続表示、優勝、reloadを実Displayで観察。unit、build、型、dry-runを通す。FAST全通しとSHOWの開始待機・代表遷移を検証し、証跡を残す。
+6. **既存canonicalへdeploy**：対象設定・binding・既存versionを確認し、既存through Workerのみ更新。SecretとD1/R2を継続使用。失敗時は原因を修正し同じWorkerへ再試行し、新Workerに逃げない。
+7. **public受入・引渡し**：公開全routeのdirect/reload、認証、32人15試合の観客通しを再実行。動画・スクリーンショット・遷移記録・永続データ整合性を確認。人間が全16ペア発表から見られるよう、新しい32名SHOW大会をペア確定・発表前で渡し、同じrunの5 URLを正本へ記録する。VSでの手動START待機は通し試験で実証する。残課題は機能・演出・UIUX・不具合に分ける。
+
+合格条件：localhostに留めず、canonicalの公開Displayで16ペアと15試合を可視時間付きで観測する。通常大会を変更しない。単にAPI上のfinishedや新設の確認ページで代替しない。失敗・未観測項目を成功扱いにせずPLANと証跡へ記録する。
+
+### 完了実績（2026-10-30）
+
+- [x] Phase 0：標準dev/build/previewとdev:rehearsalをCloudflareへ統一。旧Vite/Supabaseはlegacyへ分離。5 routeのlocal/public direct accessとreloadを実測。
+- [x] Phase 1–3：32名の通常participant・R2 portrait・rating、16確定ペア、single_elimination 15枠を新規runへ保存。既存double大会は保持。
+- [x] 同一PresentationのSHOW／FAST hold preset、VS停止とAdmin START、現在step/round/current/next、一時停止・再開・新規runでのリセットを確認。
+- [x] Local FAST：32 reveal・16 pair・15 VS／WINNER・14進出線・15試合・優勝とreload。画面・D1・ログを照合。
+- [x] 32人で露見した写真の再読込による空枠を認証付きメモリcacheで修正。状態pollingの毎回INSERTを廃止、Displayを読取専用にし、計測API頻度を減らした。181 unit tests・最終build成功。
+- [x] 既存canonical `tournament-through-rehearsal`へdeploy（最終version `6a2ecda1-1ec0-446a-9821-39e0573f5525`）。新Worker・binding・Secret・migration追加なし。
+- [x] Public SHOW：19:47:55～20:00:25 JST、約12分30秒の全通し成功。32 reveal／16 pair／15 VS／15 WINNER／14実進出線、R16・QF・SF・Final・CHAMPIONとreloadを観測。最終実行の通信再試行・JS例外・想定外HTTP失敗0。通常参加者hash不変。D1 done15件とSTART／winnerログ各15件一致。
+- [x] 発表前の引渡しrun `cf-through-6912c2e2-bbfb-4c71-90d5-da764b5a6003`：32名・16ペア・15枠、SHOW、idle/version1で保持。全5 URLを同じrunで確認。
+- [x] 公開の中断試験は成功扱いにせず記録し、通常大会・過去run・既存作業を保持。Git push、依存追加、OS変更は実施せず。
+
+正本：[REHEARSAL32.md](docs/REHEARSAL32.md)。5 URL、各演出の接続状態、機能・演出・UIUX・不具合の残課題、55秒の連続表示動画、全編録画とJSON／PNG証跡を集約した。
+
+## 現在の実行計画：起動・公開経路の統一（2026-10-30）
+
+目的：UIUX改修前に、Cloudflare版の受付→抽選→管理→Display→優勝を同じ入口から確認し、公開可能な成果物と再現手順を揃える。
+
+### 保護条件・スコープ
+
+- 既存の未コミット実装を引き継ぎ、巻き戻し・削除・Git pushは行わない。
+- remote D1/R2・通常大会・既存Worker設定は変更しない。今回の完走試験は専用ローカルD1/R2に限定。
+- 起動はloopback限定。ローカル専用の設定・認証値・保存先を作り、remote bindingを使わない。
+- 既存migrationはローカルの履歴管理で一度だけ適用し、既存公開DBへ再適用しない。
+- 新規依存の追加・更新は事前承認後のみ。共有node_modulesを変更しない。
+- 今回は公開準備・dry-runまで。公開操作は対象と検証結果が揃ってから別途明示する。
+- 広告・音響・undo・32名実機運営等の全移行は別段階。実測した範囲のみ完了とする。
+
+### P1：標準入口・成果物をCloudflareへ統一
+
+- [x] `dev` / `build` / `preview`をCloudflare版へ統一し、旧版を明示的なlegacyコマンドとして保持。
+- [x] 通常testも共有node_modulesのjunctionを解決できる設定へ合わせる。
+- [x] `/admin` `/display` `/checkin`の直アクセスと未ログイン表示をブラウザで確認。
+
+### P2：安全なローカル実行環境
+
+- [x] remote IDを持たないローカル専用Wrangler設定、D1/R2、migration追跡、冪等な初期大会seed。
+- [x] ローカル専用認証ファイルを未作成時だけ生成。秘密値はログへ出さず、既存秘密値は上書きしない。
+- [x] ワンコマンドでbuild→migration→seed→APIと画面の同一origin起動。frontend変更の反映方法も用意。
+- [x] ポート衝突は説明して停止。既存5173サーバーを強制停止しない。
+- [x] 再起動で大会・写真が保持されること、公開リソース不要で動くことを確認。
+
+### P3：大会フローと保存の実証
+
+- [x] 検証スクリプトをloopback専用にし、remote認証・固定の公開大会IDへの依存を排除。
+- [x] サンプル8名の新規大会：受付→ペア保存→発表→Bracket待機→手動開始相当→勝敗→CHAMPION。
+- [x] 運営・Displayを別ブラウザcontextで開き、写真取得・各演出・最終状態の同期を確認。
+- [x] 一時停止、API失敗後の再開、同じrequestIdでの再送、リロード復元、D1整合性と勝敗ログを確認。
+- [x] 検証大会を作り直しても完走大会が保持されることを確認。通常大会・remoteへの書込0。
+- [x] localhost上の認証Cookie・Origin検査も実ブラウザで確認し、必要な修正は本番の制約を維持。
+
+### P4：公開準備・文書・結果
+
+- [x] default build、unit全件、Worker型検査、既存公開設定のdeploy dry-runが成功。
+- [x] READMEを現行入口へ更新。ローカル認証値の所在、URL、停止・再起動・保存・検証・公開手順を記載。
+- [x] Cloudflare公開先とlegacy Vercel設定の位置づけを明示。静的ファイルだけの公開でAPIが動くと誤解させない。
+- [x] 検証日時・実行コマンド・件数・スクリーンショット・保存整合性・未検証項目を記録。
+- [x] PLANに実績を追記し、ユーザーがローカルURLから確認できる状態で渡す。
+
+受入基準：`npm run dev`でCloudflare版へ到達し、管理画面が白画面にならない。ローカルD1/R2で8名大会が完走・再読込復元できる。標準build/testと公開dry-runが成功し、既存公開データ・既存作業を保持する。
+
+復旧：今回の起動プロセスだけを停止。ローカル永続データは保持し、失敗時もDBを削除せず原因とログを確認する。旧コードはlegacyコマンドで個別利用可能。
+
+### 実行結果（2026-10-30 17:49 JST）
+
+P1〜P4の受入範囲は完了。標準unit 179件、標準build、旧Worker型検査、通常／通し検証Workerのdry-runが成功。ローカル8名・4チーム・6試合で優勝（version 28）、全写真・4ペア・結果演出を観測し、done試合と勝者操作ログが各6件で一致。一時停止・API失敗後の同一requestId再開・優勝リロード復元・完走大会を保持した新規大会準備も成功。
+
+実受付フォームの写真登録・名前編集・写真差し替え、Cookie・Origin検査、別ブラウザの認証付き写真取得、サーバー再起動後のD1/R2復元を確認した。ポート競合時は既存サーバーを停止せず起動を中断する。現在はlocalhost:5174のpreviewで8名準備済み大会を確認できる。公開・push・remoteデータ変更は実施していない。
+
+Wranglerの開発依存固定は確認待ち。追加インストールを伴わず既存Wrangler 4.152.0で受入を実施した。clean installの再現性や実機・会場・16/32名運営を完了扱いにしない。
+
+詳細・確認URL・証跡は [LOCAL_DEPLOY_READINESS.md](docs/LOCAL_DEPLOY_READINESS.md) に集約。
+
+## 最新：WINNER → Bracket advance → 次VS（2026-10-25）
+
+- [x] 勝者確定時の更新前Bracketを、既存の結果確定処理と同じ保存単位で保持。
+- [x] 実DisplayでWINNER保持 → 更新前 → 実進出ライン・顔の移動 → 更新後 → 実際の次2チームのVSへ接続。
+- [x] NEXT MATCHで停止し、運営の試合開始操作でのみ次試合へ進行。
+- [x] 専用 `/match-transition` に同じDisplayの読取専用再生・一時停止・再開を追加。
+- [x] 公開実機相当ブラウザで線の連続伸長・実進出先・待機・reload・運営開始を確認。179 tests、通常build、checkin build成功。
+
+調査した既存コード、再利用箇所、公開URL、検証結果、変更ファイルは [詳細報告](docs/MATCH_RESULT_PRESENTATION.md)。以下は前段階の記録。
+## 最新：受付からCHAMPIONまでの通しリハーサル（2026-10-25）
+
+- [x] 専用公開Worker `/rehearsal` を追加し、通常大会と隔離したrun IDを発行。
+- [x] 撮影不要のサンプル8名と、現在の登録参加者・写真をコピーする準備方法を用意。D1/R2へ通常登録APIで保存。
+- [x] 同じ運営コマンド・Displayによる手動操作と、自動command runnerを接続。
+- [x] 開始・一時停止・再開・新規大会への初期化、進行ステップ・状態・次試合・人数を表示。
+- [x] API・写真・人数・D1整合性の異常で停止。同じrequestIdで再開。
+- [x] 公開入口のボタンから8名4チーム6試合をfinishedまで完走。Championは参加者01＆04。個別Animation Preview選択0回。
+- [x] 一時停止、意図的503停止・再開、完走後初期化による旧大会保持を公開確認。
+- [x] 最少4名の確認で発見した2チーム時の優勝判定を共通ロジックで修正。176 tests成功。
+- [x] 修正後の4名手動完走、保存済み決勝の復帰、写真取得エラー停止、通常大会・既存Previewの最終読取確認。両build成功。
+
+[公開URL・使い方・state列・共用範囲・発見不具合・変更ファイル](docs/THROUGH_REHEARSAL.md)。初期化は新規大会作成で、既存大会を削除・上書きしません。以下は前段階の記録です。
+## 最新：第1試合から第2試合への基本ループ（2026-10-25）
+
+- [x] 既存applyResult／getNextMatch／snapshot更新・receiptを再利用。
+- [x] 試合中のRound・Match番号・両チーム・写真・名前と勝者ボタンを表示。
+- [x] 勝者をD1へ保存→既存WINNER→更新済みBracketを2秒表示→次VSへ自動接続。開始は必ず運営操作待ち。
+- [x] operation_logを同じbatchに記録。開始・勝者の重複／競合／応答消失後の再送を保護。
+- [x] 公開隔離大会で第1試合ID 0→勝者確定→Bracket更新→第2試合ID 1の開始待ちまで確認。4名の保存写真を検証用8件で再利用し、新規実機撮影とは区別。
+- [x] 170 tests（test:rehearsal）、専用build・通常build成功。通常Workerへ反映し、通常大会の未開始・未結果入力を維持。
+- [x] 既存Animation Preview、通常DisplayのPC/SP/1920×1080、reload復帰を確認。
+
+[状態遷移・第1/第2試合・D1・URL・変更ファイル](docs/MATCH_PROGRESS_LOOP.md)。後半戦や演出デザインの追加はしていません。以下は前段階の記録です。
+## 最新：受付終了・ペア発表・ゲーム開始の分離（2026-10-25）
+
+`docs/大会フロー再確認.md` に基づき、今回の範囲を第1試合VS後の待機までに限定します。以下の過去記録にある「Draw開始でペア確定」「Bracket後は自動で第1試合」は、この節の仕様で置き換えます。
+
+- [x] 既存rating均等化・公開順・Bracket・次試合決定ロジックを調査し、そのまま再利用。
+- [x] 受付終了で名簿を固定し、ペア・Bracket・matchesを事前保存。Displayは大会開始待機。
+- [x] 「ペア発表開始」で保存済みペアの既存Drawを再生。全ペア発表後はBracketで待機。
+- [x] 「ゲームスタート」でシステムが第1試合を選択し、既存NEXT MATCH/VS後に「試合開始」を待つ。
+- [x] 正常遷移・再送・競合・準備失敗後の回復を含む168 tests成功。
+- [x] 公開隔離大会で実登録4名の保存写真・ratingを再利用して全ゲートを確認し、通常Workerへ反映。通常大会のペア・現在試合は保持。通常build成功、PC/SP/1920×1080の読取確認も完了。
+
+[最新の操作手順・調査結果・公開検証記録](docs/PAIR_ANNOUNCEMENT_FLOW.md)。後半戦の機能追加・演出UI変更は今回の対象外です。
+
+## 最新：受付からChampionまでの連続進行（2026-10-25）
+
+- [x] 既存getNextMatch/applyResult/getChampionTeamIdをD1のsnapshotへ接続。
+- [x] 次試合をシステムが自動選択。通常運営に試合選択・手動「次へ」は置かない。
+- [x] Draw完了→Bracket→NEXT MATCH/VS→開始待ち→試合開始→勝者確定→Result/Bracket更新→次対戦、を連続化。
+- [x] 最終結果からChampion・finishedへ接続。試合開始・勝者確定は運営の操作を必須にする。
+- [x] snapshot・matches・現在試合・scene/version・再送receiptを同じD1 batchで保存。
+- [x] 公開の隔離大会8名4チームで、敗者復活・決勝リセットを含む7試合を完走。D1と照合、version25で終了。
+- [x] 通常大会4名のペアを保持し、最初の試合を自動表示。04:16 JST現在、VS後の試合開始待ち。通常大会の勝者を検証用に入力していない。
+- [x] 専用build・通常build・167 tests成功、通常Workerに公開済み。
+
+[公開URL・通常運営手順・E2E結果・変更ファイル](docs/TOURNAMENT_FLOW.md)。通常大会での実戦結果入力からChampionまでの確認は運営者の開始・結果入力待ち。以下の3名待ち等は過去時点の記録です。
+
+## 最新：既存Draw・D1確定ペア・Bracketへの接続（2026-10-25）
+
+- [x] 既存makeBalancedTeams/buildRevealOrder/buildDoubleEliminationを再利用。
+- [x] 既存DrawSceneの描画をDrawStageへ抽出し共用。GSAPタイミング・PairConfirmed演出は維持。
+- [x] 受付終了時の固定ID/version・実保存写真・偶数人数を検証。
+- [x] 運営の「Draw開始」から既存session/team/team_members/Bracket/sceneをD1 batchで確定。
+- [x] UUID・version・試行固有sessionで同時再送を保護し、reload・再接続で同じペアを復元。
+- [x] Displayはscene/version監視で再生し、全ペア確定後に既存BracketViewへ接続。手動の運営操作は置かない。
+- [x] 公開の隔離検証大会4名で、全名・保存写真・2組のPAIR CONFIRMED・全組完了・Bracket・D1直接照合を確認。
+- [x] 通常ビルド・受付ビルド・165 tests成功、通常Workerへ反映。依存追加・migration追加なし。
+- [ ] 通常大会cf-rehearsal-001の本人写真付き4名で受付終了→Draw→Bracketの最終確認。03:10 JST現在は「にゃー」「けんけん」「テスト」の3名、受付open/scene idleのまま保持。4名目が必要。通常大会のDrawはまだ実行していない。
+
+[調査・再利用範囲・公開URL・操作・D1保存結果・変更ファイル](docs/DRAW_D1_REHEARSAL.md)。以下は受付機能までの経過記録。
+
+## 最新：大会開始前の受付フロー（2026-10-25）
+
+- [x] 同じ画面から写真付き参加者を連続登録し、成功時に入力をリセット。
+- [x] 受付に人数・保存済み写真・名前・rating・編集・削除を表示。
+- [x] versionで競合を防ぎ、名前/rating/写真を編集。
+- [x] 写真差し替え・削除はD1トランザクション内で削除予定を記録し、R2削除を実行。失敗時は再試行と5分間隔Cron。
+- [x] 最低人数・重複・必須情報・R2実体・後処理を検証して受付終了、確定一覧を保存。
+- [x] D1 participant → presentationAdapter → 6演出で共通利用。
+- [x] 公開専用検証大会で4名登録、別セッション表示、編集、削除、再登録、受付終了を確認。通常大会の本人写真は保持。
+- [x] 専用buildおよび159 unit tests成功。通常受付Workerへ反映。
+- [ ] スマホ実機で追加3名以上を連続撮影し、実機同士で受付を確認する（自動試験4名の画像は既存テスト画像）。
+- [ ] Draw/勝敗確定/大会の完全進行は別工程。受付終了は大会開始や抽選実行ではない。
+
+[今回の公開URL・運用手順・実測・変更ファイル](docs/CHECKIN_LIFECYCLE.md)。以下の本人写真未登録という記録は現在の状態ではありません。
+
+## 過去記録：参加者データを演出へ接続（本人写真登録前）
+
+専用Worker `tournament-checkin-rehearsal` の `/checkin` → D1／R2 → `/display`・読取専用 `/admin` → 実データ専用 `/show-preview` を実装・公開した。canonical portrait APIとpresentation adapterを共通化。166 tests、各build、ローカルで保存済み参加者の6シーン表示を確認。
+
+**全体は未完了。** 公開環境の本人写真が未登録のため、実スマホ撮影から公開演出までの実写E2Eが残る。既知の緑色模擬画像は通常API・演出から除外し、実写として扱わない。[URL・実装・検証・変更ファイル・残作業](docs/CHECKIN_REHEARSAL.md)。以後の過去記録よりこの節を優先する。
+
+## 写真付き受付の最小実装（2026-10-24）
+
+2026-10-25追記: 緑色の写真は最初の公開試験で作成した模擬カメラ画像と判明。R2／Worker間のバイト一致と正しいJPEG headerを確認し、検証画像の明示・読込失敗表示・確実な再取得を公開した。参加者データの変更は0件。**実スマホ撮影の登録待ちであり、実写のDisplay確認は未完了。** [写真経路の調査・修正記録](docs/CHECKIN_REHEARSAL.md)。
+
+最新の [依頼](docs/依頼.md) に従い、別Worker `tournament-checkin-rehearsal` に `/checkin` と参加者確認用 `/display` を実装・公開済み。名前・任意rating・写真をWorker経由で既存D1と非公開R2へ保存し、別端末の確認画面に表示する。既存Admin／Display・Supabase版と演出Previewは維持する。
+
+[URL・確認コードの場所・操作・Cloudflare設定・検証記録](docs/CHECKIN_REHEARSAL.md)。専用build、従来build、153 unit tests、実D1・R2を使った公開URLでの模擬カメラ→別セッションDisplay確認が成功。残作業は実スマホによる撮影・Safariを含む端末確認。この最小実装を一般のAdmin認証・大会進行API全体の完成とは扱わず、以下のM1.2以降の未実装項目は保持する。
+
+## 公開演出Previewの先行計画（2026-10-24）
+
+今回の依頼は、以下の公開演出Previewを先に進める。既存のM1.1以降のDB連携計画とは独立して実装でき、公開Displayキーの解決を待つ必要はない。**専用Previewを実装し、2026-10-24に別Workerへ公開済み。** [公開URL・操作・更新・検証記録](docs/ANIMATION_PREVIEW.md)。以下は実装方針の記録。残作業は実際のスマホ・会場モニターでの目視確認とUI調整。
+
+### 調査結果と採用方針
+
+対象はこのクローンの `c40cfb7` と作業中の追加ファイル。2026-10-24にコードを確認し、`npm run build`（TypeScript + Vite）は成功した。
+
+| 対象 | 現状 | 公開Previewへの適性 |
+|---|---|---|
+| `/show-preview` | fixtureとPostMatchStageだけで動作。再生・停止・seek・skip、full/short/lite。DB接続なし | **ベースに採用**。操作と表示部品を専用エントリーから再利用する |
+| `/local-rehearsal` | DB不要だが写真登録・カメラ・localStorage・抽選・勝敗・undoまで含む | 手元の進行検証用として維持。画面全体は公開Previewに取り込まない |
+| 通常のVite build | 静的出力に成功。ただしAdmin、Display、Supabase関連chunkも生成される | `dist` 全体をそのまま公開する方式は採らない |
+| 本番DrawScene | GSAPの抽選演出とデータ取得・scene更新が同じモジュールにある | 直接importしない。公開用はfixture専用の描画実装を追加する |
+
+| 演出 | 既存Previewの到達点 | 必要な追加 |
+|---|---|---|
+| Draw | local-rehearsalはチーム結果の静的表示 | ダーツ・カード反転・ペア成立をfixtureで再生する専用stage |
+| Result | PostMatchStageのWINNER表示 | 単独再生入口と長い名前・顔なしfixture |
+| Bracket advance | PostMatchStageに模式的なライン演出 | 単独入口。実大会bracketとの同期機能ではないことを画面に明記 |
+| VS | PostMatchStageで再生可能 | 単独入口 |
+| NEXT MATCH | PostMatchStageで停止・手動開始待ち表示 | 単独入口・リプレイ操作 |
+| Champion | local-rehearsalの静的な優勝パネル | fixture専用の優勝アニメーションstage |
+
+### 最小変更の実装単位
+
+1. `preview/index.html`、`src/preview/main.tsx`、`PreviewApp.tsx`を新設し、通常の `src/main.tsx`／`App.tsx`から分離する。既存の2ページ、Admin／Display、本番DrawScene、Supabase、Cloudflare APIは変更しない。
+2. `src/preview/fixtures.ts`に固定の参加者・チーム・勝者・次試合を定義する。公開用の顔画像はまずプレースホルダーを標準にする。同梱写真を使う場合は公開してよい素材だけを選ぶ。参加者登録、撮影、upload、API取得、永続化は不要。
+3. `PostMatchStage`と既存の純粋な描画・タイミング部品を再利用する。Result／Bracket advance／VS／NEXT MATCHの入口は既存timelineの位置へseekして実装する。Draw／Championは `src/preview/scenes/` に新設し、完了時はPreview内の状態だけを更新する。本番DrawSceneの見た目・タイミングを照合するが、同一コンポーネントではないため本番と完全一致した検証とは扱わない。実データを使った本番演出の回帰検証は別工程とする。
+4. シーン選択、再生、停止、最初から、skip、モード、全体通し再生を用意する。NEXT MATCHでは自動的に試合開始しない。モニター表示用に操作パネルを隠す。音声は初回対象外。既存ホームへ戻るリンクは専用Preview内へ向ける。
+5. `vite.animation-preview.config.ts`を新設し、`preview/`をroot、`dist-animation-preview/`を出力先にする。標準Vite設定とlocalhost専用proxy設定は継承しない。公開用環境変数は不要とし、`envDir:false`で通常の `.env*` を読ませない。`publicDir:false`とし、必要な演出素材だけを明示リストで出力へコピーする。通常の `public/` には仮置き素材や動画もあるため丸ごとコピーしない。
+6. `package.json`に専用build／previewコマンドを追加する。既存buildは保持し、新規依存は追加しない。専用bundleにAdmin／Display／Supabase／Cloudflareクライアント・秘密値が入らないことを検証する。
+7. 新規の静的配信用Cloudflare Workerへ専用出力だけを公開する。既存 `tournament-rehearsal` Workerを更新しない。公開後にPC・スマホ・モニターで確認する。
+
+### 公開先の比較と設定
+
+推奨は **Cloudflare Workers Static Assetsの別Worker**。既にCloudflareを利用しているため、別サービスの接続を増やさず、既存APIと別の名前・URL・設定で管理できる。[公式の静的配信方式](https://developers.cloudflare.com/workers/static-assets/)を使う。
+
+新規設定例 `cloudflare/wrangler.animation-preview.jsonc`（未作成）:
+
+```jsonc
+{
+  "name": "tournament-animation-preview",
+  "compatibility_date": "2026-10-24",
+  "assets": { "directory": "../dist-animation-preview" }
+}
+```
+
+`main`、D1／R2 binding、API token、Secretsは設定しない。最初はルートとqueryだけで画面を切り替え、SPAのパスrewriteを不要にする。Cloudflare側の作業は専用Worker作成・この出力の公開・HTTPS URL確認のみ。D1 migration、R2設定、既存APIのCORS変更は不要。
+
+Vercelでも新規プロジェクトに専用build commandと `dist-animation-preview` を設定すれば公開可能。[Vite公式連携資料](https://vercel.com/docs/frameworks/frontend/vite)。既存プロジェクトの環境変数・ドメインは引き継がない。既存 `vercel.json` は本体用の全パスrewriteを持つため、専用projectのRoot Directory／設定を分離し、この設定を流用しない。最初の実装では公開方式をCloudflareの一方に絞る。
+
+### 専用URL
+
+以下は設計時のURL形式。実際の公開先は `https://tournament-animation-preview.pine-shaken.workers.dev/`。
+
+```text
+https://tournament-animation-preview.<account-subdomain>.workers.dev/
+  ?scene=draw&mode=full
+  ?scene=result&mode=full
+  ?scene=bracket&mode=full
+  ?scene=vs&mode=short
+  ?scene=next&mode=lite
+  ?scene=champion&mode=full
+  ?scene=all&mode=full&controls=0
+```
+
+各queryはルートURLに続ける。既存 `/show-preview`、`/local-rehearsal` は従来用途のまま残す。新URLにAdmin／Displayルートは実装しない。queryは既定のシーン名だけを受け付け、URLからデータ取得先・token・HTMLを指定できないようにする。
+
+### 確認方法と完了条件
+
+| 表示対象 | 確認 |
+|---|---|
+| PC | 1366×768、1440×900。操作パネルの折返し、再生／停止／seek／モード切替、6シーンと通し再生 |
+| SP | 390×844、360×800、横向き844×390。横はみ出し、顔・名前・ボタンの可読性、タップ、回転後のサイズ復帰 |
+| 会場モニター | 1920×1080、ブラウザ倍率100%、操作非表示。16:9舞台内の見切れ・余白・文字サイズ・連続再生 |
+| 実機 | PC Chrome／Edge、iPhone Safari、Android Chrome。実際の公開URLで確認。ブラウザ自動試験と実機確認を区別して記録 |
+
+- 6シーンそれぞれが直URL・再読込で開ける。最初から繰返し再生でき、NEXT MATCH停止後に意図せず進行しない。
+- 同じURLの端末ごとの再生は独立する。同時刻同期・Admin遠隔操作・実大会進行は対象外。
+- Networkで同一originの静的素材以外への接続がない。Supabase／既存Workerへの要求、書込リクエスト、秘密値の露出がない。
+- bundle依存と出力ファイルを検査し、本体chunk・未使用の写真／仮置き素材・秘密設定が混入していない。秘密値をログへ出力しない。
+- 素材404・JSエラーなし。full/short/lite、reduced-motion、長い名前・顔なしを確認。実機の描画の滑らかさは実測結果として記録する。
+- 通常buildと既存の演出・読取proxyテストを実行し、既存Admin／Display／Workerのファイル差分がないことを確認する。
+
+本計画で到達するのは公開URLでのサンプル演出確認。実際の撮影登録、D1／R2への保存、端末同期、本番大会の進行は以下の既存M2以降の計画で扱う。
+
 更新日: 2026-10-24。対象: `c40cfb7` と、この作業フォルダに追加済みのローカルリハーサル実装。依頼元: [docs/依頼.md](docs/依頼.md)。M1.1の読取クライアント・開発専用proxy・新規確認画面を実装。既存Admin／Display・Supabase・公開Worker・DB・R2は変更していない。
 
 M1.1の最新状態: 135 unit tests、画面のloading・成功模擬応答・各エラー表示、既存プレビューの回帰確認を実施。実公開Workerは現在のローカル読取キーで401のため、実D1の成功表示は公開用キー設定後の確認待ち。[接続方法と検証結果](docs/CLOUDFLARE_CHECK.md)。M1.2以降は実装していない。
@@ -247,3 +523,33 @@ D1・R2・Worker・Secrets・読取API接続は依頼内容により完了。追
 - ローカル比較用: `rehearsal/localTournament.ts`、`routes/LocalRehearsalPage.tsx`、`presentation/postMatch/`。
 
 [Cloudflare実環境の記録](docs/CLOUDFLARE_REQUIRED_ACTIONS.md)／[読取API手順](docs/CLOUDFLARE_API_RUNBOOK.md)／[演出確認手順](docs/REHEARSAL_PREVIEW_GUIDE.md)。
+# 2026-10-30 更新版依頼：公開受付からChampionまでの環境整理
+
+実行計画と調査結果の正本は[ENVIRONMENT_CONSOLIDATION.md](docs/ENVIRONMENT_CONSOLIDATION.md)。旧計画・既存変更を保持する。
+
+- [x] 更新版依頼を再読。scripts/config/route/entry/auth/assetsとAdmin白画面原因を照合。
+- [x] Cloudflare APIで既存8 Workerのdeploy版・D1/R2/ASSETS/Secret名を読み取り棚卸し。新Workerなし。
+- [x] トップを大会開始＋受付・運営・Displayへ整理。開発ツールを折り畳み、旧入口は非表示。
+- [x] localhostの7 routeでdirect/reload、トップ、開発ツール、接続確認成功。受付編集・写真差替え・別session・logoutの既存E2Eも成功。
+- [x] 27ファイル181 unit tests、型検査とbuild成功。
+- [x] 既存canonical Workerだけへdeployし、公開7 routeと8人の模擬カメラ連続登録・Championを確認。D1参加者8件・R2写真8件とAPIのbyte一致・完了試合3件を照合。競合409と中断再開は記録。
+- [x] 実スマートフォン受付用の空大会を準備し、最終結果を確認済み/未確認/未実装で引き渡す。
+- [ ] 実スマートフォンの撮影・登録（ユーザー実機での結果待ち。PC模擬カメラとは区別）。
+# 連動が分かる公開版・デプロイ準備（ユーザー依頼 2026-10-30）
+
+1. **導線の正本化**：TOP→Rehearsalを主経路にする。ログイン後に大会を作る操作と、既存runを開く操作をはっきり示す。旧Supabase版、旧検証route/previewを通常メニューから隠す。コード・データは削除しない。
+2. **連動を画面で説明**：Rehearsalへスマホ受付→D1/R2→Admin command→同じrunのDisplay反映を図示。大会ID・各画面のrun付きURL、推奨端末、5秒ポーリングを表示。3端末で開くリンクにrunを確実に引き継ぐ。
+3. **手動と自動を分離**：実データで手動テストする手順と、模擬勝者を記録する自動全通しの影響を分けて表示。現在の状態に対応する次操作を案内。自動進行中にDisplayが書込みをしないことを確認。
+4. **操作画面の範囲整理**：通常のトップ・受付・Admin・Display・Rehearsalのみを主導線として保持。個別演出・接続確認は折り畳み開発ツール。旧Supabaseの通常入口を露出させない。
+5. **デプロイ前確認**：関連する画面・同run接続・一連の手動/自動進行の検査、build/typecheck/test、既存canonical Workerのdry-runを実施。公開環境には今回書き込まない。
+6. **引渡し**：再現command、反映データ経路、各画面URLの役割、確認結果、未解決の実機事項をdocsへ記載し、公開前のレビュー可能な状態で止める。
+
+### 実施状況（2026-10-30）
+
+- [x] Main entryから共有大会のRehearsalを主経路にし、受付・Admin・Displayをrun付きで開く表示に変更。
+- [x] D1参加者/R2写真・Admin進行API・Displayの共有状態・約5秒更新をRehearsalで説明。状態ごとの次操作、達成ステップ、対戦数を表示。
+- [x] 実データ手動運営と、自動Team A模擬勝者全通しを折りたたみで明確に分離。
+- [x] Legacy/Supabaseを標準route/nav/buildから除外。個別画面と開発ツールは折りたたみ導線に配置。既存コード・依存・Workerは保管。
+- [x] localhostの新導線→空run作成→別PCセッション→4名受付→Admin一覧反映→受付終了→ペア発表を通し確認（runは環境verification証跡参照）。
+- [x] build成功。27ファイル・181件の回帰テストと2 Worker config deploy dry-run成功。
+- [x] 実環境へはdeployしない。今回の変更は公開前レビューで止める。

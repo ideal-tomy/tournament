@@ -1,0 +1,85 @@
+{
+  "root": "https://tournament-through-rehearsal.pine-shaken.workers.dev",
+  "started": "2026-10-30T11:59:08.763Z",
+  "camera": "PC Edge simulated camera with mobile viewport; physical smartphone unverified",
+  "routes": [
+    {
+      "route": "/",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/checkin",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/admin",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/display",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/rehearsal",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/show-preview",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/cloudflare-check",
+      "direct": 200,
+      "reload": 200
+    }
+  ],
+  "participants": [
+    "公開撮影検証 01",
+    "公開撮影検証 02",
+    "公開撮影検証 03",
+    "公開撮影検証 04",
+    "公開撮影検証 05",
+    "公開撮影検証 06",
+    "公開撮影検証 07",
+    "公開撮影検証 08"
+  ],
+  "states": [
+    {
+      "at": "2026-10-30T11:59:34.881Z",
+      "scene": "idle"
+    },
+    {
+      "at": "2026-10-30T11:59:37.013Z",
+      "scene": "idle",
+      "phase": "idle",
+      "completed": 0
+    },
+    {
+      "at": "2026-10-30T11:59:38.031Z",
+      "scene": "draw",
+      "phase": "draw",
+      "completed": 0
+    }
+  ],
+  "errors": [],
+  "httpFailures": [
+    {
+      "path": "/api/rehearsal/status",
+      "status": 409
+    },
+    {
+      "path": "/api/rehearsal/status",
+      "status": 409
+    }
+  ],
+  "run": "cf-through-37ae44d6-6ff8-46e6-baa5-e5137008780a",
+  "photos": 8,
+  "error": "/api/rehearsal/status?run=cf-through-37ae44d6-6ff8-46e6-baa5-e5137008780a: 409",
+  "finished": "2026-10-30T12:00:27.418Z"
+}

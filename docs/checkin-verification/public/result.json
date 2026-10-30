@@ -1,0 +1,22 @@
+{
+  "root": "https://tournament-checkin-rehearsal.pine-shaken.workers.dev",
+  "participantId": "checkin-981ee495-ed79-44fd-a00c-6a8792e17102",
+  "participantName": "受付検証 2026-10-24 d1d324",
+  "photoUrl": "/api/participants/checkin-981ee495-ed79-44fd-a00c-6a8792e17102/photo",
+  "photoDimensions": [
+    480,
+    480
+  ],
+  "newParticipants": 1,
+  "independentDisplaySession": true,
+  "displayPolling": true,
+  "photoByteMatch": true,
+  "duplicateRetryPrevented": true,
+  "anonymousPhotoStatus": 401,
+  "crossOriginWriteStatus": 403,
+  "secretsAbsentFromBundle": true,
+  "jsErrors": [],
+  "externalRequests": [],
+  "failedResponses": [],
+  "camera": "Chromium simulated camera; not a physical smartphone"
+}

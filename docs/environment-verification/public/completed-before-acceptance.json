@@ -1,0 +1,173 @@
+{
+  "root": "https://tournament-through-rehearsal.pine-shaken.workers.dev",
+  "started": "2026-10-30T11:59:08.763Z",
+  "camera": "PC Edge simulated camera with mobile viewport; physical smartphone unverified",
+  "routes": [
+    {
+      "route": "/",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/checkin",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/admin",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/display",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/rehearsal",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/show-preview",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/cloudflare-check",
+      "direct": 200,
+      "reload": 200
+    }
+  ],
+  "participants": [
+    "公開撮影検証 01",
+    "公開撮影検証 02",
+    "公開撮影検証 03",
+    "公開撮影検証 04",
+    "公開撮影検証 05",
+    "公開撮影検証 06",
+    "公開撮影検証 07",
+    "公開撮影検証 08"
+  ],
+  "states": [
+    {
+      "at": "2026-10-30T11:59:34.881Z",
+      "scene": "idle"
+    },
+    {
+      "at": "2026-10-30T11:59:37.013Z",
+      "scene": "idle",
+      "phase": "idle",
+      "completed": 0
+    },
+    {
+      "at": "2026-10-30T11:59:38.031Z",
+      "scene": "draw",
+      "phase": "draw",
+      "completed": 0
+    },
+    {
+      "at": "2026-10-30T12:01:21.300Z",
+      "scene": "bracket",
+      "phase": "bracket",
+      "completed": 0
+    },
+    {
+      "at": "2026-10-30T12:01:22.578Z",
+      "scene": "vs_card",
+      "phase": "vs_card",
+      "completed": 0
+    },
+    {
+      "at": "2026-10-30T12:01:28.239Z",
+      "scene": "match_live",
+      "phase": "match_live",
+      "completed": 0
+    },
+    {
+      "at": "2026-10-30T12:01:31.427Z",
+      "scene": "result",
+      "phase": "result",
+      "completed": 1
+    },
+    {
+      "at": "2026-10-30T12:01:36.094Z",
+      "scene": "bracket",
+      "phase": "bracket_update",
+      "completed": 1
+    },
+    {
+      "at": "2026-10-30T12:01:40.501Z",
+      "scene": "vs_card",
+      "phase": "vs_card",
+      "completed": 1
+    },
+    {
+      "at": "2026-10-30T12:01:46.574Z",
+      "scene": "match_live",
+      "phase": "match_live",
+      "completed": 1
+    },
+    {
+      "at": "2026-10-30T12:01:49.823Z",
+      "scene": "result",
+      "phase": "result",
+      "completed": 2
+    },
+    {
+      "at": "2026-10-30T12:01:54.087Z",
+      "scene": "bracket",
+      "phase": "bracket_update",
+      "completed": 2
+    },
+    {
+      "at": "2026-10-30T12:01:59.220Z",
+      "scene": "vs_card",
+      "phase": "vs_card",
+      "completed": 2
+    },
+    {
+      "at": "2026-10-30T12:02:04.785Z",
+      "scene": "match_live",
+      "phase": "match_live",
+      "completed": 2
+    },
+    {
+      "at": "2026-10-30T12:02:07.988Z",
+      "scene": "result",
+      "phase": "result",
+      "completed": 3
+    },
+    {
+      "at": "2026-10-30T12:02:12.871Z",
+      "scene": "award",
+      "phase": "award",
+      "completed": 3
+    },
+    {
+      "at": "2026-10-30T12:02:15.610Z",
+      "scene": "finished",
+      "phase": "finished",
+      "completed": 3
+    }
+  ],
+  "errors": [],
+  "httpFailures": [
+    {
+      "path": "/api/tournament/advance",
+      "status": 409
+    }
+  ],
+  "run": "cf-through-37ae44d6-6ff8-46e6-baa5-e5137008780a",
+  "photos": 8,
+  "finished": "2026-10-30T12:02:17.847Z",
+  "priorStops": [
+    {
+      "error": "/api/rehearsal/status?run=cf-through-37ae44d6-6ff8-46e6-baa5-e5137008780a: 409",
+      "at": "2026-10-30T12:00:27.418Z"
+    }
+  ],
+  "expectedReadConflicts": 9,
+  "champion": "70cd87e7-990c-4bb4-9515-27968bd21fbb",
+  "error": "Expected values to be strictly deep-equal:"
+}

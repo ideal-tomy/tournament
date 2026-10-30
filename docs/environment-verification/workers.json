@@ -1,0 +1,339 @@
+{
+  "checkedAt": "2026-10-30T12:05:51.895Z",
+  "workers": [
+    {
+      "name": "tournament-animation-preview",
+      "modified": "2026-10-24T13:58:29.579631Z",
+      "deployments": [
+        {
+          "id": "2c238943-fde2-491e-8f9d-0cc313f09cc4",
+          "created": "2026-10-24T13:58:28.496353Z",
+          "versions": [
+            {
+              "version_id": "268a6cc6-6ed3-452d-b10f-7197277a6d6d",
+              "percentage": 100
+            }
+          ]
+        }
+      ],
+      "bindings": []
+    },
+    {
+      "name": "tournament-checkin-e2e",
+      "modified": "2026-10-24T18:07:22.383383Z",
+      "deployments": [
+        {
+          "id": "75bc611d-4d51-4497-8d03-485236336e31",
+          "created": "2026-10-24T18:07:19.651717Z",
+          "versions": [
+            {
+              "version_id": "fed07725-dcf6-475b-9407-f776b84042cc",
+              "percentage": 100
+            }
+          ]
+        }
+      ],
+      "bindings": [
+        {
+          "name": "ASSETS",
+          "type": "assets"
+        },
+        {
+          "name": "CHECKIN_EVENT_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "DB",
+          "type": "d1",
+          "databaseId": "0a7528e1-7f14-4e54-a896-4fbe2cf2c42c"
+        },
+        {
+          "name": "PORTRAITS",
+          "type": "r2_bucket",
+          "bucket": "tournament-rehearsal-portraits"
+        },
+        {
+          "name": "REHEARSAL_ACCESS_CODE",
+          "type": "secret_text"
+        },
+        {
+          "name": "SESSION_SECRET",
+          "type": "secret_text"
+        }
+      ]
+    },
+    {
+      "name": "tournament-checkin-rehearsal",
+      "modified": "2026-10-25T10:03:47.858724Z",
+      "deployments": [
+        {
+          "id": "bc859c65-2fdd-4577-94e8-d835eb9ff599",
+          "created": "2026-10-25T10:03:46.159475Z",
+          "versions": [
+            {
+              "version_id": "5a6faa66-35e4-49da-8c36-ca783dc6d705",
+              "percentage": 100
+            }
+          ]
+        }
+      ],
+      "bindings": [
+        {
+          "name": "ASSETS",
+          "type": "assets"
+        },
+        {
+          "name": "CHECKIN_EVENT_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "DB",
+          "type": "d1",
+          "databaseId": "0a7528e1-7f14-4e54-a896-4fbe2cf2c42c"
+        },
+        {
+          "name": "PORTRAITS",
+          "type": "r2_bucket",
+          "bucket": "tournament-rehearsal-portraits"
+        },
+        {
+          "name": "REHEARSAL_ACCESS_CODE",
+          "type": "secret_text"
+        },
+        {
+          "name": "SESSION_SECRET",
+          "type": "secret_text"
+        }
+      ]
+    },
+    {
+      "name": "tournament-flow-e2e",
+      "modified": "2026-10-24T19:13:43.377051Z",
+      "deployments": [
+        {
+          "id": "a35995e4-1b74-4269-a0e4-c45e5f7620b8",
+          "created": "2026-10-24T19:13:41.83808Z",
+          "versions": [
+            {
+              "version_id": "f73a5399-964b-46e4-8ea6-dda3c28b756d",
+              "percentage": 100
+            }
+          ]
+        }
+      ],
+      "bindings": [
+        {
+          "name": "ASSETS",
+          "type": "assets"
+        },
+        {
+          "name": "CHECKIN_EVENT_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "DB",
+          "type": "d1",
+          "databaseId": "0a7528e1-7f14-4e54-a896-4fbe2cf2c42c"
+        },
+        {
+          "name": "PORTRAITS",
+          "type": "r2_bucket",
+          "bucket": "tournament-rehearsal-portraits"
+        },
+        {
+          "name": "REHEARSAL_ACCESS_CODE",
+          "type": "secret_text"
+        },
+        {
+          "name": "SESSION_SECRET",
+          "type": "secret_text"
+        }
+      ]
+    },
+    {
+      "name": "tournament-match-loop-e2e",
+      "modified": "2026-10-24T19:41:44.664036Z",
+      "deployments": [
+        {
+          "id": "975b331e-d938-475e-8b61-b5f3458278be",
+          "created": "2026-10-24T19:41:44.664036Z",
+          "versions": [
+            {
+              "version_id": "fc5db064-2fdc-4043-8709-f0e2db6a9380",
+              "percentage": 100
+            }
+          ]
+        }
+      ],
+      "bindings": [
+        {
+          "name": "ASSETS",
+          "type": "assets"
+        },
+        {
+          "name": "CHECKIN_EVENT_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "DB",
+          "type": "d1",
+          "databaseId": "0a7528e1-7f14-4e54-a896-4fbe2cf2c42c"
+        },
+        {
+          "name": "PORTRAITS",
+          "type": "r2_bucket",
+          "bucket": "tournament-rehearsal-portraits"
+        },
+        {
+          "name": "REHEARSAL_ACCESS_CODE",
+          "type": "secret_text"
+        },
+        {
+          "name": "SESSION_SECRET",
+          "type": "secret_text"
+        }
+      ]
+    },
+    {
+      "name": "tournament-pair-gates-e2e",
+      "modified": "2026-10-24T19:27:56.582715Z",
+      "deployments": [
+        {
+          "id": "d5458c43-fe33-436a-b224-1fcf42bdadb2",
+          "created": "2026-10-24T19:27:56.582715Z",
+          "versions": [
+            {
+              "version_id": "e897a6cd-1f0c-4b37-88c3-7003e0347e69",
+              "percentage": 100
+            }
+          ]
+        }
+      ],
+      "bindings": [
+        {
+          "name": "ASSETS",
+          "type": "assets"
+        },
+        {
+          "name": "CHECKIN_EVENT_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "DB",
+          "type": "d1",
+          "databaseId": "0a7528e1-7f14-4e54-a896-4fbe2cf2c42c"
+        },
+        {
+          "name": "PORTRAITS",
+          "type": "r2_bucket",
+          "bucket": "tournament-rehearsal-portraits"
+        },
+        {
+          "name": "REHEARSAL_ACCESS_CODE",
+          "type": "secret_text"
+        },
+        {
+          "name": "SESSION_SECRET",
+          "type": "secret_text"
+        }
+      ]
+    },
+    {
+      "name": "tournament-rehearsal",
+      "modified": "2026-10-24T12:12:51.082339Z",
+      "deployments": [
+        {
+          "id": "30f44f6a-9f2a-4db0-ad83-3ad279573cc3",
+          "created": "2026-10-24T12:33:02.301Z",
+          "versions": [
+            {
+              "version_id": "250492aa-f2ca-4486-940b-fa18391a2c2b",
+              "percentage": 100
+            }
+          ]
+        }
+      ],
+      "bindings": [
+        {
+          "name": "ADMIN_API_TOKEN",
+          "type": "secret_text"
+        },
+        {
+          "name": "ALLOWED_EVENT_IDS",
+          "type": "plain_text"
+        },
+        {
+          "name": "DB",
+          "type": "d1",
+          "databaseId": "0a7528e1-7f14-4e54-a896-4fbe2cf2c42c"
+        },
+        {
+          "name": "DISPLAY_API_TOKEN",
+          "type": "secret_text"
+        },
+        {
+          "name": "MEDIA",
+          "type": "r2_bucket",
+          "bucket": "tournament-rehearsal-media"
+        },
+        {
+          "name": "PORTRAITS",
+          "type": "r2_bucket",
+          "bucket": "tournament-rehearsal-portraits"
+        }
+      ]
+    },
+    {
+      "name": "tournament-through-rehearsal",
+      "modified": "2026-10-30T11:57:55.893235Z",
+      "deployments": [
+        {
+          "id": "e7637ff2-556a-439f-b19c-a6296afaf4dd",
+          "created": "2026-10-30T11:57:54.00773Z",
+          "versions": [
+            {
+              "version_id": "46b3c10b-88ed-43ff-9cb4-38ae082f9065",
+              "percentage": 100
+            }
+          ]
+        }
+      ],
+      "bindings": [
+        {
+          "name": "ASSETS",
+          "type": "assets"
+        },
+        {
+          "name": "CHECKIN_EVENT_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "DB",
+          "type": "d1",
+          "databaseId": "0a7528e1-7f14-4e54-a896-4fbe2cf2c42c"
+        },
+        {
+          "name": "PORTRAITS",
+          "type": "r2_bucket",
+          "bucket": "tournament-rehearsal-portraits"
+        },
+        {
+          "name": "REHEARSAL_ACCESS_CODE",
+          "type": "secret_text"
+        },
+        {
+          "name": "REHEARSAL_ENABLED",
+          "type": "plain_text"
+        },
+        {
+          "name": "REHEARSAL_SOURCE_EVENT_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "SESSION_SECRET",
+          "type": "secret_text"
+        }
+      ]
+    }
+  ]
+}

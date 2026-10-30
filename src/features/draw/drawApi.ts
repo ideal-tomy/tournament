@@ -19,17 +19,8 @@ export interface DrawPreviewTeam {
   totalRating: number;
 }
 
-export interface DrawRevealParticipant {
-  id: string;
-  displayName: string;
-  faceUrl: string | null;
-}
-
-export interface DrawPresentationData {
-  sessionId: string;
-  teamSize: number;
-  participants: DrawRevealParticipant[];
-}
+import type { DrawPresentationData } from './presentationTypes';
+export type { DrawPresentationData, DrawRevealParticipant } from './presentationTypes';
 
 export async function clearEventTeams(eventId: string): Promise<void> {
   await supabase.from('matches').delete().eq('event_id', eventId);

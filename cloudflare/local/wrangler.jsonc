@@ -1,0 +1,19 @@
+{
+  "name": "tournament-local",
+  "main": "../checkin/src/index.ts",
+  "compatibility_date": "2026-10-24",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "assets": { "directory": "../../dist-checkin", "binding": "ASSETS", "run_worker_first": true },
+  "d1_databases": [{
+    "binding": "DB", "database_name": "tournament-local-db",
+    "database_id": "00000000-0000-4000-8000-000000000030",
+    "migrations_dir": "../migrations", "remote": false
+  }],
+  "r2_buckets": [{ "binding": "PORTRAITS", "bucket_name": "tournament-local-portraits", "remote": false }],
+  "vars": {
+    "CHECKIN_EVENT_ID": "cf-local-control",
+    "REHEARSAL_ENABLED": "1",
+    "REHEARSAL_SOURCE_EVENT_ID": "cf-local-entry"
+  }
+}

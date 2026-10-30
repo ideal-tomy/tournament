@@ -1,0 +1,30 @@
+.topbar details{position:relative;color:#a5e6f0;font-size:14px}
+.topbar details summary{cursor:pointer;list-style:none}
+.topbar details[open]{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.topbar details[open] summary{width:100%}
+.topbar details a{display:block}
+.connection-flow{list-style:none;padding:0;margin:20px 0;display:grid;gap:10px}
+.connection-flow li{display:grid;gap:5px;padding:14px 16px;border:1px solid #31465f;border-radius:12px;background:#0b1726}
+.connection-flow li strong{color:#67e8f9}
+.connection-flow li span{color:#bdcde0;font-size:14px;line-height:1.6}
+.secondary-routes{margin-top:18px;padding-top:14px;border-top:1px solid #2b405a}
+.secondary-routes summary,.automation summary{cursor:pointer;font-weight:700;color:#a5e6f0;padding:8px 0}
+.secondary-routes[open] .actions{margin-bottom:14px}
+.shared-run,.next-action,.progress-card,.automation{margin-top:20px;padding:18px;border:1px solid #31465f;border-radius:14px;background:#0b1726}
+.shared-run h2,.next-action h2,.progress-card h2{margin:0 0 12px}
+.shared-run p,.next-action p,.automation p,.manual-operations>p{margin:12px 0;line-height:1.7;color:#bdcde0}
+.shared-run code{overflow-wrap:anywhere;color:#67e8f9}
+.next-action{border-color:#168699;background:#0b2230}
+.next-action h2{font-size:clamp(18px,2.5vw,26px);line-height:1.5}
+.progress-card .rehearsal-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px;padding:0;list-style:none}
+.rehearsal-steps li{padding:9px;border-radius:8px;background:#172538;color:#9aabc0}
+.rehearsal-steps li[data-complete=true]{background:#113a38;color:#8ce5c8}
+.progress-card dl{display:grid;grid-template-columns:max-content 1fr;gap:8px 18px;line-height:1.6}
+.progress-card dt{color:#90a9c2}.progress-card dd{margin:0;overflow-wrap:anywhere}
+.manual-operations{width:calc(100% - 32px);max-width:1200px;margin:28px auto}
+.manual-operations>h2{margin-bottom:10px}
+.manual-operations .draw-operations{max-width:none}
+.rehearsal-workspace>.card{max-width:1000px}
+.rehearsal-workspace>.card>.primary{width:100%}
+.automation{max-width:100%;background:#111d2c}
+@media(max-width:600px){.progress-card dl{grid-template-columns:1fr;gap:2px}.progress-card dd{margin-bottom:10px}.shared-run .actions a{width:100%}.rehearsal-workspace>.card{padding:20px}}

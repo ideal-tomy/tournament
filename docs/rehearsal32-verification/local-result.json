@@ -1,0 +1,43 @@
+{
+  "complete": true,
+  "startedAt": "2026-10-30T09:59:34.751Z",
+  "finishedAt": "2026-10-30T10:08:07.294Z",
+  "run": "cf-through-18bd94b3-33a7-4fed-b642-8c2f8ecec4db",
+  "preset": "fast",
+  "participants": 32,
+  "teams": 16,
+  "matches": 15,
+  "pairReveals": 32,
+  "pairConfirmed": 16,
+  "vs": 15,
+  "winner": 15,
+  "bracketAdvances": 14,
+  "minVsObservedMs": 2019,
+  "minMovementPositions": 13,
+  "manualStart": true,
+  "reload": true,
+  "logs": [
+    {
+      "action": "flow.advance",
+      "n": 31
+    },
+    {
+      "action": "flow.announce",
+      "n": 1
+    },
+    {
+      "action": "flow.game-start",
+      "n": 1
+    },
+    {
+      "action": "flow.start",
+      "n": 15
+    },
+    {
+      "action": "flow.winner",
+      "n": 15
+    }
+  ],
+  "errors": [],
+  "httpFailures": []
+}

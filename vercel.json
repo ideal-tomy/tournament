@@ -1,3 +1,5 @@
 {
+  "buildCommand": "npm run build:legacy",
+  "outputDirectory": "dist",
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }

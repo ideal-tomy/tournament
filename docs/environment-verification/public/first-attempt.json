@@ -1,0 +1,59 @@
+{
+  "root": "https://tournament-through-rehearsal.pine-shaken.workers.dev",
+  "started": "2026-10-30T11:58:03.676Z",
+  "camera": "PC Edge simulated camera with mobile viewport; physical smartphone unverified",
+  "routes": [
+    {
+      "route": "/",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/checkin",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/admin",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/display",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/rehearsal",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/show-preview",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/cloudflare-check",
+      "direct": 200,
+      "reload": 200
+    }
+  ],
+  "participants": [
+    "公開撮影検証 01",
+    "公開撮影検証 02",
+    "公開撮影検証 03",
+    "公開撮影検証 04",
+    "公開撮影検証 05",
+    "公開撮影検証 06",
+    "公開撮影検証 07",
+    "公開撮影検証 08"
+  ],
+  "states": [],
+  "errors": [],
+  "httpFailures": [],
+  "run": "cf-through-2f02a15c-b1e7-4c9c-8c9b-5d0409ea9a9c",
+  "photos": 8,
+  "error": "false == true",
+  "finished": "2026-10-30T11:58:28.968Z"
+}

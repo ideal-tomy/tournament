@@ -1,0 +1,126 @@
+{
+  "worker": "tournament-through-rehearsal",
+  "deployment": "6a2ecda1-1ec0-446a-9821-39e0573f5525",
+  "local": {
+    "complete": true,
+    "startedAt": "2026-10-30T09:59:34.751Z",
+    "finishedAt": "2026-10-30T10:08:07.294Z",
+    "run": "cf-through-18bd94b3-33a7-4fed-b642-8c2f8ecec4db",
+    "preset": "fast",
+    "participants": 32,
+    "teams": 16,
+    "matches": 15,
+    "players": 32,
+    "pairs": 16,
+    "vs": 15,
+    "winners": 15,
+    "advances": 14,
+    "minVsObservedMs": 2019,
+    "minMovementPositions": 13,
+    "manualStartVerified": true,
+    "reloadVerified": true,
+    "transportRetries": 0,
+    "sourceUnchanged": null,
+    "logs": [
+      {
+        "action": "flow.advance",
+        "n": 31
+      },
+      {
+        "action": "flow.announce",
+        "n": 1
+      },
+      {
+        "action": "flow.game-start",
+        "n": 1
+      },
+      {
+        "action": "flow.start",
+        "n": 15
+      },
+      {
+        "action": "flow.winner",
+        "n": 15
+      }
+    ],
+    "matchesStored": [
+      {
+        "status": "done",
+        "n": 15
+      }
+    ],
+    "errors": [],
+    "httpFailures": []
+  },
+  "publicShow": {
+    "complete": true,
+    "startedAt": "2026-10-30T10:47:55.346Z",
+    "finishedAt": "2026-10-30T11:00:25.315Z",
+    "run": "cf-through-2b16d40e-1d6e-41df-9b81-86e64d18e921",
+    "preset": "show",
+    "participants": 32,
+    "teams": 16,
+    "matches": 15,
+    "players": 32,
+    "pairs": 16,
+    "vs": 15,
+    "winners": 15,
+    "advances": 14,
+    "minVsObservedMs": 2200,
+    "minMovementPositions": 45,
+    "manualStartVerified": true,
+    "reloadVerified": true,
+    "transportRetries": 0,
+    "sourceUnchanged": true,
+    "logs": [
+      {
+        "action": "flow.advance",
+        "n": 31
+      },
+      {
+        "action": "flow.announce",
+        "n": 1
+      },
+      {
+        "action": "flow.game-start",
+        "n": 1
+      },
+      {
+        "action": "flow.start",
+        "n": 15
+      },
+      {
+        "action": "flow.winner",
+        "n": 15
+      }
+    ],
+    "matchesStored": [
+      {
+        "status": "done",
+        "n": 15
+      }
+    ],
+    "errors": [],
+    "httpFailures": []
+  },
+  "ready": {
+    "root": "https://tournament-through-rehearsal.pine-shaken.workers.dev",
+    "startedAt": "2026-10-30T11:00:54.533Z",
+    "errors": [],
+    "routes": {
+      "/rehearsal": "https://tournament-through-rehearsal.pine-shaken.workers.dev/rehearsal?run=cf-through-6912c2e2-bbfb-4c71-90d5-da764b5a6003",
+      "/admin": "https://tournament-through-rehearsal.pine-shaken.workers.dev/admin?run=cf-through-6912c2e2-bbfb-4c71-90d5-da764b5a6003",
+      "/display": "https://tournament-through-rehearsal.pine-shaken.workers.dev/display?run=cf-through-6912c2e2-bbfb-4c71-90d5-da764b5a6003",
+      "/checkin": "https://tournament-through-rehearsal.pine-shaken.workers.dev/checkin?run=cf-through-6912c2e2-bbfb-4c71-90d5-da764b5a6003",
+      "/show-preview": "https://tournament-through-rehearsal.pine-shaken.workers.dev/show-preview?run=cf-through-6912c2e2-bbfb-4c71-90d5-da764b5a6003"
+    },
+    "run": "cf-through-6912c2e2-bbfb-4c71-90d5-da764b5a6003",
+    "participants": 32,
+    "teams": 16,
+    "matches": 15,
+    "scene": "idle",
+    "version": 1,
+    "checkinStatus": "closed",
+    "complete": true
+  }
+}

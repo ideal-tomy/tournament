@@ -13,14 +13,16 @@ export interface StageControls {
 }
 
 interface Props {
+  entryPositions?:[{x:number;y:number},{x:number;y:number}];
+  eventLabel?: string;
   mode: PresentationMode;
   onProgress(time: number, playing: boolean): void;
   winnerTeam?: { name: string; members: string[]; faces: string[] };
   opponentTeam?: { name: string; members: string[]; faces: string[] };
 }
 
-/** Sample-only stage. No event IDs, API imports, or persistent scene transitions. */
-const PostMatchStage = forwardRef<StageControls, Props>(function PostMatchStage({ mode, onProgress, winnerTeam, opponentTeam }, ref) {
+/** Presentational stage. Receives names/image URLs; no API calls or persistent scene transitions. */
+const PostMatchStage = forwardRef<StageControls, Props>(function PostMatchStage({ mode, onProgress, winnerTeam, opponentTeam, eventLabel = 'サンプル大会',entryPositions }, ref) {
   const root = useRef<HTMLDivElement>(null);
   const timeline = useRef<gsap.core.Timeline>();
   useImperativeHandle(ref, () => ({
@@ -44,9 +46,13 @@ const PostMatchStage = forwardRef<StageControls, Props>(function PostMatchStage(
         .to('.pm-win', { autoAlpha: 0, duration: 0.4 }, t.advance)
         .to('.pm-winner', { left: '22%', top: '52%', scale: 0.65, duration: 0.6 }, t.advance)
         .to('.pm-line', { strokeDashoffset: 0, duration: t.approach - t.advance - 0.6, ease: 'none' }, t.advance + 0.6)
-        .to('.pm-winner', { left: '35%', scale: 1, duration: t.impact - t.approach, ease: 'power2.inOut' }, t.approach)
-        .to('.pm-opponent', { autoAlpha: 1, left: '65%', duration: t.impact - t.approach, ease: 'power2.inOut' }, t.approach)
         .to('.pm-bracket', { autoAlpha: 0.18, duration: 0.4 }, t.approach);
+      if(entryPositions){
+        tl.fromTo('.pm-winner',{left:`${entryPositions[0].x}%`,top:`${entryPositions[0].y}%`,scale:.3},{left:'35%',top:'52%',scale:1,duration:t.impact-t.approach,ease:'power2.inOut',immediateRender:false},t.approach)
+          .fromTo('.pm-opponent',{left:`${entryPositions[1].x}%`,top:`${entryPositions[1].y}%`,scale:.3,autoAlpha:0},{left:'65%',top:'52%',scale:1,autoAlpha:1,duration:t.impact-t.approach,ease:'power2.inOut',immediateRender:false},t.approach);
+      }else{
+        tl.to('.pm-winner',{left:'35%',scale:1,duration:t.impact-t.approach,ease:'power2.inOut'},t.approach).to('.pm-opponent',{autoAlpha:1,left:'65%',duration:t.impact-t.approach,ease:'power2.inOut'},t.approach);
+      }
       if (mode !== 'lite') {
         tl.fromTo('.pm-impact', { autoAlpha: 0, scale: 0.2 }, { autoAlpha: 0.7, scale: 1, duration: 0.12 }, t.impact)
           .to('.pm-impact', { autoAlpha: 0, scale: 1.3, duration: 0.5 }, t.impact + 0.12);
@@ -57,12 +63,12 @@ const PostMatchStage = forwardRef<StageControls, Props>(function PostMatchStage(
       onProgress(0, false);
     }, root);
     return () => { ctx.revert(); timeline.current = undefined; };
-  }, [mode, onProgress]);
+  }, [mode, onProgress,entryPositions]);
 
   const leftName = winnerTeam?.name ?? 'BLUE ARROWS';
   const rightName = opponentTeam?.name ?? 'GOLD STARS';
-  return <div ref={root} className="pm-stage" aria-label={`${leftName}の勝利から次試合への連続演出`}>
-    <div className="pm-title">DARTS TOURNAMENT <span>サンプル大会</span></div>
+  return <div ref={root} className="pm-stage" data-actual-bracket={entryPositions?'true':undefined} aria-label={`${leftName}の勝利から次試合への連続演出`}>
+    <div className="pm-title">DARTS TOURNAMENT <span>{eventLabel}</span></div>
     <div className="pm-win">WINNER <small>{leftName} 勝利</small></div>
     <svg className="pm-bracket" viewBox="0 0 1600 900" aria-label="勝者が決勝へ進出">
       <path d="M180 320 H350 V470 H800 M180 620 H350 V470 M1420 320 H1250 V470 H800 M1420 620 H1250 V470" fill="none" stroke="#334155" strokeWidth="4" />

@@ -1,0 +1,52 @@
+// Read-only photo audit. Authenticates but never registers/updates/deletes participants.
+const fs = require('node:fs');
+const path = require('node:path');
+const assert = require('node:assert/strict');
+const { createHash } = require('node:crypto');
+const origin = 'https://tournament-checkin-rehearsal.pine-shaken.workers.dev';
+const output = '.wrangler/photo-audit';
+const knownTestId = 'checkin-981ee495-ed79-44fd-a00c-6a8792e17102';
+const digest = bytes => createHash('sha256').update(bytes).digest('hex');
+(async () => {
+  fs.mkdirSync(output, { recursive: true });
+  const secrets = JSON.parse(fs.readFileSync('cloudflare/checkin/.secrets.local', 'utf8'));
+  const authConfig = fs.readFileSync(path.join(process.env.APPDATA, 'xdg.config/.wrangler/config/default.toml'), 'utf8');
+  const token = /^oauth_token\s*=\s*"([^"]+)"/m.exec(authConfig)?.[1];
+  assert.ok(token, 'Wrangler authentication unavailable');
+  const login = await fetch(origin + '/api/session', { method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' }, body: JSON.stringify({ code: secrets.REHEARSAL_ACCESS_CODE }), redirect: 'error' });
+  assert.equal(login.status, 200);
+  const cookie = login.headers.get('set-cookie').split(';')[0];
+  const listResponse = await fetch(origin + '/api/participants?includeTestData=1', { headers: { Cookie: cookie }, redirect: 'error' });
+  assert.equal(listResponse.status, 200);
+  const list = await listResponse.json();
+  const query = await fetch('https://api.cloudflare.com/client/v4/accounts/5b27490470fa62bc7b51865e4e2cd786/d1/database/0a7528e1-7f14-4e54-a896-4fbe2cf2c42c/query', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ sql: "SELECT id,event_id,display_name,photo_path FROM participants WHERE event_id = ? AND note LIKE 'checkin-v1:%'", params: ['cf-rehearsal-001'] }), redirect: 'error' });
+  assert.equal(query.status, 200, 'Read-only D1 query failed');
+  const queryBody = await query.json();
+  assert.equal(queryBody.success, true);
+  const records = new Map(queryBody.result[0].results.map(row => [row.id, row]));
+  const results = [];
+  for (const participant of list.participants) {
+    assert.match(participant.id, /^checkin-[a-f0-9-]{36}$/);
+    const row = records.get(participant.id);
+    assert.ok(row, 'D1 record missing');
+    assert.equal(row.display_name, participant.name);
+    const key = row.photo_path;
+    assert.ok(key.startsWith(`events/cf-rehearsal-001/participants/${participant.id}/`) || key === `checkin/cf-rehearsal-001/${participant.id}.jpg`);
+    const remote = await fetch(`https://api.cloudflare.com/client/v4/accounts/5b27490470fa62bc7b51865e4e2cd786/r2/buckets/tournament-rehearsal-portraits/objects/${key}`, { headers: { Authorization: `Bearer ${token}` }, redirect: 'error' });
+    assert.equal(remote.status, 200, 'R2 object read failed');
+    const original = Buffer.from(await remote.arrayBuffer());
+    const api = await fetch(origin + participant.portraitUrl + (participant.id === knownTestId ? '?includeTestData=1' : ''), { headers: { Cookie: cookie }, redirect: 'error' });
+    assert.equal(api.status, 200);
+    const served = Buffer.from(await api.arrayBuffer());
+    assert.deepEqual(served, original, 'R2 and Worker photo bytes differ');
+    assert.match(remote.headers.get('content-type'), /^image\/(jpeg|png|webp)/);
+    assert.equal(api.headers.get('content-type'), remote.headers.get('content-type'));
+    assert.equal(api.headers.get('cache-control'), 'no-store');
+    assert.equal(api.headers.get('x-content-type-options'), 'nosniff');
+    fs.writeFileSync(`${output}/${participant.id}.jpg`, served);
+    results.push({ participantId: participant.id, participantName: participant.name, eventId: row.event_id, knownAutomatedCameraTest: participant.id === knownTestId, key, portraitUrl: participant.portraitUrl, r2ContentType: remote.headers.get('content-type'), workerContentType: api.headers.get('content-type'), contentLength: api.headers.get('content-length'), cacheControl: api.headers.get('cache-control'), bytes: served.length, sha256: digest(served), r2WorkerBytesEqual: true });
+  }
+  const report = { checkedAt: new Date().toISOString(), participantCount: results.length, participantWrites: 0, results };
+  fs.writeFileSync(`${output}/result.json`, JSON.stringify(report, null, 2));
+  console.log(JSON.stringify(report));
+})().catch(error => { console.error(error.message); process.exitCode = 1; });

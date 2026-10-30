@@ -1,0 +1,15 @@
+{
+  "root": "http://localhost:5174",
+  "startedAt": "2026-10-30T13:05:15.673Z",
+  "steps": [
+    "整理されたTOPと隠れた開発ツール",
+    "3画面が同じrunを指定し、別PCセッションでAdmin/Displayを表示",
+    "受付APIへ4名を登録。D1/R2経由で同一大会状態を取得",
+    "別セッションのAdminとDisplayへ受付内容が反映",
+    "Admin操作で受付を閉じ、ペア発表状態へ遷移"
+  ],
+  "run": "cf-through-16962004-e974-4460-85d1-5401f88c9b28",
+  "errors": [],
+  "complete": true,
+  "finishedAt": "2026-10-30T13:05:40.918Z"
+}

@@ -1,0 +1,22 @@
+{
+  "startedAt": "2026-10-30T08:45:20.931Z",
+  "finishedAt": "2026-10-30T08:48:57.360Z",
+  "complete": true,
+  "eventId": "cf-through-e0fe8cc6-1d1e-4eec-a812-5a202a4fb76a",
+  "readyRun": "cf-through-ef6d8e80-596b-449b-b2a4-2cfed4f3ef4b",
+  "participants": 8,
+  "teams": 4,
+  "matches": 6,
+  "version": 28,
+  "drawPlayers": 8,
+  "drawPairs": 4,
+  "pauseVerified": true,
+  "errorStopVerified": true,
+  "sameRequestOnResume": true,
+  "reloadFinished": true,
+  "resetPreservedFinished": true,
+  "errors": [],
+  "httpFailures": [],
+  "matchRows": 7,
+  "winnerLogs": 6
+}
