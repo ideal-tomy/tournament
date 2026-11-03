@@ -41,14 +41,26 @@
 
 /* Champion: corona horizon at y=479; podium tops at y≈750, fronts 776–885. */
 .cb-board{background:#020306}
-.cb-drift{position:absolute;inset:0;transform-origin:960px 480px;animation:cer-breathe 30s ease-in-out infinite alternate}
-.cb-corona{position:absolute;inset:0;background-size:100% 100%;mix-blend-mode:screen;opacity:0;-webkit-mask-image:radial-gradient(ellipse 470px 270px at 960px 360px,#000 35%,transparent 100%);mask-image:radial-gradient(ellipse 470px 270px at 960px 360px,#000 35%,transparent 100%);animation:cb-glow 90s ease-in-out infinite}
-.cb-shimmer{animation:cb-shimmer 5s ease-in-out infinite}
-@keyframes cb-glow{0%,100%{opacity:0}50%{opacity:.75}}
-@keyframes cb-shimmer{0%,100%{opacity:.05}50%{opacity:.28}}
+.cb-filter{position:absolute;width:0;height:0}
+.cb-quake{position:absolute;inset:0}
+.cb-cast{position:absolute;inset:0}
+.cb-white{inset:-48px}
+.cb-aura{position:absolute;left:80px;top:-40px;width:1760px;height:1160px;background:radial-gradient(ellipse 48% 42% at 50% 46%,rgba(255,252,240,.98),rgba(255,220,140,.8) 28%,rgba(251,191,36,.35) 52%,transparent 72%);mix-blend-mode:screen;opacity:0;visibility:hidden;pointer-events:none;filter:blur(10px)}
+.cb-drift{position:absolute;inset:0;overflow:hidden;transform-origin:960px 480px}
+.cb-plate{position:absolute;inset:-12%;background-size:cover;background-position:center;filter:url(#cb-writhe)}
+.cb-haze{opacity:.48;filter:url(#cb-writhe) blur(18px)}
+.cb-corona{position:absolute;inset:-12%;background-size:cover;background-position:center;mix-blend-mode:screen;opacity:.35;filter:url(#cb-writhe);-webkit-mask-image:radial-gradient(ellipse 46% 40% at 50% 40%,#000 18%,transparent 72%);mask-image:radial-gradient(ellipse 46% 40% at 50% 40%,#000 18%,transparent 72%);animation:cb-glow 6.5s ease-in-out infinite}
+@keyframes cb-glow{0%,100%{opacity:.18}50%{opacity:.72}}
+.cb-ball{position:absolute;left:180px;top:20px;width:1560px;height:1000px;pointer-events:none;opacity:0;visibility:hidden;mix-blend-mode:screen;-webkit-mask-image:radial-gradient(ellipse 68% 64% at 50% 54%,#000 16%,transparent 76%);mask-image:radial-gradient(ellipse 68% 64% at 50% 54%,#000 16%,transparent 76%)}
+.cb-beams{position:absolute;left:50%;top:8%;width:1900px;height:1900px;margin:-950px 0 0 -950px;background:repeating-conic-gradient(from 0deg,transparent 0deg 20deg,rgba(255,252,240,.78) 20.4deg 21.6deg,rgba(255,214,120,.32) 21.6deg 24deg,transparent 25deg 46deg);animation:cb-spin 18s linear infinite}
+.cb-beams-wide{background:repeating-conic-gradient(from 14deg,transparent 0deg 34deg,rgba(255,236,190,.42) 36deg 46deg,transparent 48deg 78deg);animation-duration:28s;animation-direction:reverse}
+@keyframes cb-spin{to{transform:rotate(360deg)}}
+.cer-hold .cb-plate,.cer-hold .cb-haze,.cer-hold .cb-corona{filter:none}
+.cer-hold .cb-haze{opacity:0;visibility:hidden}
+.cer-hold .cb-corona{animation:none;opacity:.2}
 .cb-flare{position:absolute;left:260px;top:449px;width:1400px;height:60px;background:radial-gradient(ellipse 50% 50% at 50% 50%,#fff8dc,rgba(251,191,36,.6) 35%,transparent 70%);mix-blend-mode:screen;opacity:0;visibility:hidden;pointer-events:none}
 .cb-title{top:52px;font-size:140px;letter-spacing:.16em;padding-left:.16em}
 .cb-name{position:absolute;top:800px;width:420px;margin:0;text-align:center;font-size:42px;font-weight:900;line-height:1.1;color:#fff;text-shadow:0 2px 0 #000,0 0 14px #000;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cb-team{top:930px;left:160px;right:160px;font-size:52px;letter-spacing:.08em;color:#fde68a;text-shadow:0 3px 0 #000,0 0 24px rgba(0,0,0,.9);overflow:hidden;text-overflow:ellipsis}
 
-@media(prefers-reduced-motion:reduce){.pc-drift,.pc-spin,.wb-drift,.wb-glow,.wb-dust,.cb-drift,.cb-corona,.cer-hold .cer-card{animation:none}}
+@media(prefers-reduced-motion:reduce){.pc-drift,.pc-spin,.wb-drift,.wb-glow,.wb-dust,.cb-drift,.cb-corona,.cb-beams,.cer-hold .cer-card{animation:none}.cb-plate,.cb-haze,.cb-corona{filter:none}}

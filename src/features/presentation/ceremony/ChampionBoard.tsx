@@ -1,9 +1,35 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
+import gsap from 'gsap';
 import { TOURNAMENT_EFFECTS as FX } from '../../../lib/tournamentEffects';
 import CeremonyFrame, { cardSlots, people, type CeremonyTeam } from './CeremonyFrame';
 import { useCeremonyIntro, type CeremonyIntroOptions } from './useCeremonyIntro';
 
-const INTRO_END = 2.4;
+const DESCEND = 10;
+const AFTER = 5;
+const CLEAR = 3;
+const INTRO_END = DESCEND + AFTER + CLEAR;
+
+function tremor(t: number) {
+  let amp = 1;
+  if (t >= DESCEND && t < DESCEND + AFTER) {
+    const p = (t - DESCEND) / AFTER;
+    amp = 1.55 * (1 - p) + 0.4 * p;
+  } else if (t >= DESCEND + AFTER) {
+    amp = 0;
+  }
+  return {
+    x: (Math.sin(t * 68) * 7 + Math.sin(t * 109) * 3) * amp,
+    y: (Math.cos(t * 79) * 3.6 + Math.sin(t * 97) * 1.8) * amp,
+    rotation: Math.sin(t * 88) * 0.18 * amp,
+  };
+}
+
+function glowScale(t: number) {
+  if (t < DESCEND) return 28 + Math.sin(t * 1.5) * 8;
+  if (t < DESCEND + AFTER) return 52 + Math.sin(t * 2.4) * 8;
+  const p = Math.min(1, (t - DESCEND - AFTER) / CLEAR);
+  return (1 - p) * 36;
+}
 const PODIUM_CENTERS = [702, 1206];
 const CARD = { width: 300, height: 450, top: 300 };
 
@@ -12,44 +38,87 @@ function cardCenters(count: number) {
   return cardSlots(count, CARD.width, 40).map(left => left + CARD.width / 2);
 }
 
-/** Venue CHAMPION: the champions rise onto the podiums under the gold corona and hold. */
+/** Venue CHAMPION: a fine tremor while the champions descend, then aftershock, whiteout, and a slow clear. */
 export default function ChampionBoard({ team, ...intro }: CeremonyIntroOptions & { team: CeremonyTeam }) {
   const stageRef = useRef<HTMLDivElement>(null);
+  const noise = useRef<SVGFETurbulenceElement>(null);
+  const shift = useRef<SVGFEDisplacementMapElement>(null);
+  useEffect(() => {
+    const node = noise.current;
+    if (!node || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+    const start = performance.now();
+    let frame = 0;
+    const tick = (now: number) => {
+      const t = (now - start) / 1000;
+      const x = 0.006 + Math.sin(t * 1.45) * 0.0032;
+      const y = 0.009 + Math.cos(t * 1.05) * 0.0038;
+      node.setAttribute('baseFrequency', `${x.toFixed(4)} ${y.toFixed(4)}`);
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, []);
   useCeremonyIntro(stageRef, INTRO_END, (tl, cue) => {
-    tl.set('.cb-card', { autoAlpha: 0, y: 160 })
-      .set('.cb-title', { autoAlpha: 0, scale: 1.5 })
-      .set('.cb-name, .cb-team', { autoAlpha: 0, y: 16 })
-      .fromTo('.cb-scene', { autoAlpha: 0, scale: 1.12 }, { autoAlpha: 1, scale: 1, duration: 1.8, ease: 'power2.out' }, 0)
-      .fromTo('.cb-flare', { autoAlpha: 0, scaleX: 0.3 }, { autoAlpha: 1, scaleX: 1, duration: 0.5, ease: 'expo.out' }, 0.5)
-      .to('.cb-flare', { autoAlpha: 0, duration: 1.2 }, 1)
-      .to('.cb-card', { autoAlpha: 1, y: 0, duration: 0.9, stagger: 0.12, ease: 'power3.out' }, 0.3)
-      .fromTo('.cer-white', { autoAlpha: 0 }, { autoAlpha: 0.85, duration: 0.05, yoyo: true, repeat: 1 }, 0.95)
-      .to('.cb-title', { autoAlpha: 1, scale: 1, duration: 0.6, ease: 'expo.out' }, 0.95)
-      .to('.cb-name', { autoAlpha: 1, y: 0, duration: 0.4, stagger: 0.06 }, 1.35)
-      .to('.cb-team', { autoAlpha: 1, y: 0, duration: 0.45 }, 1.5);
-    cue('teamConfirm', 0.05);
-    cue('impact', 0.95);
+    const reveal = DESCEND + AFTER;
+    tl.set('.cb-cast', { y: -1100, autoAlpha: 0.14 })
+      .set('.cb-aura, .cb-flare, .cb-white, .cb-ball', { autoAlpha: 0 })
+      .set('.cb-scene', { autoAlpha: 1 })
+      .to('.cb-quake', {
+        duration: INTRO_END,
+        ease: 'none',
+        onUpdate() {
+          const t = this.progress() * INTRO_END;
+          gsap.set('.cb-quake', tremor(t));
+          shift.current?.setAttribute('scale', glowScale(t).toFixed(1));
+        },
+      }, 0)
+      .to('.cb-cast', { y: 0, duration: DESCEND, ease: 'sine.inOut' }, 0)
+      .to('.cb-cast', { autoAlpha: 0.62, duration: DESCEND, ease: 'power1.in' }, 0)
+      .fromTo('.cb-aura', { autoAlpha: 0, scale: 0.82 }, { autoAlpha: 1, scale: 1.18, duration: 2.2, ease: 'power1.in' }, DESCEND)
+      .to('.cb-flare', { autoAlpha: 1, duration: 1.6, ease: 'power1.in' }, DESCEND)
+      .to('.cb-white', { autoAlpha: 1, duration: 2.2, ease: 'power1.in' }, DESCEND)
+      .to('.cb-white', { autoAlpha: 0, duration: CLEAR, ease: 'sine.inOut' }, reveal)
+      .to('.cb-aura, .cb-flare, .cb-haze', { autoAlpha: 0, duration: CLEAR, ease: 'sine.inOut' }, reveal)
+      .to('.cb-ball', { autoAlpha: 1, duration: CLEAR, ease: 'sine.inOut' }, reveal)
+      .to('.cb-cast', { autoAlpha: 1, duration: CLEAR, ease: 'sine.inOut' }, reveal);
+    cue('impact', DESCEND);
+    cue('teamConfirm', reveal);
   }, intro);
 
   const members = people(team);
   const centers = cardCenters(members.length);
   const background = { backgroundImage: `url(${FX.backgrounds.championCorona})` };
   return <CeremonyFrame stageRef={stageRef} className="cb-board" label={`${team.name} 優勝`}>
-    <div className="cer-layer cb-scene">
-      <div className="cb-drift">
-        <div className="cer-img" style={background} />
-        <div className="cb-corona" style={background} />
-        <div className="cb-corona cb-shimmer" style={background} />
+    <svg className="cb-filter" aria-hidden="true">
+      <filter id="cb-writhe" x="-18%" y="-18%" width="136%" height="136%">
+        <feTurbulence ref={noise} type="fractalNoise" baseFrequency="0.006 0.009" numOctaves="2" seed="6" result="noise" />
+        <feDisplacementMap ref={shift} in="SourceGraphic" in2="noise" scale="28" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+    </svg>
+    <div className="cb-quake">
+      <div className="cer-layer cb-scene">
+        <div className="cb-drift">
+          <div className="cb-plate" style={background} />
+          <div className="cb-plate cb-haze" style={background} />
+          <div className="cb-corona" style={background} />
+        </div>
       </div>
+      <div className="cer-vignette" />
+      <div className="cb-cast">
+        <h2 className="cer-text cer-gold cb-title">CHAMPION</h2>
+        {members.map((person, index) => <article key={`${person.name}-${index}`} className="cer-card cb-card" style={{ left: centers[index] - CARD.width / 2, top: CARD.top, width: CARD.width, height: CARD.height }}>
+          {person.face ? <img src={person.face} alt={person.name} /> : <div className="cer-empty">?</div>}
+        </article>)}
+        {members.map((person, index) => <p key={`name-${index}`} className="cb-name" style={{ left: centers[index] - 210 }}>{person.name}</p>)}
+        <p className="cer-text cb-team">{team.name}</p>
+      </div>
+      <div className="cb-ball" aria-hidden="true">
+        <div className="cb-beams" />
+        <div className="cb-beams cb-beams-wide" />
+      </div>
+      <div className="cb-aura" />
+      <div className="cb-flare" />
+      <div className="cer-white cb-white" />
     </div>
-    <div className="cer-vignette" />
-    <div className="cb-flare" />
-    <h2 className="cer-text cer-gold cb-title">CHAMPION</h2>
-    {members.map((person, index) => <article key={`${person.name}-${index}`} className="cer-card cb-card" style={{ left: centers[index] - CARD.width / 2, top: CARD.top, width: CARD.width, height: CARD.height }}>
-      {person.face ? <img src={person.face} alt={person.name} /> : <div className="cer-empty">?</div>}
-    </article>)}
-    {members.map((person, index) => <p key={`name-${index}`} className="cb-name" style={{ left: centers[index] - 210 }}>{person.name}</p>)}
-    <p className="cer-text cb-team">{team.name}</p>
-    <div className="cer-white" />
   </CeremonyFrame>;
 }
