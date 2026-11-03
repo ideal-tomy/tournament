@@ -1,5 +1,5 @@
 import { AUTOMATED_CAMERA_TEST_ID, ClientError, hash, imageTypes, readBody, response, validKey, type CheckinEnv } from './domain';
-import { drawRoute, preparePairs } from './draw';
+import { drawRoute } from './draw';
 import { lifecycleRoute, drainCleanup } from './lifecycle';
 import { rehearsalRoute, selectRehearsalRun } from './rehearsal';
 export type { CheckinEnv } from './domain';
@@ -42,7 +42,7 @@ async function route(request: Request, env: CheckinEnv): Promise<Response> {
   if (!url.pathname.startsWith('/api/')) {
     if (!['GET', 'HEAD'].includes(request.method)) return response({ error: 'METHOD_NOT_ALLOWED' }, 405);
     if (url.pathname === '/' && env.REHEARSAL_ENABLED !== '1') return Response.redirect(url.origin + '/checkin', 302);
-    if (['/', '/checkin', '/display', '/admin', '/show-preview','/rehearsal','/match-transition','/cloudflare-check'].includes(url.pathname)) return env.ASSETS.fetch(new Request(url.origin + '/index.html', { method: request.method }));
+    if (['/', '/start', '/checkin', '/display', '/admin', '/show-preview','/rehearsal','/match-transition','/cloudflare-check'].includes(url.pathname)) return env.ASSETS.fetch(new Request(url.origin + '/index.html', { method: request.method }));
     if (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/tournament-effects/')) return env.ASSETS.fetch(request);
     return response({ error: 'NOT_FOUND' }, 404);
   }
@@ -72,10 +72,7 @@ async function route(request: Request, env: CheckinEnv): Promise<Response> {
   const draw = await drawRoute(request, env);
   if (draw) return draw;
   const lifecycle = await lifecycleRoute(request, env);
-  if (lifecycle) {
-    if (url.pathname === '/api/checkin/close' && request.method === 'POST' && lifecycle.ok) await preparePairs(env);
-    return lifecycle;
-  }
+  if (lifecycle) return lifecycle;
   const canonical = /^\/api\/events\/([a-zA-Z0-9_-]{1,128})\/participants\/(checkin-[a-f0-9-]{36})\/portrait$/.exec(url.pathname);
   const legacy = /^\/api\/participants\/(checkin-[a-f0-9-]{36})\/photo$/.exec(url.pathname);
   const participantId = canonical?.[2] ?? legacy?.[1];

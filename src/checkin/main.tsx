@@ -1,19 +1,25 @@
 import MatchTransitionPage from './MatchTransitionPage';
 import { StrictMode, useCallback, useEffect, useState, type FormEvent } from 'react';
 import { createRoot } from 'react-dom/client';
-import { api, ApiError, scopedUrl } from './api';
+import { api, ApiError, currentRunId, scopedUrl } from './api';
 import RehearsalPage from './RehearsalPage';
 import CheckinWorkspace from './CheckinWorkspace';
 import DisplayPage from './DisplayPage';
 import LiveShowPreviewPage from './LiveShowPreviewPage';
 import HomePage from './HomePage';
 import ConnectionCheck from './ConnectionCheck';
+import StartPage from './StartPage';
+import OperatorPage from './OperatorPage';
 import './draw.css';
 import './checkin.css';
 import './rehearsal.css';
+import './live.css';
+
+const LIVE_PATHS = ['/', '/start', '/checkin', '/admin'];
 
 function Workspace({ onAuthRequired, sessionVersion }: { onAuthRequired(): void; sessionVersion: number }) {
   if (location.pathname === '/') return <HomePage />;
+  if (location.pathname === '/start') return <StartPage onAuthRequired={onAuthRequired} />;
   if (location.pathname === '/cloudflare-check') return <ConnectionCheck />;
   return <TournamentWorkspace onAuthRequired={onAuthRequired} sessionVersion={sessionVersion} />;
 }
@@ -38,8 +44,8 @@ function TournamentWorkspace({ onAuthRequired, sessionVersion }: { onAuthRequire
   }, [needsSelection, sessionVersion, onAuthRequired]);
   if (failure) return <section className="card"><p role="alert">{failure}</p><button onClick={() => location.reload()}>再接続</button></section>;
   if (selection === 'loading') return <p role="status">大会を確認しています…</p>;
-  if (selection === 'required') return <section className="card"><h1>大会ID（run）が指定されていません</h1><p>Rehearsal で大会を1つ準備し、「①受付・②運営・③モニター」のリンクから開いてください。URL の <code>?run=cf-through-...</code> を3端末で揃えると連動します。</p><a className="button primary" href="/rehearsal">大会を準備する</a></section>;
-  return location.pathname === '/match-transition' ? <MatchTransitionPage onAuthRequired={onAuthRequired} sessionVersion={sessionVersion} /> : location.pathname === '/rehearsal' ? <RehearsalPage onAuthRequired={onAuthRequired} sessionVersion={sessionVersion} /> : location.pathname === '/show-preview' ? <LiveShowPreviewPage onAuthRequired={onAuthRequired} sessionVersion={sessionVersion} /> : location.pathname === '/display' || location.pathname === '/admin' ? <DisplayPage administration={location.pathname === '/admin'} onAuthRequired={onAuthRequired} sessionVersion={sessionVersion} /> : <CheckinWorkspace onAuthRequired={onAuthRequired} sessionVersion={sessionVersion} />;
+  if (selection === 'required') return <section className="card"><h1>大会が選ばれていません</h1><p>「大会を始める」で作った大会の、受付・運営・会場のリンクから開いてください。</p><a className="button primary" href="/start">大会を始める</a></section>;
+  return location.pathname === '/match-transition' ? <MatchTransitionPage onAuthRequired={onAuthRequired} sessionVersion={sessionVersion} /> : location.pathname === '/rehearsal' ? <RehearsalPage onAuthRequired={onAuthRequired} sessionVersion={sessionVersion} /> : location.pathname === '/show-preview' ? <LiveShowPreviewPage onAuthRequired={onAuthRequired} sessionVersion={sessionVersion} /> : location.pathname === '/admin' ? <OperatorPage onAuthRequired={onAuthRequired} sessionVersion={sessionVersion} /> : location.pathname === '/display' ? <DisplayPage onAuthRequired={onAuthRequired} sessionVersion={sessionVersion} /> : <CheckinWorkspace onAuthRequired={onAuthRequired} sessionVersion={sessionVersion} />;
 }
 
 function App() {
@@ -64,7 +70,11 @@ function App() {
     catch (reason) { setError(reason instanceof ApiError && reason.status === 401 ? '確認コードが一致しません。もう一度入力してください。' : reason instanceof Error ? reason.message : 'ログインできませんでした。'); }
     finally { setBusy(false); }
   }
-  return <main>{location.pathname !== '/display' && <nav className="topbar" aria-label="大会ナビゲーション"><a href={scopedUrl('/')}>ホーム</a><a href={scopedUrl('/rehearsal')}>大会の全体確認</a><details><summary>個別画面</summary><a href={scopedUrl('/checkin')}>参加者受付</a><a href={scopedUrl('/admin')}>運営（Admin）</a><a href={scopedUrl('/display')}>会場Display</a></details><details><summary>開発ツール</summary><a href={scopedUrl('/show-preview')}>Animation Preview</a><a href={scopedUrl('/cloudflare-check')}>Cloudflare接続確認</a></details>{authenticated && <button onClick={async () => { try { await api('/api/session', { method: 'DELETE' }); location.reload(); } catch { setError('ログアウトできませんでした。再試行してください。'); } }}>ログアウト</button>}</nav>}
+  const logout = authenticated && <button onClick={async () => { try { await api('/api/session', { method: 'DELETE' }); location.reload(); } catch { setError('ログアウトできませんでした。再試行してください。'); } }}>ログアウト</button>;
+  const live = LIVE_PATHS.includes(location.pathname);
+  return <main className={live ? 'is-live' : undefined}>{location.pathname !== '/display' && (live
+    ? <nav className="topbar live-topbar" aria-label="大会ナビゲーション"><a href="/">ホーム</a>{currentRunId() && <><a href={scopedUrl('/checkin')} aria-current={location.pathname === '/checkin' ? 'page' : undefined}>受付</a><a href={scopedUrl('/admin')} aria-current={location.pathname === '/admin' ? 'page' : undefined}>運営</a></>}{logout}</nav>
+    : <nav className="topbar" aria-label="大会ナビゲーション"><a href={scopedUrl('/')}>ホーム</a><a href={scopedUrl('/rehearsal')}>大会の全体確認</a><details><summary>個別画面</summary><a href={scopedUrl('/checkin')}>参加者受付</a><a href={scopedUrl('/admin')}>運営（Admin）</a><a href={scopedUrl('/display')}>会場Display</a></details><details><summary>開発ツール</summary><a href={scopedUrl('/show-preview')}>Animation Preview</a><a href={scopedUrl('/cloudflare-check')}>Cloudflare接続確認</a></details>{logout}</nav>)}
     {loading ? <p className="loading" role="status">接続を確認しています…</p> : <>
       <div hidden={!authenticated}>{initialized && <Workspace onAuthRequired={onAuthRequired} sessionVersion={sessionVersion} />}</div>
       {!authenticated && <section className="card login"><p className="eyebrow">TOURNAMENT / REHEARSAL</p><h1>確認コードを入力</h1><p className="intro">受付・参加者確認用のコードを入力してください。同じコードを各端末で使用できます。</p><form onSubmit={login}><label className="field">確認コード<input type="password" autoComplete="off" autoCapitalize="none" spellCheck={false} required maxLength={128} value={code} onChange={e => setCode(e.target.value)} /></label>{error && <p role="alert" className="error">{error}</p>}<button type="submit" className="primary submit" disabled={busy || !code.trim()}>{busy ? '確認中…' : '確認して開く'}</button></form></section>}

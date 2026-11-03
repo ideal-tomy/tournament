@@ -20,9 +20,9 @@ function nextAction(s: Status) {
   if (s.scene === 'finished') return '大会終了。CHAMPIONをDisplayで確認できます。';
   if (s.checkinStatus === 'open') {
     if (count < 4 || count % 2) return 'スマホ受付を続けてください（現在' + count + '名。4名以上の偶数人数が必要です）。';
-    return '運営（Admin）で「受付終了」を押すと、ペアが自動確定します。';
+    return '受付画面で「受付終了」を押すと、参加者が固定されます。';
   }
-  if (!s.session) return '運営（Admin）で受付終了を再試行してください。';
+  if (!s.session) return '運営（Admin）で組み合わせを決めてください（自動・手動）。';
   if (s.scene === 'idle') return '運営（Admin）で「ペア発表開始」を押してください。会場モニター（Display）に演出が出ます。';
   if (s.scene === 'draw') return '会場Displayでペア発表が終わるまで待ちます。';
   if (s.scene === 'bracket' && s.flow?.canGameStart) return '運営（Admin）で「ゲームスタート」を押してください。';
@@ -56,7 +56,7 @@ export default function SharedRunOverview({ status }: { status: Status }) {
       <p>この3リンクだけを当日の正本にしてください。別途「大会を準備」を押すと別IDの大会ができ、モニターと連動しなくなります。</p>
       <ol className="connection-flow">
         <li><strong>① 受付</strong><span>撮影・登録。4名以上の偶数人数まで。</span></li>
-        <li><strong>② 運営</strong><span>受付終了（ペア自動）→ ペア発表開始 → 試合・勝者。</span></li>
+        <li><strong>② 運営</strong><span>組み合わせ（自動・手動）→ ペア発表開始 → 試合・勝者。</span></li>
         <li><strong>③ モニター</strong><span>演出のみ。操作はしない。</span></li>
       </ol>
     </section>

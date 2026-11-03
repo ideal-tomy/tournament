@@ -5,7 +5,8 @@ import type { DrawPresentationData } from '../features/draw/presentationTypes';
 import DrawStage from '../features/presentation/scenes/DrawStage';
 import FlowPresentation, { SavedBracket } from './FlowPresentation';
 import { toPresentationParticipant } from './presentationAdapter';
-import { preparePortraits, portraitUrlFor } from './portraitCache';
+import { portraitUrlFor } from './portraitCache';
+import { useTournamentState } from './useTournamentState';
 import { preloadPresentationAssets } from './preloadPresentationAssets';
 import { currentReview, reviewState, reviewUrl } from './reviewPlayback';
 
@@ -19,23 +20,8 @@ export interface DrawState {
  session:{id:string;revealOrder:string[];committedAt:string}|null;
  participants:Participant[];teams:{id:string;name:string;memberIds:string[];seed:number}[];bracket:BracketSnapshot|null;
 }
-function useDraw(onAuthRequired:()=>void,sessionVersion:number,administration:boolean,automaticAdvance:boolean){
- const [state,setState]=useState<DrawState|null>(null),[error,setError]=useState('');
- const [revision,setRevision]=useState(0);
- useEffect(()=>{let cancelled=false,fetching=false;const controller=new AbortController();
-  async function poll(){if(fetching||cancelled||document.hidden)return;fetching=true;try{
-   let next=await api<DrawState>('/api/draw/state',{signal:controller.signal});
-   if(administration&&automaticAdvance&&next.flow?.canAdvance)next=await api<DrawState>('/api/tournament/advance',{method:'POST',body:JSON.stringify({requestId:crypto.randomUUID(),expectedVersion:next.version}),signal:controller.signal});
-   next=await preparePortraits(next,controller.signal);
-   if(!cancelled){setState(previous=>previous&&previous.version===next.version&&previous.checkinRevision===next.checkinRevision&&previous.flow?.canStart===next.flow?.canStart&&previous.flow?.canGameStart===next.flow?.canGameStart?previous:next);setError('');}
-  }catch(reason){if(reason instanceof ApiError&&['VERSION_CONFLICT','SCENE_NOT_FINISHED'].includes(reason.code))return;if(!cancelled){setError(reason instanceof Error?reason.message:'Draw状態を取得できませんでした。');if(reason instanceof ApiError&&reason.status===401)onAuthRequired();}}finally{fetching=false;}}
-  void poll();const timer=setInterval(()=>void poll(),1000);const visible=()=>void poll();document.addEventListener('visibilitychange',visible);
-  return()=>{cancelled=true;controller.abort();clearInterval(timer);document.removeEventListener('visibilitychange',visible);};
- },[onAuthRequired,sessionVersion,revision,administration,automaticAdvance]);
- return {state,error,refresh:useCallback(()=>setRevision(v=>v+1),[])};
-}
 export default function DrawControl({administration,onAuthRequired,sessionVersion,onActiveChange,automaticAdvance=false}:{administration:boolean;onAuthRequired():void;sessionVersion:number;onActiveChange?(active:boolean):void;automaticAdvance?:boolean}){
- const {state,error,refresh}=useDraw(onAuthRequired,sessionVersion,administration,automaticAdvance);
+ const {state,error,refresh}=useTournamentState(onAuthRequired,sessionVersion,{automaticAdvance:administration&&automaticAdvance});
  const [busy,setBusy]=useState(false),[commandError,setCommandError]=useState(''),[photoError,setPhotoError]=useState(false);
  const operation=useRef<{path:string;body:{requestId:string;expectedVersion:number;winnerSlot?:number}}|null>(null);
  const closeCommand=useRef<{requestId:string;expectedRevision:number}|null>(null);
@@ -52,6 +38,10 @@ export default function DrawControl({administration,onAuthRequired,sessionVersio
   try{await api('/api/checkin/close',{method:'POST',body:JSON.stringify(closeCommand.current)});closeCommand.current=null;refresh();}
   catch(reason){setCommandError(reason instanceof Error?reason.message:'受付終了に失敗しました。');if(reason instanceof ApiError){if(reason.status===401)onAuthRequired();else if(reason.status<500)closeCommand.current=null;}}
   finally{setBusy(false);}}
+ async function pairAutomatically(){if(!state||busy)return;setBusy(true);setCommandError('');command.current??={requestId:crypto.randomUUID(),expectedVersion:state.version};
+  try{await api('/api/draw/pairs',{method:'POST',body:JSON.stringify({...command.current,mode:'auto'})});command.current=null;refresh();}
+  catch(reason){setCommandError(reason instanceof Error?reason.message:'ペアを確定できませんでした。');if(reason instanceof ApiError){if(reason.status===401)onAuthRequired();else if(reason.status<500)command.current=null;}}
+  finally{setBusy(false);}}
  async function start(){if(!state||busy)return;setBusy(true);setCommandError('');command.current??={requestId:crypto.randomUUID(),expectedVersion:state.version};
   try{await api('/api/draw/start',{method:'POST',body:JSON.stringify(command.current)});command.current=null;refresh();}
   catch(reason){setCommandError(reason instanceof Error?reason.message:'Draw開始に失敗しました。');if(reason instanceof ApiError){if(reason.status===401)onAuthRequired();else if(reason.status<500)command.current=null;}}
@@ -67,9 +57,9 @@ export default function DrawControl({administration,onAuthRequired,sessionVersio
  useEffect(()=>{if(!administration)preloadPresentationAssets();},[administration]);
  const onComplete=useCallback(()=>refresh(),[refresh]);
  return <section className={administration?'card draw-operations':'draw-monitor'} data-draw-scene={state?.scene??'loading'} data-draw-version={state?.version??0}>
-  {administration&&<><h2>大会運営</h2><p>受付終了で参加者とペアを固定し、運営の操作で発表・ゲーム開始へ進みます。</p><p>対象 {state?.participants.length??0}名 · 受付{state?.checkinStatus==='closed'?'終了':'中'}</p>
-   {state?.checkinStatus==='open'&&<button className="primary" disabled={busy} onClick={()=>{if(closeCommand.current||window.confirm(`${state.participants.length}名で受付を終了し、ペアを確定しますか？`))void closeReception();}}>{closeCommand.current?'受付終了を再試行':'受付終了'}</button>}
-   {state?.checkinStatus==='closed'&&!state.session&&<button disabled={busy} onClick={()=>void closeReception()}>ペア確定を再試行</button>}
+  {administration&&<><h2>大会運営（確認用）</h2><p>受付終了で参加者を固定し、ペアを確定してから発表・ゲーム開始へ進みます。</p><p>対象 {state?.participants.length??0}名 · 受付{state?.checkinStatus==='closed'?'終了':'中'}</p>
+   {state?.checkinStatus==='open'&&<button className="primary" disabled={busy} onClick={()=>{if(closeCommand.current||window.confirm(`${state.participants.length}名で受付を終了しますか？`))void closeReception();}}>{closeCommand.current?'受付終了を再試行':'受付終了'}</button>}
+   {state?.checkinStatus==='closed'&&!state.session&&<button className="primary" disabled={busy} onClick={()=>void pairAutomatically()}>自動でペアを確定</button>}
    {state?.session&&state.scene==='idle'&&<button className="primary" disabled={busy||state?.checkinStatus!=='closed'} onClick={()=>{if(command.current||window.confirm(`${state?.participants.length}名の確定ペアを会場Displayで発表しますか？`))void start();}}>{busy?'保存中…':command.current?'同じペア発表開始を再試行':'ペア発表開始'}</button>}
    {state?.session&&<><p>ペア確定済み：{state.session.id}</p><p>Displayの状態：{state.scene==='idle'?'ペア発表開始待ち':state.scene==='draw'?'ペア発表中（操作待ち）':state.scene} · version {state.version}</p><ol>{state.teams.map(team=><li key={team.id}>Pair {team.seed+1}：{team.name}</li>)}</ol></>}
    {state?.scene==='bracket'&&state.flow?.phase!=='bracket_update'&&<button className="primary" disabled={busy||!state.flow?.canGameStart||!!operation.current} onClick={()=>void operate('game-start')}>ゲームスタート</button>}

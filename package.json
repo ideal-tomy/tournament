@@ -8,16 +8,12 @@
     "build:animation-preview": "tsc -b && vite build --config vite.animation-preview.config.ts && node scripts/check-animation-preview.mjs",
     "preview:animation-preview": "vite preview --config vite.animation-preview.config.ts",
     "dev": "node scripts/local-app.mjs dev",
-    "dev:legacy": "vite --config vite.rehearsal.config.ts",
     "local:setup": "node scripts/local-app.mjs setup",
     "local:query": "node scripts/local-app.mjs query",
     "dev:rehearsal": "node scripts/local-app.mjs dev",
-    "dev:legacy-rehearsal": "vite --config vite.rehearsal.config.ts --host 127.0.0.1 --port 5175 --strictPort",
     "test:rehearsal": "vitest run --config vite.rehearsal.config.ts",
     "build": "npm run build:checkin",
-    "build:legacy": "tsc -b && vite build",
     "preview": "node scripts/local-app.mjs preview",
-    "preview:legacy": "vite preview",
     "deploy:check": "npm run build && node scripts/check-deployment.mjs",
     "deploy:rehearsal": "npm run build && node scripts/deploy-canonical.mjs",
     "test": "vitest run",
@@ -30,18 +26,12 @@
     "cf:dev": "node scripts/local-app.mjs dev"
   },
   "dependencies": {
-    "@mediapipe/camera_utils": "^0.3.1675466862",
-    "@mediapipe/face_detection": "^0.4.1646425229",
-    "@supabase/supabase-js": "^2.49.1",
     "brackets-manager": "^1.11.0",
     "brackets-memory-db": "^1.0.6",
     "events": "^3.3.0",
     "gsap": "^3.15.0",
-    "lottie-web": "^5.13.0",
-    "pixi.js": "^8.19.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-router-dom": "^7.1.5"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@types/node": "^22.13.4",
@@ -53,6 +43,7 @@
     "tailwindcss": "^3.4.17",
     "typescript": "~5.7.3",
     "vite": "^6.1.0",
-    "vitest": "^3.0.5"
+    "vitest": "^3.0.5",
+    "wrangler": "4.157.0"
   }
 }

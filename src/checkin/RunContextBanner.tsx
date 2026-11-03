@@ -9,11 +9,15 @@ const roleLabel: Record<string, string> = {
   rehearsal: '大会全体',
 };
 
-export default function RunContextBanner({ role, sessionVersion }: { role: keyof typeof roleLabel; sessionVersion: number }) {
+export default function RunContextBanner({ role, sessionVersion, compact = false }: { role: keyof typeof roleLabel; sessionVersion: number; compact?: boolean }) {
   const run = currentRunId();
   const sync = useRunSync(sessionVersion);
   const [copied, setCopied] = useState('');
   if (!run) return null;
+  if (compact) {
+    if (sync.state === 'mismatch' || sync.state === 'missing') return <p role="alert" className="card error">この大会は見つかりません。「大会を始める」の受付リンクから開き直してください。</p>;
+    return null;
+  }
   const short = run.slice(-12);
   async function copy(label: string, text: string) {
     try {

@@ -25,6 +25,7 @@ describe('isolated through rehearsal using normal tournament APIs',()=>{
   const suffix=`?run=${first.eventId}`;
   for(let i=0;i<4;i++)expect((await s.request('/api/participants'+suffix,'POST',s.input(`rehearsal ${i}`))).status).toBe(201);
   const checkin=await s.request('/api/checkin/state'+suffix).then(r=>r.json()) as {revision:number};expect((await s.request('/api/checkin/close'+suffix,'POST',{requestId:crypto.randomUUID(),expectedRevision:checkin.revision})).status).toBe(200);
+  expect((await s.pair({mode:'auto'},suffix)).status).toBe(200);
   const prepared=await s.request('/api/rehearsal/status'+suffix).then(r=>r.json()) as {eventId:string;scene:string;version:number;integrity:{consistent:boolean}};
   expect(prepared.eventId).toBe(first.eventId);expect(prepared.scene).toBe('idle');expect(prepared.version).toBe(1);expect(prepared.integrity.consistent).toBe(true);
   expect((await s.request('/api/draw/start'+suffix,'POST',{requestId:crypto.randomUUID(),expectedVersion:1})).status).toBe(200);

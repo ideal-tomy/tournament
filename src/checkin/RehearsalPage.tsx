@@ -5,7 +5,7 @@ import DrawControl, { type DrawState } from './DrawControl';
 import SharedRunOverview from './SharedRunOverview';
 
 export type Status=DrawState&{integrity:{consistent:boolean;matchCount:number};flow:(NonNullable<DrawState['flow']>&{nextMatch?:{id:number;teamA:string;teamB:string}|null})|null};
-type Command={path:string;body:{requestId:string;expectedVersion?:number;expectedRevision?:number;winnerSlot?:number}};
+type Command={path:string;body:{requestId:string;expectedVersion?:number;expectedRevision?:number;winnerSlot?:number;mode?:'auto'}};
 const runId=()=>new URLSearchParams(location.search).get('run');
 const pendingKey=()=>`through-command:${runId()}`;
 const delay=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -37,7 +37,7 @@ export default function RehearsalPage({onAuthRequired,sessionVersion}:{onAuthReq
    while(active.current&&mounted.current){failureStep.current='大会状態・D1整合性の確認';s=await readStatus();if(!s.integrity.consistent)throw Error('D1整合性エラー');setStatus(s);setStep(`${s.scene} / Match ${s.flow?.currentMatch?.id??'-'}`);if(s.scene==='vs_card'&&(!s.flow?.currentMatch?.teamA||!s.flow.currentMatch.teamB))throw Error('次の試合の対戦相手が確定していません。');if(s.scene==='finished'){if(!s.flow?.championTeamId)throw Error('優勝者のない終了状態です。');setStep('CHAMPION・大会終了');break;}
     let command:Command|null=null;const body={requestId:crypto.randomUUID(),expectedVersion:s.version};
     if(s.checkinStatus==='open')command={path:'/api/checkin/close',body:{requestId:crypto.randomUUID(),expectedRevision:s.checkinRevision}};
-    else if(!s.session)throw Error('ペア確定が完了していません。受付終了を運営画面で再試行してください。');
+    else if(!s.session)command={path:'/api/draw/pairs',body:{...body,mode:'auto'}};
     else if(s.scene==='idle')command={path:'/api/draw/start',body};
     else if(s.flow?.canAdvance)command={path:'/api/tournament/advance',body};
     else if(s.flow?.canGameStart)command={path:'/api/tournament/game-start',body};

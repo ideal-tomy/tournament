@@ -17,5 +17,6 @@ export function setup(){
  const input=(name='test')=>({requestId:crypto.randomUUID(),name,rating:null,photo:`data:image/jpeg;base64,${Buffer.from(jpeg).toString('base64')}`});
  async function create(name='test'){const body=input(name),response=await request('/api/participants','POST',body);expect(response.status).toBe(201);return {body,...await response.json() as {participant:{id:string;version:number;portraitUrl:string}}};}
  const count=()=>Number(db.prepare('SELECT COUNT(*) n FROM participants').get()!.n);
- return {db,env,photos,faults,request,login,input,create,count};
+ async function pair(body:Record<string,unknown>={mode:'auto'},suffix=''){const state=await request('/api/draw/state'+suffix).then(r=>r.json()) as {version:number};return request('/api/draw/pairs'+suffix,'POST',{requestId:crypto.randomUUID(),expectedVersion:state.version,...body});}
+ return {db,env,photos,faults,request,login,input,create,count,pair};
 }

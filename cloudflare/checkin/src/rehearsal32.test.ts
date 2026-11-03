@@ -19,6 +19,7 @@ describe('persisted 32-person rehearsal through the existing tournament APIs',()
   const age=()=>s.db.prepare("UPDATE event_state SET scene_started_at=strftime('%Y-%m-%dT%H:%M:%fZ','now','-1 hour') WHERE event_id=?").run(created.eventId);
   const cmd=async(action:string,extra:Record<string,unknown>={})=>{const v=await state();return s.request('/api/tournament/'+action+suffix,'POST',{requestId:crypto.randomUUID(),expectedVersion:v.version,...extra});};
   let v=await state();expect((await s.request('/api/checkin/close'+suffix,'POST',{requestId:crypto.randomUUID(),expectedRevision:v.checkinRevision})).status).toBe(200);
+  expect((await s.pair({mode:'auto'},suffix)).status).toBe(200);
   v=await state();expect(v.format).toBe('single_elimination');expect(v.timingPreset).toBe('fast');expect(v.teams).toHaveLength(16);expect(v.bracket.match).toHaveLength(15);
   expect(new Set(v.teams.flatMap(t=>t.memberIds)).size).toBe(32);const pairs=JSON.stringify(v.teams),session=v.session.id;
   expect(v.durationSec).toBe(estimateDrawDurationSec(32,'full',16,'fast'));
