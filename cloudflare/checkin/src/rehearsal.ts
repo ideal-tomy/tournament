@@ -41,7 +41,9 @@ export async function rehearsalRoute(request:Request,env:CheckinEnv):Promise<Res
 export async function selectRehearsalRun(request:Request,env:CheckinEnv):Promise<CheckinEnv>{
  if(env.REHEARSAL_ENABLED!=='1')return env;
  const url=new URL(request.url),portrait=/^\/api\/events\/([^/]+)\/participants\/checkin-[a-f0-9-]{36}\/portrait$/.exec(url.pathname);
- const id=portrait?.[1]??url.searchParams.get('run');
+ const requested=url.searchParams.get('run');
+ if(portrait&&requested&&portrait[1]!==requested)throw new ClientError('NOT_FOUND',404);
+ const id=portrait?.[1]??requested;
  // The source event is exposed for portraits only, never for tournament commands.
  if(portrait&&request.method==='GET'&&id===env.REHEARSAL_SOURCE_EVENT_ID)return {...env,CHECKIN_EVENT_ID:id};
  if(!id||!isRehearsalRun(id))throw new ClientError('RUN_REQUIRED',409);

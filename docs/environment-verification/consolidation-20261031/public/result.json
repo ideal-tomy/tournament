@@ -1,0 +1,166 @@
+{
+  "root": "https://tournament-through-rehearsal.pine-shaken.workers.dev",
+  "started": "2026-10-31T09:08:18.536Z",
+  "camera": "PC Edge simulated camera with mobile viewport; physical smartphone unverified",
+  "routes": [
+    {
+      "route": "/",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/checkin",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/admin",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/display",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/rehearsal",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/show-preview",
+      "direct": 200,
+      "reload": 200
+    },
+    {
+      "route": "/cloudflare-check",
+      "direct": 200,
+      "reload": 200
+    }
+  ],
+  "participants": [
+    "公開撮影検証 01",
+    "公開撮影検証 02",
+    "公開撮影検証 03",
+    "公開撮影検証 04",
+    "公開撮影検証 05",
+    "公開撮影検証 06",
+    "公開撮影検証 07",
+    "公開撮影検証 08"
+  ],
+  "states": [
+    {
+      "at": "2026-10-31T09:08:43.425Z",
+      "scene": "idle"
+    },
+    {
+      "at": "2026-10-31T09:08:45.396Z",
+      "scene": "idle",
+      "phase": "idle",
+      "completed": 0
+    },
+    {
+      "at": "2026-10-31T09:08:46.386Z",
+      "scene": "draw",
+      "phase": "draw",
+      "completed": 0
+    },
+    {
+      "at": "2026-10-31T09:09:35.563Z",
+      "scene": "bracket",
+      "phase": "bracket",
+      "completed": 0
+    },
+    {
+      "at": "2026-10-31T09:09:37.751Z",
+      "scene": "vs_card",
+      "phase": "vs_card",
+      "completed": 0
+    },
+    {
+      "at": "2026-10-31T09:09:43.626Z",
+      "scene": "match_live",
+      "phase": "match_live",
+      "completed": 0
+    },
+    {
+      "at": "2026-10-31T09:09:45.732Z",
+      "scene": "result",
+      "phase": "result",
+      "completed": 1
+    },
+    {
+      "at": "2026-10-31T09:09:50.571Z",
+      "scene": "bracket",
+      "phase": "bracket_update",
+      "completed": 1
+    },
+    {
+      "at": "2026-10-31T09:09:56.033Z",
+      "scene": "vs_card",
+      "phase": "vs_card",
+      "completed": 1
+    },
+    {
+      "at": "2026-10-31T09:10:02.030Z",
+      "scene": "match_live",
+      "phase": "match_live",
+      "completed": 1
+    },
+    {
+      "at": "2026-10-31T09:10:04.453Z",
+      "scene": "result",
+      "phase": "result",
+      "completed": 2
+    },
+    {
+      "at": "2026-10-31T09:10:09.434Z",
+      "scene": "bracket",
+      "phase": "bracket_update",
+      "completed": 2
+    },
+    {
+      "at": "2026-10-31T09:10:14.408Z",
+      "scene": "vs_card",
+      "phase": "vs_card",
+      "completed": 2
+    },
+    {
+      "at": "2026-10-31T09:10:19.882Z",
+      "scene": "match_live",
+      "phase": "match_live",
+      "completed": 2
+    },
+    {
+      "at": "2026-10-31T09:10:22.835Z",
+      "scene": "result",
+      "phase": "result",
+      "completed": 3
+    },
+    {
+      "at": "2026-10-31T09:10:26.789Z",
+      "scene": "award",
+      "phase": "award",
+      "completed": 3
+    },
+    {
+      "at": "2026-10-31T09:10:29.897Z",
+      "scene": "finished",
+      "phase": "finished",
+      "completed": 3
+    }
+  ],
+  "errors": [],
+  "httpFailures": [],
+  "run": "cf-through-405eb893-2b21-4583-b592-703c4e9c214a",
+  "initialParticipants": 0,
+  "afterFirstRegistration": 1,
+  "displayReflectedFirst": true,
+  "photos": 8,
+  "expectedReadConflicts": 7,
+  "champion": "e2573707-616e-44db-a213-28b8aee8fab7",
+  "recoveredAdvanceConflicts": [],
+  "complete": true,
+  "finished": "2026-10-31T09:10:32.197Z"
+}

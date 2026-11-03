@@ -1,0 +1,226 @@
+PLAN.md:18:前段の8名ローカル確認を土台とし、今回は公開まで実行する。canonicalは既存 `tournament-through-rehearsal`。新しい公開Workerを作らず、通常大会と過去の検証大会を保持する。UIデザイン変更・依存追加・Git push・公開DBの破壊的変更を行わない。
+PLAN.md:37:- [x] 既存canonical `tournament-through-rehearsal`へdeploy（最終version `6a2ecda1-1ec0-446a-9821-39e0573f5525`）。新Worker・binding・Secret・migration追加なし。
+PLAN.md:193:専用Worker `tournament-checkin-rehearsal` の `/checkin` → D1／R2 → `/display`・読取専用 `/admin` → 実データ専用 `/show-preview` を実装・公開した。canonical portrait APIとpresentation adapterを共通化。166 tests、各build、ローカルで保存済み参加者の6シーン表示を確認。
+PLAN.md:201:最新の [依頼](docs/依頼.md) に従い、別Worker `tournament-checkin-rehearsal` に `/checkin` と参加者確認用 `/display` を実装・公開済み。名前・任意rating・写真をWorker経由で既存D1と非公開R2へ保存し、別端末の確認画面に表示する。既存Admin／Display・Supabase版と演出Previewは維持する。
+PLAN.md:237:7. 新規の静的配信用Cloudflare Workerへ専用出力だけを公開する。既存 `tournament-rehearsal` Workerを更新しない。公開後にPC・スマホ・モニターで確認する。
+PLAN.md:247:  "name": "tournament-animation-preview",
+PLAN.md:259:以下は設計時のURL形式。実際の公開先は `https://tournament-animation-preview.pine-shaken.workers.dev/`。
+PLAN.md:262:https://tournament-animation-preview.<account-subdomain>.workers.dev/
+PLAN.md:314:| D1 | `tournament-rehearsal-db`、ID `0a7528e1-7f14-4e54-a896-4fbe2cf2c42c`。前回CLIで実在確認 |
+PLAN.md:316:| R2 | `tournament-rehearsal-portraits`／`tournament-rehearsal-media`。前回、非公開・空を確認。以後の件数は再測定していない |
+PLAN.md:317:| Worker | `tournament-rehearsal` 公開済み。今回CLIで公開・Secrets更新の履歴を確認 |
+cloudflare\checkin\wrangler.e2e.jsonc.disabled:2:  "name": "tournament-checkin-e2e",
+cloudflare\checkin\wrangler.e2e.jsonc.disabled:14:      "database_name": "tournament-rehearsal-db",
+cloudflare\checkin\wrangler.e2e.jsonc.disabled:21:      "bucket_name": "tournament-rehearsal-portraits"
+cloudflare\wrangler.jsonc.example.disabled:3:  "name": "tournament-rehearsal",
+cloudflare\wrangler.jsonc.example.disabled:8:      "database_name": "tournament-rehearsal-db",
+cloudflare\wrangler.jsonc.example.disabled:16:      "bucket_name": "tournament-rehearsal-portraits"
+cloudflare\wrangler.jsonc.example.disabled:20:      "bucket_name": "tournament-rehearsal-media"
+cloudflare\wrangler.jsonc.disabled:3:  "name": "tournament-rehearsal",
+cloudflare\wrangler.jsonc.disabled:8:      "database_name": "tournament-rehearsal-db",
+cloudflare\wrangler.jsonc.disabled:16:      "bucket_name": "tournament-rehearsal-portraits"
+cloudflare\wrangler.jsonc.disabled:20:      "bucket_name": "tournament-rehearsal-media"
+cloudflare\checkin\wrangler.through-rehearsal.jsonc:2:  "name": "tournament-through-rehearsal",
+cloudflare\checkin\wrangler.through-rehearsal.jsonc:8:  "d1_databases": [{ "binding": "DB", "database_name": "tournament-rehearsal-db", "database_id": "0a7528e1-7f14-4e54-a896-4fbe2cf2c42c" }],
+cloudflare\checkin\wrangler.through-rehearsal.jsonc:9:  "r2_buckets": [{ "binding": "PORTRAITS", "bucket_name": "tournament-rehearsal-portraits" }],
+cloudflare\wrangler.animation-preview.jsonc.disabled:2:  "name": "tournament-animation-preview",
+cloudflare\checkin\wrangler.pair-gates-e2e.jsonc.disabled:2:  "name": "tournament-pair-gates-e2e",
+cloudflare\checkin\wrangler.pair-gates-e2e.jsonc.disabled:17:      "database_name": "tournament-rehearsal-db",
+cloudflare\checkin\wrangler.pair-gates-e2e.jsonc.disabled:24:      "bucket_name": "tournament-rehearsal-portraits"
+cloudflare\checkin\wrangler.match-loop-e2e.jsonc.disabled:2:  "name": "tournament-match-loop-e2e",
+cloudflare\checkin\wrangler.match-loop-e2e.jsonc.disabled:17:      "database_name": "tournament-rehearsal-db",
+cloudflare\checkin\wrangler.match-loop-e2e.jsonc.disabled:24:      "bucket_name": "tournament-rehearsal-portraits"
+cloudflare\checkin\wrangler.jsonc.disabled:2:  "name": "tournament-checkin-rehearsal",
+cloudflare\checkin\wrangler.jsonc.disabled:8:  "d1_databases": [{ "binding": "DB", "database_name": "tournament-rehearsal-db", "database_id": "0a7528e1-7f14-4e54-a896-4fbe2cf2c42c" }],
+cloudflare\checkin\wrangler.jsonc.disabled:9:  "r2_buckets": [{ "binding": "PORTRAITS", "bucket_name": "tournament-rehearsal-portraits" }],
+scripts\audit-checkin-photos.cjs:6:const origin = 'https://tournament-checkin-rehearsal.pine-shaken.workers.dev';
+scripts\audit-checkin-photos.cjs:35:    const remote = await fetch(`https://api.cloudflare.com/client/v4/accounts/5b27490470fa62bc7b51865e4e2cd786/r2/buckets/tournament-rehearsal-portraits/objects/${key}`, { headers: { Authorization: `Bearer ${token}` }, redirect: 'error' });
+cloudflare\checkin\wrangler.flow-e2e.jsonc.disabled:2:  "name": "tournament-flow-e2e",
+cloudflare\checkin\wrangler.flow-e2e.jsonc.disabled:17:      "database_name": "tournament-rehearsal-db",
+cloudflare\checkin\wrangler.flow-e2e.jsonc.disabled:24:      "bucket_name": "tournament-rehearsal-portraits"
+cloudflare\src\index.ts:60:      return json({ ok: true, service: 'tournament-rehearsal-api', mode: 'read-only' });
+scripts\audit-canonical-workers.mjs:28: 'tournament-animation-preview': ['旧演出素材Preview', 'cloudflare/wrangler.animation-preview.jsonc', '静的Preview'],
+scripts\audit-canonical-workers.mjs:29: 'tournament-checkin-e2e': ['旧撮影登録E2E', 'cloudflare/checkin/wrangler.e2e.jsonc', '/checkin /display /api/*'],
+scripts\audit-canonical-workers.mjs:30: 'tournament-checkin-rehearsal': ['通常大会の受付・進行（今回更新しない）', 'cloudflare/checkin/wrangler.jsonc', '/checkin /admin /display /show-preview /api/*'],
+scripts\audit-canonical-workers.mjs:31: 'tournament-flow-e2e': ['旧抽選・進行E2E', 'cloudflare/checkin/wrangler.flow-e2e.jsonc', '受付・運営・Display・API'],
+scripts\audit-canonical-workers.mjs:32: 'tournament-match-loop-e2e': ['旧試合ループE2E', 'cloudflare/checkin/wrangler.match-loop-e2e.jsonc', '受付・運営・Display・API'],
+scripts\audit-canonical-workers.mjs:33: 'tournament-pair-gates-e2e': ['旧ペア発表gate E2E', 'cloudflare/checkin/wrangler.pair-gates-e2e.jsonc', '受付・運営・Display・API'],
+scripts\audit-canonical-workers.mjs:34: 'tournament-rehearsal': ['旧token認証API', 'cloudflare/wrangler.jsonc（gitignore）', '/api/health /api/events/*'],
+scripts\audit-canonical-workers.mjs:35: 'tournament-through-rehearsal': ['今後のcanonical', 'cloudflare/checkin/wrangler.through-rehearsal.jsonc', '/ /checkin /admin /display /rehearsal /show-preview /cloudflare-check /match-transition /api/*'],
+scripts\audit-canonical-workers.mjs:38:for(const w of results){const c=configs[w.name]??['要調査','不明','不明'];const types=t=>w.bindings.filter(x=>x.type===t);md+=`| ${w.name} | ${c[0]} | ${c[1]} | ${(w.deployments[0]?.versions??[]).map(x=>x.version_id).join(',')} | ${types('d1').map(x=>`${x.name}: ${x.databaseName} (${x.databaseId})`).join(',')||'なし'} | ${types('r2_bucket').map(x=>x.bucket).join(',')||'なし'} | ${types('assets').map(x=>x.name).join(',')||(w.name==='tournament-animation-preview'?'bindingなし（configで静的assets配信）':'なし')} | ${types('secret_text').map(x=>x.name).join(',')||'なし'} | ${c[2]} |\n`;}
+scripts\audit-canonical-workers.mjs:41:console.log(JSON.stringify({count:results.length,canonical:results.find(x=>x.name==='tournament-through-rehearsal')?.deployments[0]?.versions}));
+scripts\audit-canonical-registration.mjs:24: const remote=await fetch(account+'/r2/buckets/tournament-rehearsal-portraits/objects/'+row.photo_path,{headers:h});assert.equal(remote.status,200);
+cloudflare\checkin\src\index.ts:41:  if (url.pathname === '/api/health' && request.method === 'GET') return response({ ok: true, service: 'tournament-checkin-rehearsal' });
+README.md:3:**当日運用（受付→運営→モニター）：[docs/DAY_OF_EVENT.md](docs/DAY_OF_EVENT.md)**。環境整理・デプロイ：[docs/ENVIRONMENT_CONSOLIDATION.md](docs/ENVIRONMENT_CONSOLIDATION.md)。入口 <https://tournament-through-rehearsal.pine-shaken.workers.dev/>。32人SHOWは [docs/REHEARSAL32.md](docs/REHEARSAL32.md)。canonicalは `tournament-through-rehearsal`。
+README.md:183:環境整理・Worker一覧・受付から優勝までの確認結果は [docs/ENVIRONMENT_CONSOLIDATION.md](docs/ENVIRONMENT_CONSOLIDATION.md)。公開TOPは https://tournament-through-rehearsal.pine-shaken.workers.dev/ 。
+docs\CANONICAL_CONSOLIDATION_20261031.md:5:Worker: `tournament-through-rehearsal`。URL: https://tournament-through-rehearsal.pine-shaken.workers.dev 。今回公開version: `e50c2ab3-a248-4d60-8799-f744b0d33eab`。
+docs\CANONICAL_CONSOLIDATION_20261031.md:19:D1 binding: `DB`。名前: `tournament-rehearsal-db`。ID: `0a7528e1-7f14-4e54-a896-4fbe2cf2c42c`。
+docs\CANONICAL_CONSOLIDATION_20261031.md:21:R2 portraits: `PORTRAITS` → `tournament-rehearsal-portraits`（非公開）。R2 media: canonicalにはbindingなし。旧APIのみ `MEDIA` → `tournament-rehearsal-media` を参照。追加・削除なし。
+docs\CANONICAL_CONSOLIDATION_20261031.md:31:| tournament-animation-preview | `cloudflare/wrangler.animation-preview.jsonc.disabled` | 旧検証 | 旧静的Preview | なし | なし | なし | 削除候補 |
+docs\CANONICAL_CONSOLIDATION_20261031.md:32:| tournament-checkin-e2e | `cloudflare/checkin/wrangler.e2e.jsonc.disabled` | 旧検証 | ASSETS / dist-checkin（repo対応） | checkin/src/index.ts（repo対応） | DB: tournament-rehearsal-db / 0a7528e1-7f14-4e54-a896-4fbe2cf2c42c | PORTRAITS: tournament-rehearsal-portraits | 削除候補 |
+docs\CANONICAL_CONSOLIDATION_20261031.md:33:| tournament-checkin-rehearsal | `cloudflare/checkin/wrangler.jsonc.disabled` | 旧検証 | ASSETS / dist-checkin（repo対応） | checkin/src/index.ts（repo対応） | DB: tournament-rehearsal-db / 0a7528e1-7f14-4e54-a896-4fbe2cf2c42c | PORTRAITS: tournament-rehearsal-portraits | 保留（旧通常受付の利用者確認が必要） |
+docs\CANONICAL_CONSOLIDATION_20261031.md:34:| tournament-flow-e2e | `cloudflare/checkin/wrangler.flow-e2e.jsonc.disabled` | 旧検証 | ASSETS / dist-checkin（repo対応） | checkin/src/index.ts（repo対応） | DB: tournament-rehearsal-db / 0a7528e1-7f14-4e54-a896-4fbe2cf2c42c | PORTRAITS: tournament-rehearsal-portraits | 削除候補 |
+docs\CANONICAL_CONSOLIDATION_20261031.md:35:| tournament-match-loop-e2e | `cloudflare/checkin/wrangler.match-loop-e2e.jsonc.disabled` | 旧検証 | ASSETS / dist-checkin（repo対応） | checkin/src/index.ts（repo対応） | DB: tournament-rehearsal-db / 0a7528e1-7f14-4e54-a896-4fbe2cf2c42c | PORTRAITS: tournament-rehearsal-portraits | 削除候補 |
+docs\CANONICAL_CONSOLIDATION_20261031.md:36:| tournament-pair-gates-e2e | `cloudflare/checkin/wrangler.pair-gates-e2e.jsonc.disabled` | 旧検証 | ASSETS / dist-checkin（repo対応） | checkin/src/index.ts（repo対応） | DB: tournament-rehearsal-db / 0a7528e1-7f14-4e54-a896-4fbe2cf2c42c | PORTRAITS: tournament-rehearsal-portraits | 削除候補 |
+docs\CANONICAL_CONSOLIDATION_20261031.md:37:| tournament-rehearsal | `cloudflare/wrangler.jsonc.disabled` | 旧検証 | なし | 旧読取API | DB: tournament-rehearsal-db / 0a7528e1-7f14-4e54-a896-4fbe2cf2c42c | MEDIA: tournament-rehearsal-media, PORTRAITS: tournament-rehearsal-portraits | 削除候補 |
+docs\CANONICAL_CONSOLIDATION_20261031.md:38:| tournament-through-rehearsal | `cloudflare/checkin/wrangler.through-rehearsal.jsonc` | 通し大会 | ASSETS / dist-checkin（repo対応） | checkin/src/index.ts（repo対応） | DB: tournament-rehearsal-db / 0a7528e1-7f14-4e54-a896-4fbe2cf2c42c | PORTRAITS: tournament-rehearsal-portraits | canonical |
+docs\CHECKIN_LIFECYCLE.md:13:| 通常のスマホ受付 | https://tournament-checkin-rehearsal.pine-shaken.workers.dev/checkin | 受付中・本人写真付き1名「にゃー」 |
+docs\CHECKIN_LIFECYCLE.md:14:| 通常のDisplay | https://tournament-checkin-rehearsal.pine-shaken.workers.dev/display | 同じ参加者を5秒間隔で取得 |
+docs\CHECKIN_LIFECYCLE.md:15:| 通常の運営確認 | https://tournament-checkin-rehearsal.pine-shaken.workers.dev/admin | 読取専用 |
+docs\CHECKIN_LIFECYCLE.md:16:| 通常の登録写真で演出確認 | https://tournament-checkin-rehearsal.pine-shaken.workers.dev/show-preview | 登録者が1名の間はVS/NEXTに必要な相手の登録待ち |
+docs\CHECKIN_LIFECYCLE.md:17:| 4名の検証済み受付 | https://tournament-checkin-e2e.pine-shaken.workers.dev/checkin | 受付終了・テスト4名 |
+docs\CHECKIN_LIFECYCLE.md:18:| 4名の演出確認 | https://tournament-checkin-e2e.pine-shaken.workers.dev/show-preview | 6演出確認可能 |
+docs\ANIMATION_PREVIEW.md:7:https://tournament-animation-preview.pine-shaken.workers.dev/
+docs\ANIMATION_PREVIEW.md:11:| Draw | https://tournament-animation-preview.pine-shaken.workers.dev/?scene=draw |
+docs\ANIMATION_PREVIEW.md:12:| Result | https://tournament-animation-preview.pine-shaken.workers.dev/?scene=result |
+docs\ANIMATION_PREVIEW.md:13:| Bracket advance | https://tournament-animation-preview.pine-shaken.workers.dev/?scene=bracket |
+docs\ANIMATION_PREVIEW.md:14:| VS | https://tournament-animation-preview.pine-shaken.workers.dev/?scene=vs |
+docs\ANIMATION_PREVIEW.md:15:| NEXT MATCH | https://tournament-animation-preview.pine-shaken.workers.dev/?scene=next |
+docs\ANIMATION_PREVIEW.md:16:| Champion | https://tournament-animation-preview.pine-shaken.workers.dev/?scene=champion |
+docs\ANIMATION_PREVIEW.md:17:| 通し再生（自動再生） | https://tournament-animation-preview.pine-shaken.workers.dev/?scene=all&autoplay=1 |
+docs\ANIMATION_PREVIEW.md:18:| モニターで優勝演出（自動再生） | https://tournament-animation-preview.pine-shaken.workers.dev/?scene=champion&controls=0&autoplay=1 |
+docs\ANIMATION_PREVIEW.md:56:- Worker名: `tournament-animation-preview`
+docs\ANIMATION_PREVIEW.md:59:- 公開対象: 専用出力の静的ファイルだけ。既存 `tournament-rehearsal` Workerは更新しない。
+docs\CHECKIN_REHEARSAL.md:23:| スマホ受付 | https://tournament-checkin-rehearsal.pine-shaken.workers.dev/checkin |
+docs\CHECKIN_REHEARSAL.md:24:| 参加者確認 | https://tournament-checkin-rehearsal.pine-shaken.workers.dev/display |
+docs\CHECKIN_REHEARSAL.md:25:| 運営の参加者・写真確認（読取専用） | https://tournament-checkin-rehearsal.pine-shaken.workers.dev/admin |
+docs\CHECKIN_REHEARSAL.md:26:| **登録した写真で演出確認** | https://tournament-checkin-rehearsal.pine-shaken.workers.dev/show-preview |
+docs\CHECKIN_REHEARSAL.md:27:| 従来のサンプル専用Animation Preview | https://tournament-animation-preview.pine-shaken.workers.dev/ |
+docs\CHECKIN_REHEARSAL.md:147:- スマホ受付: https://tournament-checkin-rehearsal.pine-shaken.workers.dev/checkin
+docs\CHECKIN_REHEARSAL.md:148:- PC・モニターのDisplay確認: https://tournament-checkin-rehearsal.pine-shaken.workers.dev/display
+docs\CHECKIN_REHEARSAL.md:149:- 演出Preview: https://tournament-animation-preview.pine-shaken.workers.dev/
+docs\CHECKIN_REHEARSAL.md:177:| 専用Worker | `tournament-checkin-rehearsal` |
+docs\CHECKIN_REHEARSAL.md:179:| D1 | 既存 `tournament-rehearsal-db`、`participants` への追加のみ |
+docs\CHECKIN_REHEARSAL.md:181:| 写真 | 非公開R2 `tournament-rehearsal-portraits` |
+docs\CLOUDFLARE_CHECK.md:35:CF_CHECK_WORKER_ORIGIN=https://tournament-rehearsal.pine-shaken.workers.dev
+docs\CLOUDFLARE_CHECK.md:53:- 接続先はHTTPSの `tournament-rehearsal.<subdomain>.workers.dev` originのみ。リダイレクトは追従しない。
+docs\CLOUDFLARE_REQUIRED_ACTIONS.md:9:- 専用画面: https://tournament-through-rehearsal.pine-shaken.workers.dev/match-transition
+docs\CLOUDFLARE_REQUIRED_ACTIONS.md:15:追加の手動Cloudflare設定は不要です。専用Worker `tournament-through-rehearsal`（version `3e43f1b5-7bdd-445b-9ae6-078c469f10ee`）を既存D1／非公開R2へ接続し、既存の2つのSecretを設定済みです。`REHEARSAL_ENABLED=1` は専用Workerのみで有効、sourceは読取専用の `cf-rehearsal-001`。`cf-through-<UUID>` の新規検証大会を作成し、既存大会を削除・初期化しません。
+docs\CLOUDFLARE_REQUIRED_ACTIONS.md:19:専用公開入口： https://tournament-through-rehearsal.pine-shaken.workers.dev/rehearsal
+docs\CLOUDFLARE_REQUIRED_ACTIONS.md:26:隔離Worker `tournament-match-loop-e2e`（version `837be8aa-77da-487e-a401-076de44abaaa`）、event `cf-match-loop-e2e-20261025` を既存D1・非公開R2へ接続済みです。既存4名の写真を各2件の検証用登録へコピーし、模擬勝敗を1試合だけ入力しました。通常大会の勝敗は変更していません。隔離大会は第2試合の開始待ちです。
+docs\CLOUDFLARE_REQUIRED_ACTIONS.md:33:検証専用Worker `tournament-pair-gates-e2e` を同じ既存D1／非公開R2へ接続し、独立event `cf-pair-gates-e2e-20261025` と既存と同じ2つのWorker Secretを設定済みです。DB・R2作成、migration、バケット公開、ブラウザへのAPI Token追加は不要です。実登録4名の既存写真・ratingをコピーし、受付終了→発表待ち→Draw→Bracket待ち→ゲームスタート→第1試合VS待ちを公開確認しました。新しい実機撮影ではありません。
+docs\CLOUDFLARE_REQUIRED_ACTIONS.md:41:追加の手動Cloudflare操作は不要。既存のmatches・event_state・events.bracket_snapshot・command_receiptsへ連続進行を接続し、DB migrationや新規依存は追加していません。通常Workerを更新し、隔離した `tournament-flow-e2e` を同じDB/private R2へ固定event IDで追加しました。既存の確認コード・署名キーをWorker Secretとして設定済み。
+docs\CLOUDFLARE_REQUIRED_ACTIONS.md:53:追加の手動設定なしで [通常受付](https://tournament-checkin-rehearsal.pine-shaken.workers.dev/checkin) を利用できます。本人写真付き1名は保持。専用検証大会4名は受付終了済みです。
+docs\CLOUDFLARE_REQUIRED_ACTIONS.md:59:- `tournament-checkin-rehearsal` を更新、`tournament-checkin-e2e` を追加。DB/private R2は既存を使用し、大会IDとcookie署名を分離。既存の確認コードを各WorkerのSecretとして使用。
+docs\CLOUDFLARE_REQUIRED_ACTIONS.md:70:2026-10-24、既存基盤とは別の `tournament-checkin-rehearsal` Workerを公開し、専用確認コード／セッションを設定済み。既存D1の検証大会へ参加者1件、非公開R2へ写真1件を保存し、別セッションのDisplayで表示を確認した。利用開始のための追加Cloudflare操作は不要。既存DB・R2の再作成やpublic化、既存APIへのトークン追加は行わない。[操作・更新・秘密設定・検証記録](CHECKIN_REHEARSAL.md)。以下は従来基盤の経過記録。
+docs\CLOUDFLARE_REQUIRED_ACTIONS.md:74:2026-10-24、[依頼.md](./依頼.md) にてWorker公開、health 200、state未認証401、DISPLAY_API_TOKEN認証200、remote D1から検証大会取得成功の報告を受領。今回CLIでも `tournament-rehearsal` の公開・Secrets更新履歴を確認した。認証付きAPIの再試験は今回行っていない。
+docs\CLOUDFLARE_REQUIRED_ACTIONS.md:98:| D1 | `tournament-rehearsal-db` | 存在。作成2026-10-12。約0.25MB |
+docs\CLOUDFLARE_REQUIRED_ACTIONS.md:100:| 写真用R2 | `tournament-rehearsal-portraits` | 存在、0 objects／0 B、r2.dev公開なし、custom domainなし |
+docs\CLOUDFLARE_REQUIRED_ACTIONS.md:101:| 素材用R2 | `tournament-rehearsal-media` | 存在、0 objects／0 B、r2.dev公開なし、custom domainなし |
+docs\CLOUDFLARE_REQUIRED_ACTIONS.md:102:| 想定Worker | `tournament-rehearsal` | deployments照会でcode 10007「このアカウントには存在しない」 |
+docs\CLOUDFLARE_REQUIRED_ACTIONS.md:126:wrangler d1 execute tournament-rehearsal-db --remote --command "SELECT id,title,environment FROM events; SELECT COUNT(*) AS participants FROM participants; SELECT event_id,scene,version FROM event_state; SELECT * FROM d1_migrations; PRAGMA foreign_key_check;" --json
+docs\CLOUDFLARE_REQUIRED_ACTIONS.md:127:wrangler r2 bucket info tournament-rehearsal-portraits
+docs\CLOUDFLARE_REQUIRED_ACTIONS.md:128:wrangler r2 bucket info tournament-rehearsal-media
+docs\CLOUDFLARE_REQUIRED_ACTIONS.md:129:wrangler r2 bucket dev-url get tournament-rehearsal-portraits
+docs\CLOUDFLARE_REQUIRED_ACTIONS.md:130:wrangler r2 bucket dev-url get tournament-rehearsal-media
+docs\CLOUDFLARE_REQUIRED_ACTIONS.md:131:wrangler r2 bucket domain list tournament-rehearsal-portraits
+docs\CLOUDFLARE_REQUIRED_ACTIONS.md:132:wrangler r2 bucket domain list tournament-rehearsal-media
+docs\CLOUDFLARE_REQUIRED_ACTIONS.md:133:wrangler deployments list --name tournament-rehearsal --json
+docs\CLOUDFLARE_REQUIRED_ACTIONS.md:174:2. Worker名 `tournament-rehearsal`、対象アカウント、D1、R2を再確認。
+docs\ENVIRONMENT_CONSOLIDATION.md:7:2026-10-30: 旧Supabase受領資料と移動時点の生成物を `archive/` へ保管後、canonical Worker `tournament-through-rehearsal` へデプロイ完了。Version ID: `aca4f408-5939-4e36-8723-1971e2a76c64`。公開URLは https://tournament-through-rehearsal.pine-shaken.workers.dev 。`/`・`/rehearsal`・`/checkin`・`/admin`・`/display` はすべてHTTP 200、HTML app rootあり。未認証の `/api/rehearsal/config` は401（認証必須）を返すことも確認。
+docs\ENVIRONMENT_CONSOLIDATION.md:61:- Worker：既存`tournament-through-rehearsal`。
+docs\ENVIRONMENT_CONSOLIDATION.md:62:- D1：既存`tournament-rehearsal-db`。
+docs\ENVIRONMENT_CONSOLIDATION.md:63:- R2：既存非公開`tournament-rehearsal-portraits`。`tournament-rehearsal-media`は旧素材用であり、現行受付・進行のbindingに追加しない。
+docs\ENVIRONMENT_CONSOLIDATION.md:102:| TOP | https://tournament-through-rehearsal.pine-shaken.workers.dev/?run=cf-through-81b47523-4b12-43b8-80e3-9ba6496e75b2 |
+docs\ENVIRONMENT_CONSOLIDATION.md:103:| 受付 | https://tournament-through-rehearsal.pine-shaken.workers.dev/checkin?run=cf-through-81b47523-4b12-43b8-80e3-9ba6496e75b2 |
+docs\ENVIRONMENT_CONSOLIDATION.md:104:| Admin | https://tournament-through-rehearsal.pine-shaken.workers.dev/admin?run=cf-through-81b47523-4b12-43b8-80e3-9ba6496e75b2 |
+docs\ENVIRONMENT_CONSOLIDATION.md:105:| Display | https://tournament-through-rehearsal.pine-shaken.workers.dev/display?run=cf-through-81b47523-4b12-43b8-80e3-9ba6496e75b2 |
+docs\ENVIRONMENT_CONSOLIDATION.md:106:| Rehearsal | https://tournament-through-rehearsal.pine-shaken.workers.dev/rehearsal?run=cf-through-81b47523-4b12-43b8-80e3-9ba6496e75b2 |
+docs\ENVIRONMENT_CONSOLIDATION.md:107:| Animation Preview | https://tournament-through-rehearsal.pine-shaken.workers.dev/show-preview?run=cf-through-81b47523-4b12-43b8-80e3-9ba6496e75b2 |
+docs\CLOUDFLARE_SETUP_RUNBOOK.md:81:| D1 | `tournament-rehearsal-db` | `DB` |
+docs\CLOUDFLARE_SETUP_RUNBOOK.md:82:| 写真R2 | `tournament-rehearsal-portraits` | `PORTRAITS` |
+docs\CLOUDFLARE_SETUP_RUNBOOK.md:83:| 素材R2 | `tournament-rehearsal-media` | `MEDIA` |
+docs\CLOUDFLARE_SETUP_RUNBOOK.md:90:npx wrangler d1 create tournament-rehearsal-db --config cloudflare/wrangler.jsonc
+docs\CLOUDFLARE_SETUP_RUNBOOK.md:109:CloudflareダッシュボードのD1画面からもIDを確認できます。CLI出力やダッシュボードでDB名が `tournament-rehearsal-db` であることを確認します。[D1コマンドの公式説明](https://developers.cloudflare.com/d1/wrangler-commands/)
+docs\CLOUDFLARE_SETUP_RUNBOOK.md:165:npx wrangler r2 bucket create tournament-rehearsal-portraits --config cloudflare/wrangler.jsonc
+docs\CLOUDFLARE_SETUP_RUNBOOK.md:166:npx wrangler r2 bucket create tournament-rehearsal-media --config cloudflare/wrangler.jsonc
+docs\CLOUDFLARE_SETUP_RUNBOOK.md:191:D1名：tournament-rehearsal-db
+docs\DRAW_D1_REHEARSAL.md:11:| 受付 | https://tournament-checkin-rehearsal.pine-shaken.workers.dev/checkin |
+docs\DRAW_D1_REHEARSAL.md:12:| 運営・Draw開始 | https://tournament-checkin-rehearsal.pine-shaken.workers.dev/admin |
+docs\DRAW_D1_REHEARSAL.md:13:| 会場Display | https://tournament-checkin-rehearsal.pine-shaken.workers.dev/display |
+docs\DRAW_D1_REHEARSAL.md:17:検証大会の確定済みBracketは https://tournament-checkin-e2e.pine-shaken.workers.dev/display で参照できます。Draw確定後にreloadしても抽選し直しません。サンプル専用Animation Previewは https://tournament-animation-preview.pine-shaken.workers.dev/ に残しています。
+scripts\verify-checkin-lifecycle.cjs:5:const root='https://tournament-checkin-e2e.pine-shaken.workers.dev';
+scripts\verify-checkin-lifecycle.cjs:12:async function r2(key){return fetch(base+'/r2/buckets/tournament-rehearsal-portraits/objects/'+key,{headers:{Authorization:`Bearer ${token}`}});}
+scripts\verify-canonical-isolation.mjs:3:const root='https://tournament-through-rehearsal.pine-shaken.workers.dev';
+scripts\verify-canonical-handoff.cjs:3:const root='https://tournament-through-rehearsal.pine-shaken.workers.dev';
+scripts\verify-canonical-entry.cjs:5:const root=local?'http://localhost:5174':'https://tournament-through-rehearsal.pine-shaken.workers.dev';
+docs\DAY_OF_EVENT.md:3:**正本 URL:** https://tournament-through-rehearsal.pine-shaken.workers.dev/
+scripts\prepare-smartphone-rehearsal.cjs:4:const root='https://tournament-through-rehearsal.pine-shaken.workers.dev';
+scripts\prepare-checkin-secrets.mjs:10:writeFileSync('.checkin-access.local', `大会受付・Display確認用コード（共有する相手を限定してください）\n\n確認コード: ${secrets.REHEARSAL_ACCESS_CODE}\n\n受付: https://tournament-checkin-rehearsal.pine-shaken.workers.dev/checkin\nDisplay: https://tournament-checkin-rehearsal.pine-shaken.workers.dev/display\n\n各端末で一度入力します。8時間で再入力が必要です。\nこのファイルと秘密設定はGit管理対象外です。\n`, { mode: 0o600 });
+scripts\prepare-canonical-rehearsal32.cjs:4:const root='https://tournament-through-rehearsal.pine-shaken.workers.dev';
+scripts\dev\cloudflareReadProxy.ts:18:  if (!origin || !/^https:\/\/tournament-rehearsal\.[a-z0-9-]+\.workers\.dev$/.test(origin)
+scripts\dev\cloudflareReadProxy.test.ts:37:  const middleware = cloudflareReadMiddleware(() => configured ? { origin: 'https://tournament-rehearsal.example.workers.dev', token } : null, upstream as typeof fetch);
+scripts\dev\cloudflareReadProxy.test.ts:45:    const dir = configDirectory('https://tournament-rehearsal.example.workers.dev');
+scripts\dev\cloudflareReadProxy.test.ts:46:    expect(readProxyConfig(dir)).toEqual({ origin: 'https://tournament-rehearsal.example.workers.dev', token });
+scripts\dev\cloudflareReadProxy.test.ts:50:    const dir = configDirectory('https://tournament-rehearsal.example.workers.dev', remote);
+scripts\dev\cloudflareReadProxy.test.ts:53:  it.each(['http://127.0.0.1:8787', 'https://example.org', 'https://tournament-rehearsal.example.workers.dev/other', 'https://tournament-rehearsal.example.workers.dev?target=x'])('rejects unsafe configured origins %s', origin => {
+scripts\dev\cloudflareReadProxy.test.ts:62:    expect(f.upstream).toHaveBeenCalledWith('https://tournament-rehearsal.example.workers.dev/api/events/cf-rehearsal-001/state', expect.objectContaining({ method: 'GET', redirect: 'error', headers: { Accept: 'application/json', Authorization: `Bearer ${token}` } }));
+scripts\collect-rehearsal32-evidence.mjs:18:const summary={worker:'tournament-through-rehearsal',deployment,local:summarize(local),publicShow:summarize(show),ready};
+docs\MATCH_PROGRESS_LOOP.md:41:| 今回の隔離大会・運営 | https://tournament-match-loop-e2e.pine-shaken.workers.dev/admin |
+docs\MATCH_PROGRESS_LOOP.md:42:| 今回の隔離大会・Display | https://tournament-match-loop-e2e.pine-shaken.workers.dev/display |
+docs\MATCH_PROGRESS_LOOP.md:43:| 通常大会・運営 | https://tournament-checkin-rehearsal.pine-shaken.workers.dev/admin |
+docs\MATCH_PROGRESS_LOOP.md:44:| 通常大会・Display | https://tournament-checkin-rehearsal.pine-shaken.workers.dev/display |
+docs\MATCH_PROGRESS_LOOP.md:45:| 独立Animation Preview | https://tournament-animation-preview.pine-shaken.workers.dev/ |
+docs\PAIR_ANNOUNCEMENT_FLOW.md:36:| 通常大会の受付 | https://tournament-checkin-rehearsal.pine-shaken.workers.dev/checkin |
+docs\PAIR_ANNOUNCEMENT_FLOW.md:37:| 通常大会の運営 | https://tournament-checkin-rehearsal.pine-shaken.workers.dev/admin |
+docs\PAIR_ANNOUNCEMENT_FLOW.md:38:| 通常大会のDisplay | https://tournament-checkin-rehearsal.pine-shaken.workers.dev/display |
+docs\PAIR_ANNOUNCEMENT_FLOW.md:39:| 今回の隔離検証大会・運営 | https://tournament-pair-gates-e2e.pine-shaken.workers.dev/admin |
+docs\PAIR_ANNOUNCEMENT_FLOW.md:40:| 今回の隔離検証大会・Display | https://tournament-pair-gates-e2e.pine-shaken.workers.dev/display |
+docs\PAIR_ANNOUNCEMENT_FLOW.md:41:| 独立Animation Preview | https://tournament-animation-preview.pine-shaken.workers.dev/ |
+scripts\verify-match-loop.cjs:5:const root='https://tournament-match-loop-e2e.pine-shaken.workers.dev';
+scripts\verify-match-loop.cjs:6:const source='https://tournament-checkin-rehearsal.pine-shaken.workers.dev';
+docs\MATCH_RESULT_PRESENTATION.md:38:[試合結果 → 次試合 演出確認](https://tournament-through-rehearsal.pine-shaken.workers.dev/match-transition)。従来と同じ確認コードです。[ローカル保存先](../.checkin-access.local)。
+docs\MATCH_RESULT_PRESENTATION.md:106:[準備済みの「試合結果 → 次試合 演出確認」を開く](https://tournament-through-rehearsal.pine-shaken.workers.dev/match-transition?run=cf-through-dfcd1cf1-a6b2-475b-abe4-f9ef9fd8c5d5)
+docs\README.md:7:**32人・16チーム・15試合の確認は [REHEARSAL32.md](REHEARSAL32.md) が現在の正本です。** 既存 `tournament-through-rehearsal` をcanonicalとし、5つのrouteを同じrunから確認します。過去の8名・match-loop等のURLへ移動しないでください。
+scripts\verify-live-participants.cjs:6:const root = process.argv[2] || 'https://tournament-checkin-rehearsal.pine-shaken.workers.dev';
+scripts\verify-pair-gates.cjs:5:const root='https://tournament-pair-gates-e2e.pine-shaken.workers.dev';
+scripts\verify-pair-gates.cjs:6:const source='https://tournament-checkin-rehearsal.pine-shaken.workers.dev';
+docs\REHEARSAL32.md:5:canonical Workerは既存の **tournament-through-rehearsal**。入口は <https://tournament-through-rehearsal.pine-shaken.workers.dev/rehearsal>。このWorker内の受付・Admin・Display・Rehearsal・登録写真のAnimation Previewを使用する。今回、新しい公開Workerは作らない。
+docs\REHEARSAL32.md:11:| Rehearsal | [通し確認を開く](https://tournament-through-rehearsal.pine-shaken.workers.dev/rehearsal?run=cf-through-6912c2e2-bbfb-4c71-90d5-da764b5a6003) |
+docs\REHEARSAL32.md:12:| Admin | [運営を開く](https://tournament-through-rehearsal.pine-shaken.workers.dev/admin?run=cf-through-6912c2e2-bbfb-4c71-90d5-da764b5a6003) |
+docs\REHEARSAL32.md:13:| Display | [観客Displayを開く](https://tournament-through-rehearsal.pine-shaken.workers.dev/display?run=cf-through-6912c2e2-bbfb-4c71-90d5-da764b5a6003) |
+docs\REHEARSAL32.md:14:| Check-in | [受付完了一覧を開く](https://tournament-through-rehearsal.pine-shaken.workers.dev/checkin?run=cf-through-6912c2e2-bbfb-4c71-90d5-da764b5a6003) |
+docs\REHEARSAL32.md:15:| Animation Preview | [登録写真の演出確認を開く](https://tournament-through-rehearsal.pine-shaken.workers.dev/show-preview?run=cf-through-6912c2e2-bbfb-4c71-90d5-da764b5a6003) |
+docs\REHEARSAL32.md:46:| D1/R2 | canonicalの既存tournament-rehearsal-dbと非公開tournament-rehearsal-portraitsを継続。localは別のローカルD1/R2 |
+scripts\verify-pair-gates-deployment.cjs:4:const root='https://tournament-checkin-rehearsal.pine-shaken.workers.dev',preview='https://tournament-animation-preview.pine-shaken.workers.dev';
+scripts\verify-match-transition.cjs:3:const root='https://tournament-through-rehearsal.pine-shaken.workers.dev',output='.wrangler/match-transition-e2e';
+docs\THROUGH_REHEARSAL.md:9:[大会通しリハーサルを開く](https://tournament-through-rehearsal.pine-shaken.workers.dev/rehearsal)。確認コードは従来と同じです。[ローカル保存先](../.checkin-access.local)。
+docs\THROUGH_REHEARSAL.md:90:| 8名準備済み・入口 | https://tournament-through-rehearsal.pine-shaken.workers.dev/rehearsal?run=cf-through-7a1ad3e0-cf5c-474f-872d-cb87708c7ed5 |
+docs\THROUGH_REHEARSAL.md:91:| 同じ大会・運営 | https://tournament-through-rehearsal.pine-shaken.workers.dev/admin?run=cf-through-7a1ad3e0-cf5c-474f-872d-cb87708c7ed5 |
+docs\THROUGH_REHEARSAL.md:92:| 同じ大会・Display | https://tournament-through-rehearsal.pine-shaken.workers.dev/display?run=cf-through-7a1ad3e0-cf5c-474f-872d-cb87708c7ed5 |
+docs\THROUGH_REHEARSAL.md:93:| 完走済み大会・入口 | https://tournament-through-rehearsal.pine-shaken.workers.dev/rehearsal?run=cf-through-682151c1-6591-4769-a6b2-bdbb13524a25 |
+docs\THROUGH_REHEARSAL.md:94:| 独立Animation Preview | https://tournament-animation-preview.pine-shaken.workers.dev/ |
+scripts\verify-match-transition-showcase.cjs:6:  const root = 'https://tournament-through-rehearsal.pine-shaken.workers.dev';
+scripts\verify-rehearsal32.cjs:7:const root=publicRun?'https://tournament-through-rehearsal.pine-shaken.workers.dev':`http://localhost:${Number(process.env.PORT??5174)}`;
+scripts\verify-photo-display.cjs:5:const origin = process.argv[2] || 'https://tournament-checkin-rehearsal.pine-shaken.workers.dev';
+docs\依頼.md:5:- tournament-through-rehearsal
+docs\依頼.md:6:- tournament-checkin-rehearsal
+docs\依頼.md:7:- tournament-match-loop-e2e
+docs\依頼.md:8:- tournament-pair-gates-e2e
+docs\依頼.md:9:- tournament-flow-e2e
+docs\依頼.md:10:- tournament-checkin-e2e
+docs\依頼.md:11:- tournament-animation-preview
+docs\依頼.md:12:- tournament-rehearsal
+docs\依頼.md:51:`tournament-through-rehearsal`
+docs\依頼.md:52:`tournament-checkin-rehearsal`
+docs\依頼.md:53:`tournament-match-loop-e2e`
+docs\依頼.md:54:`tournament-pair-gates-e2e`
+docs\依頼.md:55:`tournament-flow-e2e`
+docs\依頼.md:56:`tournament-checkin-e2e`
+docs\依頼.md:57:`tournament-animation-preview`
+docs\依頼.md:58:`tournament-rehearsal`
+docs\依頼.md:143:`tournament-through-rehearsal`
+scripts\verify-persisted-draw.cjs:4:const root=process.argv[2]||'https://tournament-checkin-e2e.pine-shaken.workers.dev';
+scripts\verify-persisted-draw.cjs:5:assert.ok(['https://tournament-checkin-e2e.pine-shaken.workers.dev','https://tournament-checkin-rehearsal.pine-shaken.workers.dev'].includes(root));
+docs\TOURNAMENT_FLOW.md:13:| 通常大会・受付 | https://tournament-checkin-rehearsal.pine-shaken.workers.dev/checkin |
+docs\TOURNAMENT_FLOW.md:14:| 通常大会・運営 | https://tournament-checkin-rehearsal.pine-shaken.workers.dev/admin |
+docs\TOURNAMENT_FLOW.md:15:| 通常大会・Display | https://tournament-checkin-rehearsal.pine-shaken.workers.dev/display |
+docs\TOURNAMENT_FLOW.md:16:| 8名・4チームの完走済み検証大会 | https://tournament-flow-e2e.pine-shaken.workers.dev/display |
+docs\TOURNAMENT_FLOW.md:17:| 完走済み検証大会の運営確認 | https://tournament-flow-e2e.pine-shaken.workers.dev/admin |
+docs\TOURNAMENT_FLOW.md:113:証跡はGit除外の `.wrangler/tournament-flow-e2e/result.json`、`reception-eight.png`、`next-match-hold.png`、`result-1..7.png`、`champion.png`。再現スクリプトは `scripts/verify-tournament-flow.cjs`。既存データの自動削除や大会リセットは行いません。
+docs\TOURNAMENT_FLOW.md:126:運営画面を再読み込みし、「試合開始」→実際の試合→勝者確定の順で操作してください。通常大会自体の実戦による勝敗入力からChampionまでは、運営者の結果入力待ちです。証跡は `.wrangler/tournament-flow-e2e/primary-status.json` とGit除外の確認画像に保存しました。本人写真を公開ドキュメントへ添付していません。
+src\checkin\MatchTransitionPage.tsx:27:  <div className="transition-controls">{enabled?<button disabled={busy} onClick={()=>void prepare()}>確認用の1試合を準備</button>:<a className="button" href="https://tournament-through-rehearsal.pine-shaken.workers.dev/match-transition">専用確認環境を開く</a>}{run&&<a className="button" href={scopedUrl('/display')} target="_blank" rel="noreferrer">本番Displayを別ウィンドウで開く</a>}</div><p role="status">{message}</p>{error&&<p role="alert">{error}</p>}
+src\checkin\RehearsalPage.tsx:53: if(!enabled)return <section className="card"><h1>大会通しリハーサル</h1><a className="button" href="https://tournament-through-rehearsal.pine-shaken.workers.dev/rehearsal">専用リハーサル環境を開く</a></section>;
+scripts\verify-tournament-flow.cjs:4:const root='https://tournament-flow-e2e.pine-shaken.workers.dev',eventId='cf-flow-e2e-20261025',output='.wrangler/tournament-flow-e2e';
+scripts\verify-through-rehearsal.cjs:5:const root=local?`http://localhost:${process.env.PORT??5174}`:'https://tournament-through-rehearsal.pine-shaken.workers.dev',output=local?'.wrangler/local-e2e':'.wrangler/through-rehearsal-e2e';
+scripts\verify-through-manual.cjs:4:const root='https://tournament-through-rehearsal.pine-shaken.workers.dev',output='.wrangler/through-rehearsal-e2e';

@@ -1,0 +1,54 @@
+.cer-fit{position:fixed;inset:0;overflow:hidden;background:#04050a}
+.cer-fit.is-contained{position:absolute;background:transparent}
+.cer-stage{position:absolute;left:50%;top:50%;width:1920px;height:1080px;transform-origin:center center;overflow:hidden;background:#04050a;color:#f8fafc}
+.cer-layer{position:absolute;inset:0;pointer-events:none}
+.cer-img{position:absolute;inset:0;background-size:100% 100%;background-repeat:no-repeat}
+.cer-vignette{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 48%,transparent 52%,rgba(0,0,0,.6) 100%)}
+.cer-white{position:absolute;inset:0;background:#fff;opacity:0;visibility:hidden;pointer-events:none}
+.cer-text{position:absolute;left:0;right:0;margin:0;text-align:center;font-weight:900;line-height:1;white-space:nowrap}
+.cer-gold{background:linear-gradient(180deg,#fffbe6 0%,#fde68a 36%,#f59e0b 70%,#b45309 100%);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 4px 0 rgba(0,0,0,.7)) drop-shadow(0 0 30px rgba(251,191,36,.55))}
+.cer-card{position:absolute;overflow:hidden;border:2px solid rgba(253,224,138,.8);background:#0b1220;box-shadow:0 0 0 1px rgba(0,0,0,.6),0 24px 60px rgba(0,0,0,.6),0 0 40px rgba(251,191,36,.25)}
+.cer-card>img,.cer-empty{display:block;width:100%;height:100%;object-fit:cover}
+.cer-empty{display:grid;place-items:center;font-size:96px;color:#94a3b8}
+.cer-card::after{content:'';position:absolute;left:0;right:0;bottom:0;height:38%;background:linear-gradient(transparent,rgba(0,0,0,.85))}
+.cer-card-name{position:absolute;left:14px;right:14px;bottom:20px;z-index:1;margin:0;text-align:center;font-size:40px;font-weight:900;line-height:1.1;letter-spacing:.03em;text-shadow:0 2px 0 #000,0 0 14px #000;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cer-hold .cer-card{animation:cer-glow 2.8s ease-in-out infinite}
+.cer-hold .cer-card+.cer-card{animation-delay:-1.4s}
+@keyframes cer-glow{50%{box-shadow:0 0 0 1px rgba(0,0,0,.6),0 24px 60px rgba(0,0,0,.6),0 0 72px rgba(251,191,36,.6)}}
+@keyframes cer-breathe{to{transform:scale(1.035)}}
+@keyframes cer-pulse{from{opacity:.45}to{opacity:1}}
+
+/* Pair: ring center is placed at (960, 506) of the stage. */
+.pc-board{background:#020308}
+.pc-rings{position:absolute;left:-4px;top:-2px;width:1960px;height:1102px;transform-origin:965px 508px}
+.pc-drift{position:absolute;inset:0;transform-origin:965px 508px;animation:cer-breathe 20s ease-in-out infinite alternate}
+.pc-spin{position:absolute;inset:0;background-size:100% 100%;mix-blend-mode:screen;opacity:.55;transform-origin:965px 508px;animation:pc-spin 40s linear infinite;-webkit-mask-image:radial-gradient(circle at 965px 508px,transparent 290px,#000 320px,#000 372px,transparent 404px);mask-image:radial-gradient(circle at 965px 508px,transparent 290px,#000 320px,#000 372px,transparent 404px)}
+@keyframes pc-spin{to{transform:rotate(360deg)}}
+.pc-flare{position:absolute;left:510px;top:56px;width:900px;height:900px;border-radius:50%;background:radial-gradient(circle,rgba(255,244,200,.95),rgba(251,191,36,.45) 30%,transparent 62%);mix-blend-mode:screen;opacity:0;visibility:hidden;pointer-events:none}
+.pc-team-no{top:40px;font-size:28px;letter-spacing:.5em;padding-left:.5em;color:#fcd34d;text-shadow:0 2px 6px #000}
+.pc-title{top:76px;font-size:78px;letter-spacing:.18em;padding-left:.18em}
+.pc-next{top:904px;font-size:24px;font-weight:800;letter-spacing:.4em;padding-left:.4em;color:rgba(207,250,254,.85);text-shadow:0 2px 6px #000}
+
+/* Winner: the light shaft runs through x=962, its floor reflection at y=794. */
+.wb-board{background:#020306}
+.wb-drift{position:absolute;inset:0;transform-origin:962px 520px;animation:cer-breathe 24s ease-in-out infinite alternate}
+.wb-glow{position:absolute;left:662px;top:-40px;width:600px;height:900px;background:radial-gradient(ellipse 30% 50% at 50% 45%,rgba(255,230,150,.5),transparent 70%);mix-blend-mode:screen;animation:cer-pulse 4s ease-in-out infinite alternate}
+.wb-dust{position:absolute;left:842px;top:0;width:240px;height:820px;mix-blend-mode:screen;opacity:.85;background:radial-gradient(circle,rgba(255,236,170,.95) 0 1.6px,transparent 2.6px) 0 0/38px 46px,radial-gradient(circle,rgba(253,224,138,.7) 0 1.1px,transparent 2px) 19px 23px/52px 64px;-webkit-mask-image:radial-gradient(ellipse 50% 52% at 50% 46%,#000 35%,transparent 100%);mask-image:radial-gradient(ellipse 50% 52% at 50% 46%,#000 35%,transparent 100%);animation:wb-rise 8s linear infinite}
+@keyframes wb-rise{to{background-position:0 -460px,19px -425px}}
+.wb-title{top:56px;font-size:156px;letter-spacing:.2em;padding-left:.2em}
+.wb-team{top:800px;left:160px;right:160px;font-size:56px;letter-spacing:.08em;color:#fef3c7;text-shadow:0 3px 0 #000,0 0 24px rgba(0,0,0,.9);overflow:hidden;text-overflow:ellipsis}
+.wb-loser{position:absolute;right:56px;bottom:44px;margin:0;font-size:26px;font-weight:800;letter-spacing:.1em;color:#94a3b8;text-shadow:0 2px 6px #000}
+
+/* Champion: corona horizon at y=479; podium tops at y≈750, fronts 776–885. */
+.cb-board{background:#020306}
+.cb-drift{position:absolute;inset:0;transform-origin:960px 480px;animation:cer-breathe 30s ease-in-out infinite alternate}
+.cb-corona{position:absolute;inset:0;background-size:100% 100%;mix-blend-mode:screen;opacity:0;-webkit-mask-image:radial-gradient(ellipse 470px 270px at 960px 360px,#000 35%,transparent 100%);mask-image:radial-gradient(ellipse 470px 270px at 960px 360px,#000 35%,transparent 100%);animation:cb-glow 90s ease-in-out infinite}
+.cb-shimmer{animation:cb-shimmer 5s ease-in-out infinite}
+@keyframes cb-glow{0%,100%{opacity:0}50%{opacity:.75}}
+@keyframes cb-shimmer{0%,100%{opacity:.05}50%{opacity:.28}}
+.cb-flare{position:absolute;left:260px;top:449px;width:1400px;height:60px;background:radial-gradient(ellipse 50% 50% at 50% 50%,#fff8dc,rgba(251,191,36,.6) 35%,transparent 70%);mix-blend-mode:screen;opacity:0;visibility:hidden;pointer-events:none}
+.cb-title{top:52px;font-size:140px;letter-spacing:.16em;padding-left:.16em}
+.cb-name{position:absolute;top:800px;width:420px;margin:0;text-align:center;font-size:42px;font-weight:900;line-height:1.1;color:#fff;text-shadow:0 2px 0 #000,0 0 14px #000;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cb-team{top:930px;left:160px;right:160px;font-size:52px;letter-spacing:.08em;color:#fde68a;text-shadow:0 3px 0 #000,0 0 24px rgba(0,0,0,.9);overflow:hidden;text-overflow:ellipsis}
+
+@media(prefers-reduced-motion:reduce){.pc-drift,.pc-spin,.wb-drift,.wb-glow,.wb-dust,.cb-drift,.cb-corona,.cer-hold .cer-card{animation:none}}

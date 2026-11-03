@@ -4,9 +4,13 @@ import type { StageControls } from '../features/presentation/postMatch/PostMatch
 import type { PresentationMode } from '../types';
 import { TOURNAMENT_EFFECTS as FX } from '../lib/tournamentEffects';
 import { drawSeconds } from '../features/presentation/drawAnimationTiming';
+import PresentationBackdrop from '../features/presentation/backdrop/PresentationBackdrop';
+import { appendChampionBackdrop, startBackdropLoops } from '../features/presentation/backdrop/appendPresentationBackdrop';
+import { playPresentationAudio } from '../features/presentation/backdrop/playPresentationAudio';
 import type { sampleWinner } from './fixtures';
 
 interface Props {
+  audioEnabled?: boolean;
   eventLabel?: string;
   scene: 'draw' | 'champion';
   mode: PresentationMode;
@@ -18,7 +22,7 @@ export function fixtureDuration(scene: Props['scene'], mode: PresentationMode) {
 }
 
 /** Presentational renderer: receives team data; no persistence or scene API. */
-const FixtureStage = forwardRef<StageControls, Props>(function FixtureStage({ scene, mode, team, onProgress, eventLabel = 'ANIMATION PREVIEW · SAMPLE ONLY' }, ref) {
+const FixtureStage = forwardRef<StageControls, Props>(function FixtureStage({ scene, mode, team, onProgress, eventLabel = 'ANIMATION PREVIEW · SAMPLE ONLY', audioEnabled = false }, ref) {
   const root = useRef<HTMLDivElement>(null);
   const timeline = useRef<gsap.core.Timeline>();
   useImperativeHandle(ref, () => ({
@@ -45,12 +49,15 @@ const FixtureStage = forwardRef<StageControls, Props>(function FixtureStage({ sc
         tl.fromTo('.ap-crown', { autoAlpha: 0, yPercent: mode === 'lite' ? 0 : -30, scale: .8 }, { autoAlpha: 1, yPercent: 0, scale: 1, duration: .8 * f }, 0)
           .fromTo('.ap-champion-title', { autoAlpha: 0, letterSpacing: '.25em' }, { autoAlpha: 1, letterSpacing: '.1em', duration: .8 * f }, .5 * f)
           .fromTo('.ap-champions', { autoAlpha: 0, scale: .9 }, { autoAlpha: 1, scale: 1, duration: .8 * f }, 1 * f);
-        tl.fromTo('.ap-confetti', { autoAlpha: 0, yPercent: mode === 'lite' ? 0 : -12 }, { autoAlpha: mode === 'lite' ? .12 : .4, yPercent: 0, duration: 2 * f }, 0);
+        appendChampionBackdrop(tl, root.current!, f);
+        tl.call(() => playPresentationAudio('teamConfirm', audioEnabled), [], .05)
+          .call(() => playPresentationAudio('impact', audioEnabled), [], .4 * f);
+        startBackdropLoops(root.current!, mode);
       }
       tl.to({}, { duration: fixtureDuration(scene, mode) }, 0);
     }, root);
     return () => { ctx.revert(); timeline.current = undefined; };
-  }, [scene, mode, onProgress]);
+  }, [scene, mode, onProgress, audioEnabled]);
   return <div ref={root} className={`pm-stage ap-fixture ap-${scene}`} aria-label={scene === 'draw' ? 'サンプル抽選演出' : 'サンプル優勝演出'}>
     <div className="pm-title">DARTS TOURNAMENT <span>{eventLabel}</span></div>
     {scene === 'draw' ? <>
@@ -62,7 +69,7 @@ const FixtureStage = forwardRef<StageControls, Props>(function FixtureStage({ sc
       <img className="ap-dart" src={FX.darts.main} alt="" />
       <div className="ap-confirm">{team.members.length === 2 ? 'PAIR CONFIRMED' : 'PARTICIPANT CONFIRMED'} <small>{team.name}</small></div>
     </> : <>
-      <img className="ap-confetti" src={FX.effects.celebrationConfetti} alt="" />
+      <PresentationBackdrop variant="champion" />
       <div className="ap-crown" aria-hidden="true">♛</div>
       <h2 className="ap-champion-title">CHAMPION</h2>
       <div className="ap-champions"><div>{team.members.map((member, i) => <figure key={i}><img src={team.faces[i]} alt="" /><figcaption>{member}</figcaption></figure>)}</div><strong>{team.name}</strong></div>

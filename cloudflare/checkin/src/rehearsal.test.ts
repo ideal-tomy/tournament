@@ -1,6 +1,17 @@
 import {describe,it,expect} from 'vitest';
 import {setup} from './testSupport';
 describe('isolated through rehearsal using normal tournament APIs',()=>{
+ it('never falls back for missing runs or mismatched portrait scope',async()=>{
+  const s=setup();await s.login();const old=await s.create('old photo');
+  s.env.REHEARSAL_ENABLED='1';s.env.REHEARSAL_SOURCE_EVENT_ID='cf-rehearsal-001';
+  for(const path of ['/api/participants','/api/checkin/state','/api/draw/state'])
+   expect((await s.request(path)).status).toBe(409);
+  const run=`cf-through-${crypto.randomUUID()}`;
+  expect((await s.request('/api/participants?run='+run)).status).toBe(404);
+  expect((await s.request(old.participant.portraitUrl+'?run='+run)).status).toBe(404);
+  const asset=await s.request('/assets/app.js');expect(asset.headers.get('Cache-Control')).not.toBe('no-store');
+  expect((await s.request('/api/health')).headers.get('Cache-Control')).toBe('no-store');
+ });
  it('requires authentication, same origin and an explicitly enabled Worker',async()=>{
   const s=setup();expect((await s.request('/api/rehearsal/config')).status).toBe(401);await s.login();expect((await s.request('/api/rehearsal/config')).status).toBe(404);
   s.env.REHEARSAL_ENABLED='1';expect((await s.request('/api/rehearsal/create','POST',{requestId:crypto.randomUUID()},'https://evil.example')).status).toBe(403);

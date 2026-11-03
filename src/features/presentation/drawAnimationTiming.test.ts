@@ -8,16 +8,18 @@ import {
 
 describe('draw animation timing', () => {
   it('keeps the requested impact and confirmation timings', () => {
+    expect(DRAW_ANIMATION_TIMING.cardSettle).toBe(600);
     expect(DRAW_ANIMATION_TIMING.dartFlight).toBe(600);
-    expect(DRAW_ANIMATION_TIMING.impactHold).toBe(2000);
+    expect(DRAW_ANIMATION_TIMING.impactHold).toBe(1600);
     expect(DRAW_ANIMATION_TIMING.cardFlip).toBe(700);
     expect(DRAW_ANIMATION_TIMING.playerReveal).toBe(800);
+    expect(DRAW_ANIMATION_TIMING.revealHold).toBe(2000);
     expect(DRAW_ANIMATION_TIMING.pairConfirmHold).toBe(7000);
     expect(DRAW_ANIMATION_TIMING.transitionToNext).toBe(800);
   });
 
   it('converts milliseconds to GSAP seconds', () => {
-    expect(drawSeconds('impactHold')).toBe(2);
+    expect(drawSeconds('impactHold')).toBe(1.6);
     expect(drawSeconds('cardFlip')).toBe(0.7);
   });
 

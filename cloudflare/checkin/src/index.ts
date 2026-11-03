@@ -5,10 +5,10 @@ import { rehearsalRoute, selectRehearsalRun } from './rehearsal';
 export type { CheckinEnv } from './domain';
 const COOKIE = '__Host-tournament-checkin';
 const SESSION_SECONDS = 8 * 60 * 60;
-const csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
-function secure(result: Response): Response {
+const csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https://api.qrserver.com; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+function secure(result: Response, dynamic = true): Response {
   const headers = new Headers(result.headers);
-  headers.set('Cache-Control', 'no-store');
+  if (dynamic) headers.set('Cache-Control', 'no-store');
   headers.set('X-Content-Type-Options', 'nosniff');
   headers.set('Referrer-Policy', 'no-referrer');
   headers.set('Content-Security-Policy', csp);
@@ -99,7 +99,7 @@ async function route(request: Request, env: CheckinEnv): Promise<Response> {
 export default {
   async scheduled(_event: unknown, env: CheckinEnv) { await drainCleanup(env); },
   async fetch(request: Request, env: CheckinEnv): Promise<Response> {
-    try { return secure(await route(request, env)); }
+    try { return secure(await route(request, env), !/^\/(assets|tournament-effects)\//.test(new URL(request.url).pathname)); }
     catch (error) {
       if (error instanceof ClientError) return secure(response({ error: error.code, details: error.details }, error.status));
       return secure(response({ error: 'SERVICE_UNAVAILABLE' }, 503));

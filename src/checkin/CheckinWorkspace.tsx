@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import CheckinPage from './CheckinPage';
 import ParticipantPhoto from './ParticipantPhoto';
+import RunContextBanner from './RunContextBanner';
 import { api, ApiError, scopedUrl, type Participant } from './api';
 
 interface Report { status:'open'|'closed'; revision:number; count:number; ready:boolean; cleanupPending:number; issues:{code:string;message:string}[]; participants:Participant[] }
@@ -33,6 +34,7 @@ export default function CheckinWorkspace({onAuthRequired,sessionVersion}:{onAuth
   }
   const closed=report?.status==='closed';
   return <>
+    <RunContextBanner role="checkin" sessionVersion={sessionVersion} />
     {message&&<p className="card" role="status">{message}</p>}
     {error&&<p className="card error" role="alert">{error}</p>}
     {command.current&&!busy&&<button onClick={()=>{const c=command.current!;void execute(c.path,c.method,c.body);}}>同じ操作を再試行</button>}

@@ -31,8 +31,11 @@ const messages: Record<string, string> = {
 export class ApiError extends Error {
   constructor(public status: number, public code: string) { super(messages[code] ?? '処理できませんでした。時間をおいて再試行してください。'); }
 }
+export function currentRunId(): string | null {
+  return new URLSearchParams(location.search).get('run');
+}
 export function scopedUrl(path:string){
- const run=new URLSearchParams(location.search).get('run');
+ const run=currentRunId();
  if(!run)return path;
  const url=new URL(path,location.origin);url.searchParams.set('run',run);return url.pathname+url.search;
 }

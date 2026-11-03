@@ -1,0 +1,27 @@
+// Rehearsal read-only API. Tokens are configured as Worker secrets.
+{
+  "name": "tournament-rehearsal",
+  "compatibility_date": "2026-10-12",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "tournament-rehearsal-db",
+      "database_id": "0a7528e1-7f14-4e54-a896-4fbe2cf2c42c",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "PORTRAITS",
+      "bucket_name": "tournament-rehearsal-portraits"
+    },
+    {
+      "binding": "MEDIA",
+      "bucket_name": "tournament-rehearsal-media"
+    }
+  ],
+  "main": "src/index.ts",
+  "vars": {
+    "ALLOWED_EVENT_IDS": "cf-rehearsal-001"
+  }
+}

@@ -6,6 +6,10 @@ import DrawStage from '../features/presentation/scenes/DrawStage';
 import FlowPresentation, { SavedBracket } from './FlowPresentation';
 import { toPresentationParticipant } from './presentationAdapter';
 import { preparePortraits, portraitUrlFor } from './portraitCache';
+import { preloadPresentationAssets } from './preloadPresentationAssets';
+import { currentReview, reviewState, reviewUrl } from './reviewPlayback';
+
+const reviewDone = () => {};
 
 export interface DrawState {
  format?:string; timingPreset?:'show'|'fast';
@@ -60,6 +64,7 @@ export default function DrawControl({administration,onAuthRequired,sessionVersio
   finally{setBusy(false);}
  }
  useEffect(()=>onActiveChange?.(!!state?.session),[state?.session?.id,onActiveChange]);
+ useEffect(()=>{if(!administration)preloadPresentationAssets();},[administration]);
  const onComplete=useCallback(()=>refresh(),[refresh]);
  return <section className={administration?'card draw-operations':'draw-monitor'} data-draw-scene={state?.scene??'loading'} data-draw-version={state?.version??0}>
   {administration&&<><h2>大会運営</h2><p>受付終了で参加者とペアを固定し、運営の操作で発表・ゲーム開始へ進みます。</p><p>対象 {state?.participants.length??0}名 · 受付{state?.checkinStatus==='closed'?'終了':'中'}</p>
@@ -76,13 +81,14 @@ export default function DrawControl({administration,onAuthRequired,sessionVersio
    {state?.scene==='result'&&<p>勝者：{state.teams.find(t=>t.id===state.flow?.winnerTeamId)?.name}。表示が終わったら運営担当者が次の試合へ進めます。</p>}
    {state?.flow?.phase==='bracket_update'&&<p role="status">勝ち上がりを表示中です。表示が終わったら「次の試合へ進む」を押してください。</p>}
    {['award','finished'].includes(state?.scene??'')&&<p>CHAMPION：{state?.teams.find(t=>t.id===state.flow?.championTeamId)?.name}</p>}
+   {state?.session&&<div className="actions"><span>保存済みデータで演出だけ再生</span>{([['draw','ペア発表'],['vs','VS'],['winner','WINNER'],['champion','CHAMPION']] as const).map(([scene,label])=><a key={scene} className="button" href={reviewUrl(scene)} target="_blank" rel="noreferrer">{label}</a>)}</div>}
    {state?.flow?.canAdvance&&<button className="primary" disabled={busy||!!operation.current} onClick={()=>void operate('advance')}>次の試合へ進む</button>}
    {operation.current&&!busy&&<button onClick={()=>void operate(operation.current!.path.split('/').at(-1) as 'advance'|'game-start'|'start'|'winner',operation.current!.body.winnerSlot)}>同じ操作を再試行</button>}
    <a className="button" href={scopedUrl('/display')} target="_blank" rel="noreferrer">会場Displayを開く</a>
   </>}
   {(error||commandError||presentation?.error||photoError)&&<p role="alert" className="error">{error||commandError||presentation?.error||'保存写真を読み込めません。接続を確認してください。'}<button onClick={()=>{setPhotoError(false);refresh();}}>再読み込み</button></p>}
-  {!administration&&(!state?.session||state.scene==='idle'?<div className="card"><h1>大会開始待機</h1><p>{state?.checkinStatus==='closed'?'受付が終了しました。ペア発表開始をお待ちください。':'参加者を受け付けています。大会開始までお待ちください。'}</p></div>:state.scene==='draw'&&presentation?.data&&!photoError?<div className="live-draw-stage" onErrorCapture={event=>{if(event.target instanceof HTMLImageElement)setPhotoError(true);}}>
-   <DrawStage key={`${state.session.id}-${state.sceneSeq}`} eventId={state.eventId} sceneSeq={state.sceneSeq} data={presentation.data} presentationMode="full" timingPreset={state.timingPreset} audioEnabled={false} startAtSeconds={state.elapsedSeconds} onComplete={onComplete}/>
+  {!administration&&(currentReview()&&state?.session&&presentation?.data&&!photoError?currentReview()==='draw'?<div className="live-draw-stage"><DrawStage key={`review-draw-${state.session.id}`} eventId={state.eventId} sceneSeq={state.sceneSeq} data={presentation.data} presentationMode="full" timingPreset={state.timingPreset} audioEnabled startAtSeconds={0} onComplete={reviewDone}/></div>:<div className="tournament-stage"><FlowPresentation key={`review-${currentReview()}`} state={reviewState(state,currentReview() as 'vs'|'winner'|'champion')}/></div>:!state?.session||state.scene==='idle'?<div className="card display-wait-card"><h1>会場表示 · 待機中</h1><p>{state?.checkinStatus==='closed'?'受付は終了しました。運営が「ペア発表開始」を押すと、ここに演出が表示されます。':'参加者を受付中です。4名以上の偶数人数になったら、運営（Admin）で受付終了→ペア発表開始してください。'}</p>{!!state?.participants.length&&<p className="display-wait-count">登録 {state.participants.length} 名</p>}</div>:state.scene==='draw'&&presentation?.data&&!photoError?<div className="live-draw-stage" onErrorCapture={event=>{if(event.target instanceof HTMLImageElement)setPhotoError(true);}}>
+   <DrawStage key={`${state.session.id}-${state.sceneSeq}`} eventId={state.eventId} sceneSeq={state.sceneSeq} data={presentation.data} presentationMode="full" timingPreset={state.timingPreset} audioEnabled startAtSeconds={state.elapsedSeconds} onComplete={onComplete}/>
   </div>:<div className="tournament-stage" onErrorCapture={event=>{if(event.target instanceof HTMLImageElement)setPhotoError(true);}}><FlowPresentation key={state.sceneSeq} state={state}/></div>)}
   {administration&&state?.bracket&&<SavedBracket state={state}/>}
 

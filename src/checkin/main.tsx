@@ -38,7 +38,7 @@ function TournamentWorkspace({ onAuthRequired, sessionVersion }: { onAuthRequire
   }, [needsSelection, sessionVersion, onAuthRequired]);
   if (failure) return <section className="card"><p role="alert">{failure}</p><button onClick={() => location.reload()}>再接続</button></section>;
   if (selection === 'loading') return <p role="status">大会を確認しています…</p>;
-  if (selection === 'required') return <section className="card"><h1>確認する大会を選んでください</h1><p>通しリハーサルで大会を準備し、その大会の「運営画面を開く」「Displayを別ウィンドウで開く」「参加者受付を開く」から進んでください。保存済み大会は run 付きURLから再開できます。</p><a className="button primary" href="/rehearsal">通しリハーサルを開く</a></section>;
+  if (selection === 'required') return <section className="card"><h1>大会ID（run）が指定されていません</h1><p>Rehearsal で大会を1つ準備し、「①受付・②運営・③モニター」のリンクから開いてください。URL の <code>?run=cf-through-...</code> を3端末で揃えると連動します。</p><a className="button primary" href="/rehearsal">大会を準備する</a></section>;
   return location.pathname === '/match-transition' ? <MatchTransitionPage onAuthRequired={onAuthRequired} sessionVersion={sessionVersion} /> : location.pathname === '/rehearsal' ? <RehearsalPage onAuthRequired={onAuthRequired} sessionVersion={sessionVersion} /> : location.pathname === '/show-preview' ? <LiveShowPreviewPage onAuthRequired={onAuthRequired} sessionVersion={sessionVersion} /> : location.pathname === '/display' || location.pathname === '/admin' ? <DisplayPage administration={location.pathname === '/admin'} onAuthRequired={onAuthRequired} sessionVersion={sessionVersion} /> : <CheckinWorkspace onAuthRequired={onAuthRequired} sessionVersion={sessionVersion} />;
 }
 

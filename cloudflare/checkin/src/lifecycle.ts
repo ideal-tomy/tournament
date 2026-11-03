@@ -49,7 +49,8 @@ export async function mutate(env:CheckinEnv,action:'create'|'update'|'delete',id
   const participantId=id??`checkin-${commandId}`;
   if(!/^checkin-[a-f0-9-]{36}$/.test(participantId)||participantId===AUTOMATED_CAMERA_TEST_ID)throw new ClientError('NOT_FOUND',404);
   const data=action==='delete'?null:fields(body);
-  const picture=action==='create'||body.photo!=null||body.portrait!=null?decodePortrait(body.portrait??body.photo):null;
+  const hasPhotoField=body.photo!=null||body.portrait!=null;
+  const picture=hasPhotoField?decodePortrait(body.portrait??body.photo):null;
   const expected=body.expectedVersion;
   if(action!=='create' && (!Number.isSafeInteger(expected)||Number(expected)<0))throw new ClientError('INVALID_VERSION',400);
   const pictureHash=picture?await hash(picture.bytes):null;

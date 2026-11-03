@@ -1,6 +1,8 @@
+> 最新の環境統合・公開8名E2E・旧Worker分類: [2026-10-31 統合報告](docs/CANONICAL_CONSOLIDATION_20261031.md)。今後の公開は `npm run deploy:rehearsal` のみ。
+
 # ダーツ大会 — Cloudflare版（現在の標準）
 
-**環境整理・連動方法・デプロイ準備：[docs/ENVIRONMENT_CONSOLIDATION.md](docs/ENVIRONMENT_CONSOLIDATION.md)**。全体確認の入口は <https://tournament-through-rehearsal.pine-shaken.workers.dev/>。32人・16チーム・15試合の公開SHOW結果は [docs/REHEARSAL32.md](docs/REHEARSAL32.md)。canonicalは既存のtournament-through-rehearsalです。
+**当日運用（受付→運営→モニター）：[docs/DAY_OF_EVENT.md](docs/DAY_OF_EVENT.md)**。環境整理・デプロイ：[docs/ENVIRONMENT_CONSOLIDATION.md](docs/ENVIRONMENT_CONSOLIDATION.md)。入口 <https://tournament-through-rehearsal.pine-shaken.workers.dev/>。32人SHOWは [docs/REHEARSAL32.md](docs/REHEARSAL32.md)。canonicalは `tournament-through-rehearsal`。
 
 受付・ペア抽選・大会運営・Display・優勝表示を、同じWorker APIとD1／非公開R2で動かします。通常の `npm run dev` はこのCloudflare版です。Supabaseの環境変数は不要です。
 

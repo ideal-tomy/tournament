@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
-const test=JSON.parse(readFileSync('docs/environment-verification/public/result.json'));
+const test=JSON.parse(readFileSync('docs/environment-verification/consolidation-20261031/public/result.json'));
 assert.match(test.run,/^cf-through-/);
 const token=/oauth_token\s*=\s*"([^"]+)"/.exec(readFileSync(join(process.env.APPDATA,'xdg.config/.wrangler/config/default.toml'),'utf8'))?.[1];
 const account='https://api.cloudflare.com/client/v4/accounts/5b27490470fa62bc7b51865e4e2cd786';
@@ -26,5 +26,5 @@ for(const row of rows){
  const a=Buffer.from(await remote.arrayBuffer()),b=Buffer.from(await api.arrayBuffer());assert.deepEqual(a,b);
  results.push({id:row.id,d1Name:row.display_name,r2Bytes:a.length,apiStatus:200,byteMatch:true,sha256:createHash('sha256').update(a).digest('hex')});
 }
-writeFileSync('docs/environment-verification/public/data-audit.json',JSON.stringify({run:test.run,checkedAt:new Date().toISOString(),d1Count:rows.length,portraits:results,matches,complete:true},null,2));
+writeFileSync('docs/environment-verification/consolidation-20261031/public/data-audit.json',JSON.stringify({run:test.run,checkedAt:new Date().toISOString(),d1Count:rows.length,portraits:results,matches,complete:true},null,2));
 console.log(JSON.stringify({run:test.run,d1:rows.length,r2:results.length,byteMatch:true}));

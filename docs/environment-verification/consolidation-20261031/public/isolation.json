@@ -1,0 +1,32 @@
+{
+  "checkedAt": "2026-10-31T09:09:42.306Z",
+  "run": "cf-through-405eb893-2b21-4583-b592-703c4e9c214a",
+  "checks": [
+    {
+      "path": "/api/participants",
+      "status": 409,
+      "cache": "no-store"
+    },
+    {
+      "path": "/api/draw/state?run=cf-through-de35ebe9-935c-450b-9d16-fec5a518279c",
+      "status": 404,
+      "cache": "no-store"
+    },
+    {
+      "path": "/api/rehearsal/source",
+      "status": 503,
+      "cache": "no-store"
+    },
+    {
+      "path": "/api/participants?run=cf-through-405eb893-2b21-4583-b592-703c4e9c214a",
+      "status": 200,
+      "cache": "no-store"
+    },
+    {
+      "path": "/assets/index-BwpvPxEP.js",
+      "status": 200,
+      "cache": "public, max-age=0, must-revalidate"
+    }
+  ],
+  "complete": true
+}

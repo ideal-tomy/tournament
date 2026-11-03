@@ -9,13 +9,14 @@ export const DRAW_ANIMATION_TIMING = {
   introEnter: 500,
   introHold: 350,
   introExit: 350,
-  cardEnter: 350,
+  cardEnter: 500,
+  cardSettle: 600,
   dartFlight: 600,
   impactBurst: 450,
-  impactHold: 2000,
-  impactClear: 200,
+  impactHold: 1600,
   cardFlip: 700,
   playerReveal: 800,
+  revealHold: 2000,
   memberExit: 500,
   pairReveal: 1000,
   pairConfirmHold: 7000,
@@ -31,7 +32,7 @@ export const DRAW_ANIMATION_TIMING = {
 export type DrawAnimationTimingKey = keyof typeof DRAW_ANIMATION_TIMING;
 
 export function drawTiming(preset:RehearsalTimingPreset='show') {
-  return preset==='fast'?{...DRAW_ANIMATION_TIMING,introHold:150,impactHold:450,pairConfirmHold:1400,summaryHold:1200}:DRAW_ANIMATION_TIMING;
+  return preset==='fast'?{...DRAW_ANIMATION_TIMING,introHold:150,cardSettle:200,impactHold:450,revealHold:500,pairConfirmHold:1400,summaryHold:1200}:DRAW_ANIMATION_TIMING;
 }
 export function drawSeconds(key: DrawAnimationTimingKey,preset:RehearsalTimingPreset='show'): number {
   return drawTiming(preset)[key] / 1000;
@@ -55,12 +56,13 @@ export function estimateDrawDurationMs(
   const intro = t.introEnter + t.introHold + t.introExit;
   const perParticipant =
     t.cardEnter +
+    t.cardSettle +
     t.dartFlight +
     t.impactBurst +
     t.impactHold +
-    t.impactClear +
     t.cardFlip +
     t.playerReveal +
+    t.revealHold +
     t.memberExit;
   const perTeam = t.pairReveal + t.pairConfirmHold + t.transitionToNext;
   const summary = t.summaryEnter + t.summaryHold;

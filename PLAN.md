@@ -1,6 +1,23 @@
+## Cloudflare canonical統合（2026-10-31 依頼.md）完了
+
+8 WorkerをCloudflare APIとrepoで照合。既存throughだけに公開、旧configは.disabled保存。新大会0名開始に限定し、写真コピー・サンプル再送を排除。run/portrait不一致拒否とstatic cache維持を修正。182 tests、build、dry-run成功。公開新runで0→1名Display自動反映→8名・3試合・Champion・D1/R2全byte照合成功。新Worker・依存追加・削除・Git pushなし。[最終報告](docs/CANONICAL_CONSOLIDATION_20261031.md)。実スマホ実機は未確認。以降の過去計画より今回の依頼を優先する。
+
 # Cloudflareアプリ実装 PLAN
 
-## 現在：32人・16チーム・15試合の観客通し確認（docs/依頼.md）
+## Phase D0：当日の3端末を同じ大会IDで連動させる（2026-10-31）
+
+目的：スマホ受付・運営・会場モニターが同じ `?run=` を開いていることを、画面構成を大きく変えずに確認できるようにする。運用手順の正本は [docs/DAY_OF_EVENT.md](docs/DAY_OF_EVENT.md)。
+
+- [x] D0-1：Rehearsalの「当日の3画面」に受付URLのQRを追加。QR画像は外部サービス（api.qrserver.com）で生成し、表示できない場合はURLコピーでの配布を案内する。CSPの `img-src` にこの1ホストだけを追加。
+- [x] D0-2：受付とAdminの大会IDバナーで、URLの大会IDとサーバーが返す大会IDを照合。存在しない大会IDや不一致を警告し、大会IDのコピーボタンを追加。会場Displayには運営用バナーを置かず、待機表示に大会IDの末尾だけを出す。
+- [x] D0-3：本節と DAY_OF_EVENT.md に受入基準・公開手順を記載。
+- [x] D0-4：`npm run test:shared-run-ux`（`scripts/verify-shared-run-ux.cjs`）を現行UIに合わせ、3リンクとQRのrun一致、存在しない大会IDの警告、受付4名→Admin反映→受付終了→ペア発表開始→Displayの発表演出までを確認。
+
+受入基準：Rehearsalで空大会を準備した後の3リンクとQRが同じrunを指す。存在しない大会IDの受付・Adminに警告が出る。`npm test`、`npm run build`、`npm run test:shared-run-ux`（`npm run dev` 起動中）が成功する。Rehearsal・Admin・Displayの主要ブロック配置と操作は変えない。
+
+D0に含めないもの：当日専用の入口、運営スマホ向けレイアウト、Displayの非表示タブでのポーリング、受付終了と発表開始の統合、会場音声。これらはD1以降で扱う。
+
+## 32人・16チーム・15試合の観客通し確認（docs/依頼.md）
 
 前段の8名ローカル確認を土台とし、今回は公開まで実行する。canonicalは既存 `tournament-through-rehearsal`。新しい公開Workerを作らず、通常大会と過去の検証大会を保持する。UIデザイン変更・依存追加・Git push・公開DBの破壊的変更を行わない。
 

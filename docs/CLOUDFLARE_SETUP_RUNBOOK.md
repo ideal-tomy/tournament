@@ -1,3 +1,5 @@
+> 2026-10-31: この文書の新Worker・D1・R2作成手順は過去の初期構築記録です。現在は実行しないでください。通常公開は `npm run deploy:rehearsal` のみ。旧configは `.disabled` で保管し、現在の構成は [統合報告](CANONICAL_CONSOLIDATION_20261031.md) を参照してください。
+
 # Cloudflare移行：初めての方向け準備手順
 
 作成日：2026-10-12。提案書のPhase 2に向けた環境準備。方針の正本は [演出・進行制御提案書](./TOURNAMENT_SHOW_DESIGN_AND_CONTROL_PROPOSAL.md)。
@@ -20,7 +22,7 @@
 
 ## 1. 用意されたファイル
 
-プロジェクトの `cloudflare/` にあります。旧 `docs/files/` や `supabase/migrations/` のSQLをD1へ貼り付ける必要はありません。
+プロジェクトの `cloudflare/` にあります。旧Supabase受領資料（`archive/docs/legacy-supabase/`）や `supabase/migrations/` のSQLをD1へ貼り付ける必要はありません。
 
 | ファイル | 内容 | 実行する場所 |
 |---|---|---|

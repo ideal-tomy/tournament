@@ -10,9 +10,16 @@ const assets = [
   'tournament-effects/cards/card-front.webp',
   'tournament-effects/darts/dart-main.png',
   'tournament-effects/effects/celebration-confetti.png',
+  'tournament-effects/backgrounds/tournament-bg.webp',
+  'tournament-effects/darts/dart-motion-streak.png',
+  'tournament-effects/effects/golden-sparks.png',
+  'tournament-effects/effects/blue-ring.png',
+  'tournament-effects/effects/impact-cloud.png',
+  'tournament-effects/effects/debris.png',
+  'tournament-effects/effects/impact-flash.png',
 ];
 const allowed = [
-  '/src/preview/', '/src/assets/', '/src/features/presentation/postMatch/',
+  '/src/preview/', '/src/assets/', '/src/features/presentation/postMatch/', '/src/features/presentation/backdrop/',
   '/src/features/presentation/drawAnimationTiming.ts', '/src/lib/tournamentEffects.ts',
 ];
 export default defineConfig({

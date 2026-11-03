@@ -1,5 +1,7 @@
 # ドキュメント案内
 
+**会場当日の基本フロー（スマホ受付・運営・モニター連動）:** [DAY_OF_EVENT.md](./DAY_OF_EVENT.md)
+
 更新版の環境整理・全Route分類・既存Worker棚卸し・スマホ受付の入口は [ENVIRONMENT_CONSOLIDATION.md](ENVIRONMENT_CONSOLIDATION.md)。[Worker一覧](environment-verification/WORKERS.md)には稼働versionとbindingを記録。
 
 **32人・16チーム・15試合の確認は [REHEARSAL32.md](REHEARSAL32.md) が現在の正本です。** 既存 `tournament-through-rehearsal` をcanonicalとし、5つのrouteを同じrunから確認します。過去の8名・match-loop等のURLへ移動しないでください。
@@ -53,7 +55,7 @@ RUNBOOKとKIOSK_SETUPはCloudflare移行完了までの暫定資料。移行後�
 ## 補助資料
 
 - `hit_explosion_fullscreen_test.html`: 爆発動画の単体表示確認。
-- `files.zip`: 過去資料の受領時アーカイブ。通常の実装判断には使用しない。
+- 旧Supabase受領資料は [`../archive/docs/legacy-supabase/`](../archive/docs/legacy-supabase/) に保管。通常の実装判断には使用しない。
 
 ## 管理ルール
 

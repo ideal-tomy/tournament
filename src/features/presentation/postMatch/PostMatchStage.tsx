@@ -3,6 +3,9 @@ import gsap from 'gsap';
 import type { PresentationMode } from '../../../types';
 import placeholder from '../../../assets/placeholder_face.svg';
 import { postMatchTiming } from './timing';
+import PresentationBackdrop from '../backdrop/PresentationBackdrop';
+import { appendPostMatchBackdrop, startBackdropLoops } from '../backdrop/appendPresentationBackdrop';
+import { playPresentationAudio } from '../backdrop/playPresentationAudio';
 import './postMatch.css';
 
 export interface StageControls {
@@ -13,6 +16,7 @@ export interface StageControls {
 }
 
 interface Props {
+  audioEnabled?: boolean;
   entryPositions?:[{x:number;y:number},{x:number;y:number}];
   eventLabel?: string;
   mode: PresentationMode;
@@ -22,7 +26,7 @@ interface Props {
 }
 
 /** Presentational stage. Receives names/image URLs; no API calls or persistent scene transitions. */
-const PostMatchStage = forwardRef<StageControls, Props>(function PostMatchStage({ mode, onProgress, winnerTeam, opponentTeam, eventLabel = 'サンプル大会',entryPositions }, ref) {
+const PostMatchStage = forwardRef<StageControls, Props>(function PostMatchStage({ mode, onProgress, winnerTeam, opponentTeam, eventLabel = 'サンプル大会',entryPositions, audioEnabled = false }, ref) {
   const root = useRef<HTMLDivElement>(null);
   const timeline = useRef<gsap.core.Timeline>();
   useImperativeHandle(ref, () => ({
@@ -60,14 +64,20 @@ const PostMatchStage = forwardRef<StageControls, Props>(function PostMatchStage(
       tl.fromTo('.pm-vs', { autoAlpha: 0, scale: 0.7 }, { autoAlpha: 1, scale: 1, duration: 0.4 }, t.impact + 0.12)
         .to('.pm-next', { autoAlpha: 1, duration: 0.4 }, t.impact + 0.5)
         .to({}, { duration: t.hold }, 0);
+      appendPostMatchBackdrop(tl, root.current!, t);
+      tl.call(() => playPresentationAudio('teamConfirm', audioEnabled), [], 0.05)
+        .call(() => playPresentationAudio('dartFly', audioEnabled), [], t.approach + 0.05)
+        .call(() => playPresentationAudio('impact', audioEnabled), [], t.impact);
+      startBackdropLoops(root.current!, mode);
       onProgress(0, false);
     }, root);
     return () => { ctx.revert(); timeline.current = undefined; };
-  }, [mode, onProgress,entryPositions]);
+  }, [mode, onProgress,entryPositions, audioEnabled]);
 
   const leftName = winnerTeam?.name ?? 'BLUE ARROWS';
   const rightName = opponentTeam?.name ?? 'GOLD STARS';
   return <div ref={root} className="pm-stage" data-actual-bracket={entryPositions?'true':undefined} aria-label={`${leftName}の勝利から次試合への連続演出`}>
+    <PresentationBackdrop variant="match" />
     <div className="pm-title">DARTS TOURNAMENT <span>{eventLabel}</span></div>
     <div className="pm-win">WINNER <small>{leftName} 勝利</small></div>
     <svg className="pm-bracket" viewBox="0 0 1600 900" aria-label="勝者が決勝へ進出">
@@ -78,7 +88,7 @@ const PostMatchStage = forwardRef<StageControls, Props>(function PostMatchStage(
     <Team className="pm-winner" name={leftName} members={winnerTeam?.members ?? ['青木 翔', '佐藤 蓮']} faces={winnerTeam?.faces} />
     <Team className="pm-opponent" name={rightName} members={opponentTeam?.members ?? ['高橋 凛', '田中 光']} faces={opponentTeam?.faces} />
     <div className="pm-impact" />
-    <div className="pm-vs">VS</div>
+    <div className="pm-vs"><span className="pbd-beat">VS</span></div>
     <div className="pm-next">NEXT MATCH <small>{leftName} vs {rightName}</small></div>
   </div>;
 });

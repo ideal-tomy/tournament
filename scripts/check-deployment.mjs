@@ -4,7 +4,6 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../', import.meta.url));
 for (const [name, config] of [
-  ['normal', 'cloudflare/checkin/wrangler.jsonc'],
   ['rehearsal', 'cloudflare/checkin/wrangler.through-rehearsal.jsonc'],
 ]) {
   console.log(`Deployment dry-run: ${name}`);

@@ -1,4 +1,3 @@
-import {sample} from './rehearsalSamples';
 import {rehearsalTiming,type RehearsalTimingPreset} from '../lib/rehearsalTiming';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError, type Participant } from './api';
@@ -7,14 +6,13 @@ import SharedRunOverview from './SharedRunOverview';
 
 export type Status=DrawState&{integrity:{consistent:boolean;matchCount:number};flow:(NonNullable<DrawState['flow']>&{nextMatch?:{id:number;teamA:string;teamB:string}|null})|null};
 type Command={path:string;body:{requestId:string;expectedVersion?:number;expectedRevision?:number;winnerSlot?:number}};
-type Registration={requestId:string;name:string;rating:number|null;photo:string};
 const runId=()=>new URLSearchParams(location.search).get('run');
 const pendingKey=()=>`through-command:${runId()}`;
 const delay=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms));
 async function readStatus(){for(let attempt=0;attempt<3;attempt++){try{return await api<Status>('/api/rehearsal/status');}catch(e){if(!(e instanceof ApiError)||e.code!=='VERSION_CONFLICT')throw e;}}throw new Error('大会状態の更新が競合しました。停止して状態を確認してください。');}
 async function portraits(participants:Participant[]){if(participants.length<4||participants.length%2)throw Error('写真付き参加者を4名以上の偶数人数で準備してください。');await Promise.all(participants.map(p=>new Promise<void>((resolve,reject)=>{const image=new Image();image.onload=()=>image.decode().then(()=>resolve(),()=>reject(Error(`${p.name}の写真を読み込めません。`)));image.onerror=()=>reject(Error(`${p.name}の写真を取得できません。`));image.src=p.portraitUrl;})));}
 export default function RehearsalPage({onAuthRequired,sessionVersion}:{onAuthRequired():void;sessionVersion:number}){
- const [enabled,setEnabled]=useState<boolean|null>(null),[status,setStatus]=useState<Status|null>(null),[error,setError]=useState(''),[step,setStep]=useState(runId()?'保存済み大会を確認しています':'大会を初期化してください'),[running,setRunning]=useState(false),[busy,setBusy]=useState(false),[mode,setMode]=useState<'empty'|'sample32'|'sample'|'registered'>('empty'),[revision,setRevision]=useState(0);
+ const [enabled,setEnabled]=useState<boolean|null>(null),[status,setStatus]=useState<Status|null>(null),[error,setError]=useState(''),[step,setStep]=useState(runId()?'保存済み大会を確認しています':'大会を初期化してください'),[running,setRunning]=useState(false),[busy,setBusy]=useState(false),[revision,setRevision]=useState(0);
  const [preset,setPreset]=useState<RehearsalTimingPreset>('show');
  const failureStep=useRef('初期化');
  const active=useRef(false),lock=useRef(false),mounted=useRef(true),matchSince=useRef<{id:number;at:number}|null>(null);
@@ -23,14 +21,12 @@ export default function RehearsalPage({onAuthRequired,sessionVersion}:{onAuthReq
  useEffect(()=>{if(!enabled||!runId())return;let stopped=false,fetching=false;const poll=async()=>{if(fetching)return;fetching=true;try{const next=await readStatus();if(!stopped){setStatus(next);setStep(previous=>previous==='保存済み大会を確認しています'?(next.scene==='finished'?'CHAMPION・大会終了':'保存済み大会から確認を続けられます。'):previous);if(!next.integrity.consistent)throw Error('D1の試合・Bracket・現在試合が一致しません。');}}catch(e){if(!stopped)fail(e);}finally{fetching=false;}};void poll();const timer=setInterval(()=>void poll(),1000);return()=>{stopped=true;clearInterval(timer);};},[enabled,revision,sessionVersion]);
  async function initialize(){if(lock.current||active.current)return;if(runId()&&!window.confirm('現在の大会を保持したまま、新しいリハーサル大会を作りますか？'))return;lock.current=true;setBusy(true);setError('');setStep('参加者準備');failureStep.current='参加者準備';
   try{
-   const saved=localStorage.getItem('through-initialization');let pending=saved?JSON.parse(saved) as {requestId:string;people:Registration[];format?:string;timingPreset?:RehearsalTimingPreset}:null;
-   if(!pending){let people:Registration[]=[];
-    if(mode==='sample'||mode==='sample32')people=Array.from({length:mode==='sample32'?32:8},(_,i)=>sample(i));else if(mode==='registered'){const source=await api<{participants:Participant[]}>('/api/rehearsal/source');await portraits(source.participants);people=[];for(const p of source.participants){const r=await fetch(p.portraitUrl,{credentials:'same-origin',cache:'no-store'});if(!r.ok)throw Error(`${p.name}の写真取得に失敗しました。`);const photo=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=reject;void r.blob().then(blob=>reader.readAsDataURL(blob),reject);});people.push({requestId:crypto.randomUUID(),name:p.name,rating:p.rating,photo});}}
-    pending={requestId:crypto.randomUUID(),people,format:mode==='sample32'||mode==='empty'?'single_elimination':'double_elimination',timingPreset:preset};localStorage.setItem('through-initialization',JSON.stringify(pending));
-   }
+   const key='through-empty-initialization-v2';
+   const saved=localStorage.getItem(key);
+   const pending=saved?JSON.parse(saved) as {requestId:string;format:string;timingPreset:RehearsalTimingPreset}:{requestId:crypto.randomUUID(),format:'single_elimination',timingPreset:preset};
+   localStorage.setItem(key,JSON.stringify(pending));
    const created=await api<{eventId:string}>('/api/rehearsal/create',{method:'POST',body:JSON.stringify({requestId:pending.requestId,format:pending.format,timingPreset:pending.timingPreset})});const url=new URL(location.href);url.searchParams.set('run',created.eventId);history.replaceState(null,'',url);setRevision(v=>v+1);
-   for(const person of pending.people){failureStep.current=person.name+'の登録';await api('/api/participants',{method:'POST',body:JSON.stringify(person)});}
-   const next=await readStatus();if(next.participants.length)await portraits(next.participants);if(!next.integrity.consistent)throw Error('D1整合性を確認できません。');setStatus(next);localStorage.removeItem('through-initialization');setStep(next.participants.length?'参加者準備完了・受付中':'大会準備完了・参加者受付を開いて登録してください');
+   const next=await readStatus();if(next.participants.length)await portraits(next.participants);if(!next.integrity.consistent)throw Error('D1整合性を確認できません。');setStatus(next);localStorage.removeItem(key);setStep(next.participants.length?'参加者準備完了・受付中':'大会準備完了・参加者受付を開いて登録してください');
   }catch(e){fail(e);}finally{lock.current=false;setBusy(false);}
  }
  async function execute(command:Command){failureStep.current=command.path;localStorage.setItem(pendingKey(),JSON.stringify(command));await api(command.path,{method:'POST',body:JSON.stringify(command.body)});localStorage.removeItem(pendingKey());}
@@ -60,8 +56,8 @@ export default function RehearsalPage({onAuthRequired,sessionVersion}:{onAuthReq
    <p className="eyebrow">ONE EVENT / SHARED STATE</p><h1>大会の全体確認</h1>
    <p>一つの大会をスマホ受付・PC運営・会場Displayで共有します。進行状態は同じ大会IDを使って取得します。</p>
    {!runId()&&<>
-    <label className="field">確認する大会<select value={mode} disabled={busy||running} onChange={e=>setMode(e.target.value as typeof mode)}><option value="empty">実データの受付を試す（参加者0名から）</option><option value="sample32">全演出を通す（サンプル32名・16チーム・15試合）</option><option value="sample">サンプル8名（ダブル方式）</option><option value="registered">登録済み参加者をコピーして試す</option></select></label>
-    <p>準備すると新しい大会を作ります。既存大会・写真・結果は保持します。サンプル写真・自動勝者は実在人物・実試合の記録ではありません。</p>
+    <p>新しい大会は参加者0名から開始します。写真はこの大会の受付で登録してください。</p>
+    <p>準備すると参加者0名の新しい大会を作ります。既存大会・写真・結果は保持します。</p>
     <label className="field">演出時間<select value={preset} disabled={busy||running} onChange={e=>setPreset(e.target.value as RehearsalTimingPreset)}><option value="show">SHOW（会場表示を確認）</option><option value="fast">FAST CHECK（全演出を短時間で確認）</option></select></label>
     <button className="primary" disabled={busy||running} onClick={()=>void initialize()}>新しい確認用大会を準備</button>
    </>}

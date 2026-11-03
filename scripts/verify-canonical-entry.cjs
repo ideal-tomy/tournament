@@ -3,7 +3,7 @@ const fs=require('node:fs'),assert=require('node:assert/strict');
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE);
 const local=process.argv.includes('--local');
 const root=local?'http://localhost:5174':'https://tournament-through-rehearsal.pine-shaken.workers.dev';
-const out=`docs/environment-verification/${local?'local':'public'}`;
+const out=`docs/environment-verification/consolidation-20261031/${local?'local':'public'}`;
 const resume=process.argv.includes('--resume');
 const secrets=local?require('node:util').parseEnv(fs.readFileSync('cloudflare/local/.dev.vars','utf8')):JSON.parse(fs.readFileSync('cloudflare/checkin/.secrets.local','utf8'));
 (async()=>{
@@ -26,25 +26,21 @@ const secrets=local?require('node:util').parseEnv(fs.readFileSync('cloudflare/lo
    }
    throw Error('Repeated read version conflict');
   }
-  async function login(p){await p.goto(root+'/');await p.getByLabel('確認コード',{exact:true}).fill(secrets.REHEARSAL_ACCESS_CODE);await p.getByRole('button',{name:'確認して開く',exact:true}).click();await p.getByRole('heading',{name:'大会リハーサル',exact:true}).waitFor();}
+  async function login(p){await p.goto(root+'/');await p.getByLabel('確認コード',{exact:true}).fill(secrets.REHEARSAL_ACCESS_CODE);await p.getByRole('button',{name:'確認して開く',exact:true}).click();await p.getByRole('heading',{name:'当日運用の入口',exact:true}).waitFor();}
   await login(page);await login(display);
   let run=report.run;
   if(!resume){
   await page.screenshot({path:out+'/top.png',fullPage:true});
-  assert.equal(await page.getByRole('link',{name:'大会リハーサルを開始',exact:true}).count(),1);
+  assert.equal(await page.getByRole('link',{name:'大会を準備して連動を確認',exact:true}).count(),1);
   assert.equal(await page.getByText('旧Supabase',{exact:false}).count(),0);
   assert.equal(await page.getByRole('link',{name:'Animation Preview',exact:true}).isVisible(),false);
-  await page.getByText('開発ツール',{exact:true}).click();
-  await page.getByRole('link',{name:'Cloudflare接続確認',exact:true}).click();
-  await page.getByRole('status').filter({hasText:'Worker接続・セッション確認済み'}).waitFor();
   await page.goto(root+'/rehearsal');
-  await page.getByLabel('参加者の準備').selectOption('empty');
-  await page.getByLabel('新規大会の確認速度').selectOption('fast');
-  await page.getByRole('button',{name:'初期化・参加者準備',exact:true}).click();
+  await page.getByLabel('演出時間').selectOption('fast');
+  await page.getByRole('button',{name:'新しい確認用大会を準備',exact:true}).click();
   await page.getByRole('status').filter({hasText:'大会準備完了・参加者受付を開いて登録してください'}).waitFor();
   run=new URL(page.url()).searchParams.get('run');assert.match(run,/^cf-through-/);
   assert.equal((await read(page,'/api/rehearsal/status?run='+run)).participants.length,0);
-  report.run=run;save();
+  report.run=run;report.initialParticipants=0;save();
   for(const route of ['/','/checkin','/admin','/display','/rehearsal','/show-preview','/cloudflare-check']){
    const url=root+route+'?run='+run;
    assert.equal((await page.goto(url)).status(),200);assert.equal((await page.reload()).status(),200);
@@ -54,6 +50,8 @@ const secrets=local?require('node:util').parseEnv(fs.readFileSync('cloudflare/lo
   }
   if(local){report.complete=true;return;}
   await page.goto(root+'/checkin?run='+run);
+  await display.goto(root+'/display?run='+run);
+  await display.locator('.display-venue-status').filter({hasText:'登録 0 名'}).waitFor();
   for(let i=0;i<8;i++){
    const name=`公開撮影検証 ${String(i+1).padStart(2,'0')}`;
    await page.getByLabel('名前',{exact:false}).fill(name);await page.getByLabel('rating',{exact:false}).fill(String(i+4));
@@ -66,19 +64,21 @@ const secrets=local?require('node:util').parseEnv(fs.readFileSync('cloudflare/lo
    await page.getByLabel('名前',{exact:false}).waitFor();
    assert.equal(await page.getByLabel('名前',{exact:false}).inputValue(),'');
    report.participants.push(name);save();
+   if(i===0){await display.locator('.display-venue-status').filter({hasText:'登録 1 名'}).waitFor();report.afterFirstRegistration=1;report.displayReflectedFirst=true;}
   }
   await page.screenshot({path:out+'/eight-registrations.png',fullPage:true});
   const s=await read(page,'/api/rehearsal/status?run='+run);assert.equal(s.participants.length,8);
   for(const p of s.participants){const photo=await page.evaluate(async url=>{const r=await fetch(url);const b=await r.blob();const bitmap=await createImageBitmap(b);return {status:r.status,bytes:b.size,width:bitmap.width,height:bitmap.height};},p.portraitUrl);assert.equal(photo.status,200);assert.equal(photo.width,480);assert.equal(photo.height,480);assert.ok(photo.bytes>100);}
   report.photos=8;
-  await display.goto(root+'/admin?run='+run);await display.getByRole('heading',{name:'大会運営',exact:true}).waitFor();
+  await display.goto(root+'/admin?run='+run);await display.getByRole('heading',{name:'大会運営・参加者確認',exact:true}).waitFor();
   await display.getByRole('heading',{name:report.participants[0],exact:true}).waitFor();
   await display.screenshot({path:out+'/admin.png',fullPage:true});
   }
   page.on('response',r=>{const path=new URL(r.url()).pathname;if(r.status()===409&&path==='/api/rehearsal/status'){report.expectedReadConflicts=(report.expectedReadConflicts??0)+1;return;}if(r.status()>=400)report.httpFailures.push({path,status:r.status()});});
-  await display.goto(root+'/display?run='+run);await display.getByRole('heading',{name:'大会開始待機',exact:true}).waitFor();
+  await display.goto(root+'/display?run='+run);await display.getByRole('heading',{name:'会場表示 · 待機中',exact:true}).waitFor();
   await page.goto(root+'/rehearsal?run='+run);
-  if((await read(page,'/api/rehearsal/status?run='+run)).scene!=='finished')await page.getByRole('button',{name:'自動通し確認を開始・再開',exact:true}).click();
+  await page.locator('details.automation > summary').click();
+  if((await read(page,'/api/rehearsal/status?run='+run)).scene!=='finished')await page.getByRole('button',{name:'自動全通しを開始・再開',exact:true}).click();
   const deadline=Date.now()+600000;let version=-1;
   while(Date.now()<deadline){
    const s=await read(page,'/api/rehearsal/status?run='+run);assert.equal(s.integrity.consistent,true);

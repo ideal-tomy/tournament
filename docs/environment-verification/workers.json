@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-10-30T12:05:51.895Z",
+  "checkedAt": "2026-10-31T09:08:11.075Z",
   "workers": [
     {
       "name": "tournament-animation-preview",
@@ -40,12 +40,14 @@
         },
         {
           "name": "CHECKIN_EVENT_ID",
-          "type": "plain_text"
+          "type": "plain_text",
+          "value": "cf-checkin-e2e-20261025"
         },
         {
           "name": "DB",
           "type": "d1",
-          "databaseId": "0a7528e1-7f14-4e54-a896-4fbe2cf2c42c"
+          "databaseId": "0a7528e1-7f14-4e54-a896-4fbe2cf2c42c",
+          "databaseName": "tournament-rehearsal-db"
         },
         {
           "name": "PORTRAITS",
@@ -84,12 +86,14 @@
         },
         {
           "name": "CHECKIN_EVENT_ID",
-          "type": "plain_text"
+          "type": "plain_text",
+          "value": "cf-rehearsal-001"
         },
         {
           "name": "DB",
           "type": "d1",
-          "databaseId": "0a7528e1-7f14-4e54-a896-4fbe2cf2c42c"
+          "databaseId": "0a7528e1-7f14-4e54-a896-4fbe2cf2c42c",
+          "databaseName": "tournament-rehearsal-db"
         },
         {
           "name": "PORTRAITS",
@@ -128,12 +132,14 @@
         },
         {
           "name": "CHECKIN_EVENT_ID",
-          "type": "plain_text"
+          "type": "plain_text",
+          "value": "cf-flow-e2e-20261025"
         },
         {
           "name": "DB",
           "type": "d1",
-          "databaseId": "0a7528e1-7f14-4e54-a896-4fbe2cf2c42c"
+          "databaseId": "0a7528e1-7f14-4e54-a896-4fbe2cf2c42c",
+          "databaseName": "tournament-rehearsal-db"
         },
         {
           "name": "PORTRAITS",
@@ -172,12 +178,14 @@
         },
         {
           "name": "CHECKIN_EVENT_ID",
-          "type": "plain_text"
+          "type": "plain_text",
+          "value": "cf-match-loop-e2e-20261025"
         },
         {
           "name": "DB",
           "type": "d1",
-          "databaseId": "0a7528e1-7f14-4e54-a896-4fbe2cf2c42c"
+          "databaseId": "0a7528e1-7f14-4e54-a896-4fbe2cf2c42c",
+          "databaseName": "tournament-rehearsal-db"
         },
         {
           "name": "PORTRAITS",
@@ -216,12 +224,14 @@
         },
         {
           "name": "CHECKIN_EVENT_ID",
-          "type": "plain_text"
+          "type": "plain_text",
+          "value": "cf-pair-gates-e2e-20261025"
         },
         {
           "name": "DB",
           "type": "d1",
-          "databaseId": "0a7528e1-7f14-4e54-a896-4fbe2cf2c42c"
+          "databaseId": "0a7528e1-7f14-4e54-a896-4fbe2cf2c42c",
+          "databaseName": "tournament-rehearsal-db"
         },
         {
           "name": "PORTRAITS",
@@ -260,12 +270,14 @@
         },
         {
           "name": "ALLOWED_EVENT_IDS",
-          "type": "plain_text"
+          "type": "plain_text",
+          "value": "cf-rehearsal-001"
         },
         {
           "name": "DB",
           "type": "d1",
-          "databaseId": "0a7528e1-7f14-4e54-a896-4fbe2cf2c42c"
+          "databaseId": "0a7528e1-7f14-4e54-a896-4fbe2cf2c42c",
+          "databaseName": "tournament-rehearsal-db"
         },
         {
           "name": "DISPLAY_API_TOKEN",
@@ -285,14 +297,14 @@
     },
     {
       "name": "tournament-through-rehearsal",
-      "modified": "2026-10-30T11:57:55.893235Z",
+      "modified": "2026-10-31T09:07:43.349946Z",
       "deployments": [
         {
-          "id": "e7637ff2-556a-439f-b19c-a6296afaf4dd",
-          "created": "2026-10-30T11:57:54.00773Z",
+          "id": "aaf4ebf1-fbf0-4f84-a134-82855f8bdb37",
+          "created": "2026-10-31T09:07:41.808251Z",
           "versions": [
             {
-              "version_id": "46b3c10b-88ed-43ff-9cb4-38ae082f9065",
+              "version_id": "e50c2ab3-a248-4d60-8799-f744b0d33eab",
               "percentage": 100
             }
           ]
@@ -305,12 +317,14 @@
         },
         {
           "name": "CHECKIN_EVENT_ID",
-          "type": "plain_text"
+          "type": "plain_text",
+          "value": "cf-through-control"
         },
         {
           "name": "DB",
           "type": "d1",
-          "databaseId": "0a7528e1-7f14-4e54-a896-4fbe2cf2c42c"
+          "databaseId": "0a7528e1-7f14-4e54-a896-4fbe2cf2c42c",
+          "databaseName": "tournament-rehearsal-db"
         },
         {
           "name": "PORTRAITS",
@@ -323,11 +337,8 @@
         },
         {
           "name": "REHEARSAL_ENABLED",
-          "type": "plain_text"
-        },
-        {
-          "name": "REHEARSAL_SOURCE_EVENT_ID",
-          "type": "plain_text"
+          "type": "plain_text",
+          "value": "1"
         },
         {
           "name": "SESSION_SECRET",

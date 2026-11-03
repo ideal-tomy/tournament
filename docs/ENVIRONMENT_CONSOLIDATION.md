@@ -1,14 +1,20 @@
+> 最新の環境統合・公開8名E2E・旧Worker分類: [2026-10-31 統合報告](CANONICAL_CONSOLIDATION_20261031.md)。今後の公開は `npm run deploy:rehearsal` のみ。
+
 # 公開リハーサル環境の整理（2026-10-30）
 
+**当日運用の手順（スマホ受付・運営・モニター連動）の正本は [DAY_OF_EVENT.md](./DAY_OF_EVENT.md) です。** 本資料は環境・検証・固定 URL 例を記録します。
+
 ## 連動がわかる画面・デプロイ準備（最新対応）
+
+2026-10-30: 旧Supabase受領資料と移動時点の生成物を `archive/` へ保管後、canonical Worker `tournament-through-rehearsal` へデプロイ完了。Version ID: `aca4f408-5939-4e36-8723-1971e2a76c64`。公開URLは https://tournament-through-rehearsal.pine-shaken.workers.dev 。`/`・`/rehearsal`・`/checkin`・`/admin`・`/display` はすべてHTTP 200、HTML app rootあり。未認証の `/api/rehearsal/config` は401（認証必須）を返すことも確認。
 
 画面の入口をRehearsal中心に整理し、受付・運営・Displayの連動方法、大会ID、反映を確認する方法、次に行う操作を各run上で確認できるようにした。旧Supabase版・旧検証画面は通常の画面とメニューに表示しない。Rehearsalの自動全通しは折りたたみ、Team Aを模擬勝者として記録することを明記する。実データの操作はAdminで手動進行する。
 
 localhostで新しい空run準備→異なるブラウザsessionでAdmin/Display→4人の受付→Admin一覧反映→受付終了→ペア発表開始まで通し確認済み。テストrun：cf-through-16962004-e974-4460-85d1-5401f88c9b28。パッケージテスト27ファイル/181件成功、build成功、npm run deploy:checkで通常／canonicalの2設定のdry-run成功。frontend bundleではSupabase URL・client token・Secret値が非検出。
 
-この更新はローカル作業ツリーにあり、**公開は未実施**。現在の公開Workerは既存のtournament-through-rehearsal version 46b3c10b-88ed-43ff-9cb4-38ae082f9065のまま。公開前にレビューできる状態であり、npm run deploy:rehearsalでcanonicalだけに反映できる。依存追加・migration・新Worker・既存大会への変更はない。32人SHOW全編の公開証跡は前節のものを継続して参照し、今回32人全編は再実行していない。
+この更新は上記version `aca4f408-5939-4e36-8723-1971e2a76c64` として公開済み。`npm run deploy:check` の通常／canonical dry-run後、`npm run deploy:rehearsal` で既存canonicalだけに反映した。依存追加・migration・新Worker・既存大会への変更はない。32人SHOW全編の公開証跡は前節のものを継続して参照し、今回32人全編は再実行していない。
 
-再現／確認資料：[shared flowの確認結果](environment-verification/shared-run-ux/result.json)、[bundle確認](environment-verification/bundle.json)、[Worker棚卸し](environment-verification/WORKERS.md)。未解決：実スマートフォンでのカメラ確認、Safari、物理会場設備。ユーザー確認によりスマホ操作がAdmin/Displayへ反映されたことは会話内で確認済み。
+shared flowの確認は `npm run test:shared-run-ux`（`npm run dev` 起動中）で再実行でき、結果は `.wrangler/shared-run-ux/result.json` に出力される。保存する場合は下記へコピーする。再現／確認資料：[shared flowの確認結果](environment-verification/shared-run-ux/result.json)、[bundle確認](environment-verification/bundle.json)、[Worker棚卸し](environment-verification/WORKERS.md)。未解決：実スマートフォンでのカメラ確認、Safari、物理会場設備。ユーザー確認によりスマホ操作がAdmin/Displayへ反映されたことは会話内で確認済み。
 
 ## 調査結果と実行計画
 
@@ -87,6 +93,10 @@ Workerは`cloudflare/checkin/src/index.ts`、canonical configは`cloudflare/chec
 
 未実装として今回要求された主要フローに欠ける機能は検出していない。ただし実スマホ、Safari、実会場の映像・音声機材は未確認。自動運営とAdmin双方の進行要求による回復可能な競合は残る。会場音声や細かなUIUXは今回の対象外。既存大会・旧Workerは削除せず保持している。
 
+## 固定 URL 例（スナップショット・当日は Rehearsal 準備直後のリンクを正本に）
+
+以下は **2026-10-30 時点の1大会の例** です。再「準備」や別端末での大会作成をすると ID が変わります。当日は [DAY_OF_EVENT.md](./DAY_OF_EVENT.md) の手順どおり Rehearsal から取った 3 リンクのみ使ってください。
+
 ## 今後使うURL（スマートフォン受付用・参加者0名から）
 
 | 画面 | URL |
@@ -109,4 +119,4 @@ Workerは`cloudflare/checkin/src/index.ts`、canonical configは`cloudflare/chec
 - 公開：`npm run deploy:rehearsal`。既存canonical Workerのみを更新。
 - 公開確認コード：repo直下の`.checkin-access.local`。Secret値は本資料に記載しない。
 
-現時点の公開version：`46b3c10b-88ed-43ff-9cb4-38ae082f9065`。トップと開発用接続確認は既存checkin frontendに接続。既存Admin/Display/API/認証を保持し、D1/R2/Secretsの追加や更新、既存大会の初期化・削除、新規依存の導入は行っていない。
+現時点の公開version：`aca4f408-5939-4e36-8723-1971e2a76c64`。トップと開発用接続確認は既存checkin frontendに接続。既存Admin/Display/API/認証を保持し、D1/R2/Secretsの追加や更新、既存大会の初期化・削除、新規依存の導入は行っていない。

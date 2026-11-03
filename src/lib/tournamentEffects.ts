@@ -4,6 +4,12 @@ export const TOURNAMENT_EFFECTS = {
   backgrounds: {
     tournament: `${ROOT}/backgrounds/tournament-bg.webp`,
     cardTable: `${ROOT}/backgrounds/card-table-bg.webp`,
+    vsIdle: `${ROOT}/backgrounds/vs-idle.mp4`,
+    vsBlackHole: `${ROOT}/backgrounds/vs-black-hole.webp`,
+    drawTable: `${ROOT}/backgrounds/draw-table.webp`,
+    pairRings: `${ROOT}/backgrounds/pair-rings.webp`,
+    winnerShaft: `${ROOT}/backgrounds/winner-shaft.webp`,
+    championCorona: `${ROOT}/backgrounds/champion-corona.webp`,
   },
   cards: {
     back: `${ROOT}/cards/card-back.webp`,
@@ -44,7 +50,7 @@ function flattenUrls(value: unknown): string[] {
 
 export const TOURNAMENT_EFFECT_ASSET_URLS = flattenUrls(TOURNAMENT_EFFECTS);
 export const TOURNAMENT_EFFECT_IMAGE_URLS = TOURNAMENT_EFFECT_ASSET_URLS.filter(
-  (url) => !url.endsWith('.mp3'),
+  (url) => !url.endsWith('.mp3') && !url.endsWith('.mp4'),
 );
 export const TOURNAMENT_EFFECT_AUDIO_URLS = TOURNAMENT_EFFECT_ASSET_URLS.filter((url) =>
   url.endsWith('.mp3'),

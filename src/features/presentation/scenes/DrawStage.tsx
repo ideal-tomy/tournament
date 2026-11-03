@@ -7,6 +7,9 @@ import { groupDrawParticipants, shouldShowBackOnlyEffect } from '../drawVisualSt
 import type { RehearsalTimingPreset } from '../../../lib/rehearsalTiming';
 import { drawSeconds, type DrawAnimationTimingKey } from '../drawAnimationTiming';
 import PairConfirmed from './PairConfirmed';
+import PresentationBackdrop from '../backdrop/PresentationBackdrop';
+import { appendPairCelebration, startBackdropLoops } from '../backdrop/appendPresentationBackdrop';
+import { playPresentationAudio, type PresentationCue } from '../backdrop/playPresentationAudio';
 export interface DrawStageProps { timingPreset?:RehearsalTimingPreset; eventId:string; sceneSeq:number; presentationMode:PresentationMode; audioEnabled:boolean; forceComplete?:boolean; restoreCompleted?:boolean; data:DrawPresentationData; startAtSeconds?:number; onComplete?():Promise<void>|void }
 
 export default function DrawStage({
@@ -60,9 +63,12 @@ export default function DrawStage({
       const intro = root.querySelector<HTMLElement>('.draw-intro');
       const seconds=(key:DrawAnimationTimingKey)=>drawSeconds(key,timingPreset);
       const tl = gsap.timeline({ onComplete: () => void finish() });
+      // seek() with events replays every passed callback at once; keep restores silent.
+      let restoring = false;
+      const cue = (name: PresentationCue) => () => { if (!restoring) playPresentationAudio(name, audioEnabled); };
 
       gsap.set(cards, { autoAlpha: 0 });
-      gsap.set(pairStages, { autoAlpha: 0, scale: 0.94 });
+      gsap.set(pairStages, { autoAlpha: 0, scale: 1 });
       gsap.set(summary, { autoAlpha: 0, scale: 0.92 });
       gsap.set(shortGrid, { autoAlpha: 0 });
 
@@ -85,98 +91,58 @@ export default function DrawStage({
             const shell = card.querySelector<HTMLElement>('.draw-card-shell');
             const dart = card.querySelector<HTMLElement>('.draw-dart');
             const streak = card.querySelector<HTMLElement>('.draw-dart-streak');
-            const impact = card.querySelectorAll<HTMLElement>('.draw-impact-layer');
+            const flash = card.querySelector<HTMLElement>('.draw-impact-flash');
+            const ring = card.querySelector<HTMLElement>('.draw-impact-ring');
             const impactMark = card.querySelector<HTMLElement>('.draw-impact-mark');
             const playerReveal = card.querySelectorAll<HTMLElement>('.draw-player-reveal');
-            const backOnlyEffects = [...impact, impactMark].filter(
-              (element): element is HTMLElement => element != null,
-            );
 
-            tl.set([dart, streak, ...backOnlyEffects], { autoAlpha: 0 })
-              .set(playerReveal, { autoAlpha: 0 })
-              .set(shell, { rotationY: 0 })
-              .set(card, { autoAlpha: 1 })
+            // Each beat ends on a still: land → dart sticks → card turns with the dart → face holds.
+            const start = tl.duration();
+            const fly = start + seconds('cardEnter') + seconds('cardSettle');
+            const hit = fly + seconds('dartFlight');
+            const flip = hit + seconds('impactBurst') + seconds('impactHold');
+            const leave = flip + seconds('cardFlip') + seconds('playerReveal') + seconds('revealHold');
+            tl.set([dart, streak, flash, ring, impactMark], { autoAlpha: 0 }, start)
+              .set(playerReveal, { autoAlpha: 0 }, start)
+              .set(shell, { rotationY: 0, x: 0 }, start)
+              .set(card, { autoAlpha: 1, scale: 1 }, start)
               .fromTo(
                 shell,
-                { scale: 0.72 },
-                { scale: 1, duration: seconds('cardEnter'), ease: 'back.out(1.7)' },
+                { autoAlpha: 0, y: -160, scale: 1.2 },
+                { autoAlpha: 1, y: 0, scale: 1, duration: seconds('cardEnter'), ease: 'power3.out', immediateRender: false },
+                start,
               )
-              .call(() => playAudio(FX.audio.dartFly, audioEnabled))
+              .call(cue('dartFly'), [], fly)
               .fromTo(
                 [dart, streak],
                 { autoAlpha: 0, x: '65vw', y: '-24vh', scale: 0.72 },
-                {
-                  autoAlpha: 1,
-                  x: 0,
-                  y: 0,
-                  scale: 1,
-                  duration: seconds('dartFlight'),
-                  ease: 'power4.in',
-                },
+                { autoAlpha: 1, x: 0, y: 0, scale: 1, duration: seconds('dartFlight'), ease: 'power4.in', immediateRender: false },
+                fly,
               )
-              .call(() => playAudio(FX.audio.impact, audioEnabled))
-              .set(backOnlyEffects, {
-                autoAlpha: shouldShowBackOnlyEffect('back', 'impact') ? 1 : 0,
-              })
-              .fromTo(
-                impact,
-                { scale: 0.25 },
-                {
-                  scale: 1.35,
-                  duration: seconds('impactBurst'),
-                  ease: 'power3.out',
-                },
-              )
-              .to({}, { duration: seconds('impactHold') })
-              .to([dart, streak, ...backOnlyEffects], {
-                autoAlpha: 0,
-                duration: seconds('impactClear'),
-              })
-              .call(() => playAudio(FX.audio.cardFlip, audioEnabled))
-              .to(shell, {
-                rotationY: 180,
-                duration: seconds('cardFlip'),
-                ease: 'power2.inOut',
-              })
-              .to(playerReveal, {
-                autoAlpha: 1,
-                duration: seconds('playerReveal'),
-                ease: 'power2.out',
-              })
-              .to(card, {
-                autoAlpha: 0,
-                scale: 0.96,
-                duration: seconds('memberExit'),
-                ease: 'power2.inOut',
-              });
+              .call(cue('impact'), [], hit)
+              .set(streak, { autoAlpha: 0 }, hit + 0.04)
+              .set(impactMark, { autoAlpha: shouldShowBackOnlyEffect('back', 'impact') ? 1 : 0 }, hit)
+              .fromTo(shell, { x: 0 }, { x: 12, duration: 0.04, yoyo: true, repeat: 5, ease: 'none', immediateRender: false }, hit)
+              .fromTo(flash, { autoAlpha: 1, scale: 0.3 }, { autoAlpha: 0, scale: 1.5, duration: seconds('impactBurst'), ease: 'expo.out', immediateRender: false }, hit)
+              .fromTo(ring, { autoAlpha: 0.9, scale: 0.3 }, { autoAlpha: 0, scale: 1.9, duration: seconds('impactBurst') + 0.3, ease: 'expo.out', immediateRender: false }, hit)
+              .call(cue('cardFlip'), [], flip)
+              .to(shell, { rotationY: 180, duration: seconds('cardFlip'), ease: 'power2.inOut' }, flip)
+              .to(playerReveal, { autoAlpha: 1, duration: seconds('playerReveal'), ease: 'power2.out' }, flip + seconds('cardFlip'))
+              .to(card, { autoAlpha: 0, scale: 0.96, duration: seconds('memberExit'), ease: 'power2.inOut' }, leave);
           });
 
           const pairStage = pairStages[teamIndex];
           if (pairStage) {
-            tl.call(() => playAudio(FX.audio.teamConfirm, audioEnabled))
-              .fromTo(
-                pairStage,
-                { autoAlpha: 0, scale: 0.94, y: 24 },
-                {
-                  autoAlpha: 1,
-                  scale: 1,
-                  y: 0,
-                  duration: seconds('pairReveal'),
-                  ease: 'back.out(1.35)',
-                },
-              )
-              .to({}, { duration: seconds('pairConfirmHold') })
-              .to(pairStage, {
-                autoAlpha: 0,
-                scale: 0.96,
-                y: -20,
-                duration: seconds('transitionToNext'),
-                ease: 'power2.inOut',
-              });
+            const pairAt = tl.duration();
+            const hold = seconds('pairReveal') + seconds('pairConfirmHold');
+            tl.call(cue('teamConfirm'), [], pairAt)
+              .fromTo(pairStage, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.25, ease: 'power2.out', immediateRender: false }, pairAt)
+              .to(pairStage, { autoAlpha: 0, scale: 1.04, duration: seconds('transitionToNext'), ease: 'power2.inOut' }, pairAt + hold);
+            appendPairCelebration(tl, root, pairStage, { at: pairAt, hold, exit: seconds('transitionToNext') });
           }
         });
 
-        tl.call(() => playAudio(FX.audio.teamConfirm, audioEnabled))
+        tl.call(cue('teamConfirm'))
           .to(summary, {
             autoAlpha: 1,
             scale: 1,
@@ -193,16 +159,21 @@ export default function DrawStage({
           )
           .to({}, { duration: seconds('shortGridHold') })
           .to(shortGrid, { autoAlpha: 0, duration: seconds('shortGridExit') })
-          .call(() => playAudio(FX.audio.teamConfirm, audioEnabled))
+          .call(cue('teamConfirm'))
           .to(summary, { autoAlpha: 1, scale: 1, duration: seconds('summaryEnter') })
           .to({}, { duration: seconds('summaryHold') });
       } else {
         tl.set([intro, cards, shortGrid], { autoAlpha: 0 })
           .set(summary, { autoAlpha: 1, scale: 1 })
-          .call(() => playAudio(FX.audio.teamConfirm, audioEnabled))
+          .call(cue('teamConfirm'))
           .to({}, { duration: seconds('liteHold') });
       }
-      if (startAtSeconds > 0) tl.seek(Math.min(startAtSeconds, tl.duration()), false);
+      startBackdropLoops(root, presentationMode);
+      if (startAtSeconds > 0) {
+        restoring = true;
+        tl.seek(Math.min(startAtSeconds, tl.duration()), false);
+        restoring = false;
+      }
     }, root);
 
     return () => {
@@ -225,9 +196,9 @@ export default function DrawStage({
   return (
     <div
       ref={rootRef}
-      className="relative h-full min-h-[60vh] overflow-hidden bg-cover bg-center"
-      style={{ backgroundImage: `url(${FX.backgrounds.cardTable})` }}
+      className="relative h-full min-h-[60vh] overflow-hidden"
     >
+      <PresentationBackdrop variant="drawTable" />
       <div className="absolute inset-0 bg-black/20" />
       <div className="draw-intro absolute inset-0 z-10 flex flex-col items-center justify-center">
         <p className="text-sm font-black tracking-[0.55em] text-cyan-300">TEAM DRAW</p>
@@ -253,6 +224,7 @@ export default function DrawStage({
         </div>
       </div>
 
+      <PresentationBackdrop variant="pair" />
       {teams.map((members, index) => (
         <PairConfirmed
           key={`pair-${members.map((member) => member.id).join('-')}`}
@@ -298,8 +270,9 @@ function RevealCard({
     <div className={`draw-reveal-card invisible absolute ${compact ? 'scale-75' : ''}`}>
       <div className="draw-card-shell relative h-[min(66vh,620px)] aspect-[2/3] [transform-style:preserve-3d]">
         <div className="absolute inset-0 [backface-visibility:hidden]">
-          <img src={FX.cards.back} alt="カード裏面" className="h-full w-full object-contain drop-shadow-[0_0_35px_rgba(34,211,238,0.55)]" />
+          <img src={FX.cards.back} alt="カード裏面" className="h-full w-full object-contain drop-shadow-[0_0_35px_rgba(251,191,36,0.45)]" />
           <img src={FX.cards.impactMark} alt="" className="draw-impact-mark invisible pointer-events-none absolute left-1/2 top-1/2 z-20 h-[30%] w-[30%] -translate-x-1/2 -translate-y-1/2 object-contain opacity-80" />
+          <img src={FX.darts.main} alt="" className="draw-dart invisible pointer-events-none absolute left-1/2 top-1/2 z-30 h-[72%] w-[72%] -translate-x-1/2 -translate-y-1/2 object-contain" />
         </div>
         <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
           <img src={FX.cards.front} alt="" className="absolute inset-0 h-full w-full object-contain" />
@@ -316,10 +289,9 @@ function RevealCard({
       </div>
 
       <img src={FX.darts.motionStreak} alt="" className="draw-dart-streak invisible pointer-events-none absolute left-1/2 top-1/2 z-30 h-[75%] w-[75%] -translate-x-1/2 -translate-y-1/2 object-contain" />
-      <img src={FX.darts.main} alt="" className="draw-dart invisible pointer-events-none absolute left-1/2 top-1/2 z-40 h-[72%] w-[72%] -translate-x-1/2 -translate-y-1/2 object-contain" />
-      {[FX.effects.impactFlash, FX.effects.goldenSparks, FX.effects.blueRing, FX.effects.impactCloud, FX.effects.debris].map((src) => (
-        <img key={src} src={src} alt="" className="draw-impact-layer invisible pointer-events-none absolute left-1/2 top-1/2 z-50 h-[95%] w-[95%] -translate-x-1/2 -translate-y-1/2 object-contain" />
-      ))}
+      <img src={FX.effects.impactFlash} alt="" className="draw-impact-flash invisible pointer-events-none absolute left-1/2 top-1/2 z-50 h-[95%] w-[95%] -translate-x-1/2 -translate-y-1/2 object-contain mix-blend-screen" />
+      <img src={FX.effects.blueRing} alt="" className="draw-impact-ring invisible pointer-events-none absolute left-1/2 top-1/2 z-50 h-[95%] w-[95%] -translate-x-1/2 -translate-y-1/2 object-contain mix-blend-screen [filter:hue-rotate(185deg)_saturate(1.3)]" />
+
     </div>
   );
 }
@@ -329,13 +301,6 @@ function ParticipantFace({ participant, className }: { participant: DrawRevealPa
     return <div className={`${className} flex items-center justify-center bg-slate-800 text-4xl text-slate-400`}>?</div>;
   }
   return <img src={participant.faceUrl} alt={participant.displayName} className={`${className} object-cover`} />;
-}
-
-function playAudio(src: string, enabled: boolean) {
-  if (!enabled) return;
-  const audio = new Audio(src);
-  audio.volume = 0.72;
-  void audio.play().catch(() => undefined);
 }
 
 type DrawRevealParticipant = DrawPresentationData['participants'][number];
