@@ -115,7 +115,7 @@ export default function DrawStage({
               .call(cue('dartFly'), [], fly)
               .fromTo(
                 [dart, streak],
-                { autoAlpha: 0, x: '65vw', y: '-24vh', scale: 0.72 },
+                { autoAlpha: 0, x: '65vw', y: '-24vh', scale: 0.72, transformOrigin: '0% 0%' },
                 { autoAlpha: 1, x: 0, y: 0, scale: 1, duration: seconds('dartFlight'), ease: 'power4.in', immediateRender: false },
                 fly,
               )
@@ -198,8 +198,7 @@ export default function DrawStage({
       ref={rootRef}
       className="relative h-full min-h-[60vh] overflow-hidden"
     >
-      <PresentationBackdrop variant="drawTable" />
-      <div className="absolute inset-0 bg-black/20" />
+      <DartNebula />
       <div className="draw-intro absolute inset-0 z-10 flex flex-col items-center justify-center">
         <p className="text-sm font-black tracking-[0.55em] text-cyan-300">TEAM DRAW</p>
         <h2 className="mt-4 text-5xl font-black text-white drop-shadow-[0_0_32px_rgba(34,211,238,0.8)]">
@@ -270,12 +269,14 @@ function RevealCard({
     <div className={`draw-reveal-card invisible absolute ${compact ? 'scale-75' : ''}`}>
       <div className="draw-card-shell relative h-[min(66vh,620px)] aspect-[2/3] [transform-style:preserve-3d]">
         <div className="absolute inset-0 [backface-visibility:hidden]">
-          <img src={FX.cards.back} alt="カード裏面" className="h-full w-full object-contain drop-shadow-[0_0_35px_rgba(251,191,36,0.45)]" />
+          <img src={FX.cards.back} alt="カード裏面" className="h-full w-full object-contain drop-shadow-[0_18px_40px_rgba(0,0,0,.65)]" />
           <img src={FX.cards.impactMark} alt="" className="draw-impact-mark invisible pointer-events-none absolute left-1/2 top-1/2 z-20 h-[30%] w-[30%] -translate-x-1/2 -translate-y-1/2 object-contain opacity-80" />
-          <img src={FX.darts.main} alt="" className="draw-dart invisible pointer-events-none absolute left-1/2 top-1/2 z-30 h-[72%] w-[72%] -translate-x-1/2 -translate-y-1/2 object-contain" />
+          <div className="draw-dart invisible pointer-events-none">
+            <img src={FX.darts.main} alt="" />
+          </div>
         </div>
         <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
-          <img src={FX.cards.front} alt="" className="absolute inset-0 h-full w-full object-contain" />
+          <img src={FX.cards.front} alt="" className="draw-card-front absolute inset-0 h-full w-full object-contain" />
           <div className="draw-player-reveal absolute inset-[14%_13%_22%] flex items-center justify-center">
             <ParticipantFace participant={participant} className="h-full w-full rounded-xl" />
           </div>
@@ -304,3 +305,36 @@ function ParticipantFace({ participant, className }: { participant: DrawRevealPa
 }
 
 type DrawRevealParticipant = DrawPresentationData['participants'][number];
+
+/** Distorts the nebula in place so the fire and smoke churn, instead of sliding the still. */
+function DartNebula() {
+  const noise = useRef<SVGFETurbulenceElement>(null);
+  useEffect(() => {
+    const node = noise.current;
+    if (!node || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+    const start = performance.now();
+    let frame = 0;
+    const tick = (now: number) => {
+      const t = (now - start) / 1000;
+      const x = 0.008 + Math.sin(t * 1.05) * 0.003;
+      const y = 0.011 + Math.cos(t * 0.82) * 0.0034;
+      node.setAttribute('baseFrequency', `${x.toFixed(4)} ${y.toFixed(4)}`);
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  const picture = { backgroundImage: `url(${FX.backgrounds.dartNebula})` };
+  return <>
+    <svg className="draw-nebula-filter" aria-hidden="true">
+      <filter id="draw-writhe" x="-20%" y="-20%" width="140%" height="140%">
+        <feTurbulence ref={noise} type="fractalNoise" baseFrequency="0.008 0.011" numOctaves="2" seed="4" result="noise" />
+        <feDisplacementMap in="SourceGraphic" in2="noise" scale="42" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+    </svg>
+    <div className="draw-nebula" aria-hidden="true">
+      <div className="draw-nebula-base" style={picture} />
+      <div className="draw-nebula-haze" style={picture} />
+    </div>
+  </>;
+}

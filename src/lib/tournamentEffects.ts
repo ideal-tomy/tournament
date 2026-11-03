@@ -7,6 +7,7 @@ export const TOURNAMENT_EFFECTS = {
     vsIdle: `${ROOT}/backgrounds/vs-idle.mp4`,
     vsBlackHole: `${ROOT}/backgrounds/vs-black-hole.webp`,
     drawTable: `${ROOT}/backgrounds/draw-table.webp`,
+    dartNebula: `${ROOT}/backgrounds/dart-nebula.webp`,
     pairRings: `${ROOT}/backgrounds/pair-rings.webp`,
     winnerShaft: `${ROOT}/backgrounds/winner-shaft.webp`,
     championCorona: `${ROOT}/backgrounds/champion-corona.webp`,

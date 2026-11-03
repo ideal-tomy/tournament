@@ -2,3 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 .live-draw-stage{width:100%;height:100dvh;min-height:500px}.live-draw-stage>div{height:100%}.draw-monitor:empty{display:none}.persisted-bracket{width:100%;min-height:400px;background:#08111e;padding:20px}.persisted-bracket>svg{width:100%;height:calc(100dvh - 160px);min-height:400px}.draw-operations{max-width:1100px!important}.draw-operations p{margin:12px 0}.draw-operations ol{padding-left:24px;margin:20px 0}.display[hidden]{display:none}
+.draw-nebula-filter{position:absolute;width:0;height:0}
+.draw-nebula{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none;background:#070300}
+.draw-nebula-base,.draw-nebula-haze{position:absolute;inset:-12%;background-size:cover;background-position:center;filter:url(#draw-writhe)}
+.draw-nebula-haze{filter:url(#draw-writhe) blur(16px);opacity:.5}
+.draw-card-front{filter:contrast(1.08) saturate(1.12)}
+.draw-dart{position:absolute;left:50%;top:50%;z-index:30;width:78%;aspect-ratio:3/2;transform-origin:0 0}
+.draw-dart img{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;transform:translate(-20.57%,-87.11%)}
+@media(prefers-reduced-motion:reduce){.draw-nebula-base,.draw-nebula-haze{filter:none}}
