@@ -1,5 +1,9 @@
 const ROOT = '/tournament-effects';
 
+function audioFile(name: string) {
+  return `${ROOT}/audio/${encodeURIComponent(name)}`;
+}
+
 export const TOURNAMENT_EFFECTS = {
   backgrounds: {
     tournament: `${ROOT}/backgrounds/tournament-bg.webp`,
@@ -36,10 +40,12 @@ export const TOURNAMENT_EFFECTS = {
     teamPlate: `${ROOT}/frames/team-plate.png`,
   },
   audio: {
-    dartFly: `${ROOT}/audio/dart-fly.mp3`,
-    impact: `${ROOT}/audio/impact.mp3`,
-    cardFlip: `${ROOT}/audio/card-flip.mp3`,
-    teamConfirm: `${ROOT}/audio/team-confirm.mp3`,
+    dartFly: audioFile('dart-fly.mp3'),
+    impact: audioFile('impact.mp3'),
+    cardFlip: audioFile('card-flip.mp3'),
+    teamConfirm: audioFile('team-confirm.mp3'),
+    opening: audioFile('オープニング.mp3'),
+    pair: audioFile('ペア.mp3'),
   },
 } as const;
 

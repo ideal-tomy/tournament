@@ -1,4 +1,5 @@
 import { TOURNAMENT_EFFECT_AUDIO_URLS, TOURNAMENT_EFFECT_IMAGE_URLS } from '../lib/tournamentEffects';
+import { isPresentationBedUrl } from '../features/presentation/backdrop/presentationBed';
 
 let started = false;
 
@@ -12,6 +13,7 @@ export function preloadPresentationAssets() {
     void image.decode().catch(() => console.warn(`[preload] image unavailable: ${url}`));
   }
   for (const url of TOURNAMENT_EFFECT_AUDIO_URLS) {
+    if (isPresentationBedUrl(url)) continue;
     const audio = new Audio();
     audio.preload = 'auto';
     audio.src = url;

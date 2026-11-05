@@ -9,6 +9,9 @@ import { portraitUrlFor } from './portraitCache';
 import { useTournamentState } from './useTournamentState';
 import { preloadPresentationAssets } from './preloadPresentationAssets';
 import { currentReview, reviewState, reviewUrl } from './reviewPlayback';
+import PresentationBedUnlock from '../features/presentation/backdrop/PresentationBedUnlock';
+import { resolveVenueBed, usePresentationBed } from '../features/presentation/backdrop/presentationBed';
+import VenueOpening from './VenueOpening';
 
 const reviewDone = () => {};
 
@@ -53,8 +56,11 @@ export default function DrawControl({administration,onAuthRequired,sessionVersio
   catch(reason){setCommandError(reason instanceof Error?reason.message:'処理に失敗しました。');if(reason instanceof ApiError){if(reason.status===401)onAuthRequired();else if(reason.status<500){operation.current=null;refresh();}}}
   finally{setBusy(false);}
  }
- useEffect(()=>onActiveChange?.(!!state?.session),[state?.session?.id,onActiveChange]);
+ const showOpening=!administration&&!currentReview()&&(!state||!state.session||state.scene==='idle');
+ useEffect(()=>onActiveChange?.(!!state?.session||showOpening),[state?.session?.id,showOpening,onActiveChange]);
  useEffect(()=>{if(!administration)preloadPresentationAssets();},[administration]);
+ const bedTrack=administration||!state?null:resolveVenueBed({review:currentReview(),scene:state.scene,hasSession:!!state.session,photoError});
+ usePresentationBed(bedTrack,!administration);
  const onComplete=useCallback(()=>refresh(),[refresh]);
  return <section className={administration?'card draw-operations':'draw-monitor'} data-draw-scene={state?.scene??'loading'} data-draw-version={state?.version??0}>
   {administration&&<><h2>大会運営（確認用）</h2><p>受付終了で参加者を固定し、ペアを確定してから発表・ゲーム開始へ進みます。</p><p>対象 {state?.participants.length??0}名 · 受付{state?.checkinStatus==='closed'?'終了':'中'}</p>
@@ -77,10 +83,11 @@ export default function DrawControl({administration,onAuthRequired,sessionVersio
    <a className="button" href={scopedUrl('/display')} target="_blank" rel="noreferrer">会場Displayを開く</a>
   </>}
   {(error||commandError||presentation?.error||photoError)&&<p role="alert" className="error">{error||commandError||presentation?.error||'保存写真を読み込めません。接続を確認してください。'}<button onClick={()=>{setPhotoError(false);refresh();}}>再読み込み</button></p>}
-  {!administration&&(currentReview()&&state?.session&&presentation?.data&&!photoError?currentReview()==='draw'?<div className="live-draw-stage"><DrawStage key={`review-draw-${state.session.id}`} eventId={state.eventId} sceneSeq={state.sceneSeq} data={presentation.data} presentationMode="full" timingPreset={state.timingPreset} audioEnabled startAtSeconds={0} onComplete={reviewDone}/></div>:<div className="tournament-stage"><FlowPresentation key={`review-${currentReview()}`} state={reviewState(state,currentReview() as 'vs'|'winner'|'champion')}/></div>:!state?.session||state.scene==='idle'?<div className="card display-wait-card"><h1>会場表示 · 待機中</h1><p>{state?.checkinStatus==='closed'?'受付は終了しました。運営が「ペア発表開始」を押すと、ここに演出が表示されます。':'参加者を受付中です。4名以上の偶数人数になったら、運営（Admin）で受付終了→ペア発表開始してください。'}</p>{!!state?.participants.length&&<p className="display-wait-count">登録 {state.participants.length} 名</p>}</div>:state.scene==='draw'&&presentation?.data&&!photoError?<div className="live-draw-stage" onErrorCapture={event=>{if(event.target instanceof HTMLImageElement)setPhotoError(true);}}>
+  {!administration&&(currentReview()&&state?.session&&presentation?.data&&!photoError?currentReview()==='draw'?<div className="live-draw-stage"><DrawStage key={`review-draw-${state.session.id}`} eventId={state.eventId} sceneSeq={state.sceneSeq} data={presentation.data} presentationMode="full" timingPreset={state.timingPreset} audioEnabled startAtSeconds={0} onComplete={reviewDone}/></div>:<div className="tournament-stage"><FlowPresentation key={`review-${currentReview()}`} state={reviewState(state,currentReview() as 'vs'|'winner'|'champion')}/></div>:!state?.session||state.scene==='idle'?<VenueOpening count={state?.participants.length??0} checkinClosed={state?.checkinStatus==='closed'}/>:state.scene==='draw'&&presentation?.data&&!photoError?<div className="live-draw-stage" onErrorCapture={event=>{if(event.target instanceof HTMLImageElement)setPhotoError(true);}}>
    <DrawStage key={`${state.session.id}-${state.sceneSeq}`} eventId={state.eventId} sceneSeq={state.sceneSeq} data={presentation.data} presentationMode="full" timingPreset={state.timingPreset} audioEnabled startAtSeconds={state.elapsedSeconds} onComplete={onComplete}/>
   </div>:<div className="tournament-stage" onErrorCapture={event=>{if(event.target instanceof HTMLImageElement)setPhotoError(true);}}><FlowPresentation key={state.sceneSeq} state={state}/></div>)}
   {administration&&state?.bracket&&<SavedBracket state={state}/>}
+  {!administration&&bedTrack&&<PresentationBedUnlock/>}
 
  </section>;
 }
