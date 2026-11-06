@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { TOURNAMENT_EFFECTS as FX } from '../../../lib/tournamentEffects';
 import type { DrawRevealParticipant } from '../../draw/presentationTypes';
 import CeremonyFrame, { cardSlots } from '../ceremony/CeremonyFrame';
+import RatedName from '../ceremony/RatedName';
 
 interface PairConfirmedProps {
   teamNumber: number;
@@ -38,7 +39,7 @@ export default function PairConfirmed({ teamNumber, members }: PairConfirmedProp
             style={{ left: slots[index], top: RING_CENTER_Y - height / 2, width, height }}
           >
             {member.faceUrl ? <img src={member.faceUrl} alt={member.displayName} /> : <div className="cer-empty">?</div>}
-            <p className="cer-card-name">{member.displayName}</p>
+            <p className="cer-card-name"><RatedName text={member.displayName} /></p>
           </article>
         ))}
         <p className="cer-text pc-next">NEXT DRAW COMING UP</p>

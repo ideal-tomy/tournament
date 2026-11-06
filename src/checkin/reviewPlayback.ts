@@ -21,7 +21,7 @@ export function reviewState(state: DrawState, scene: Exclude<ReviewScene, 'draw'
   const match = reviewMatch(state);
   const champion = state.flow?.championTeamId ?? match?.teamA ?? null;
   const opponent = match && match.teamA === champion ? match.teamB : match && match.teamB === champion ? match.teamA : match?.teamB ?? null;
-  const flow = { ...state.flow!, currentMatch: match, winnerTeamId: scene === 'winner' ? champion : state.flow?.winnerTeamId ?? null, loserTeamId: scene === 'winner' ? opponent : state.flow?.loserTeamId ?? null, championTeamId: champion, canStart: false, phase: scene };
+  const flow = { ...state.flow!, currentMatch: match, winnerTeamId: scene === 'winner' ? champion : state.flow?.winnerTeamId ?? null, loserTeamId: scene === 'winner' ? opponent : state.flow?.loserTeamId ?? null, championTeamId: champion, ceremony: scene === 'champion' ? 'champion' as const : null, canStart: false, phase: scene };
   return { ...state, scene: scene === 'vs' ? 'vs_card' : scene === 'winner' ? 'result' : 'award', elapsedSeconds: 0, sceneSeq: state.sceneSeq + (scene === 'vs' ? 1 : scene === 'winner' ? 2 : 3), flow };
 }
 

@@ -20,6 +20,7 @@ const messages: Record<string, string> = {
   PAIRS_NOT_PREPARED: '先に組み合わせを確定してください。',
   INVALID_PAIRS: '全員が1回ずつ入る2人組にしてください。',
   PAIRS_LOCKED: 'ペア発表が始まったので、組み直せません。',
+  REPLAY_NOT_AVAILABLE: 'ペア発表前なので、やり直す進行はありません。',
   UNAUTHORIZED: '確認コードを入力してログインしてください。',
   NOT_CONFIGURED: '受付の準備ができていません。運営担当者に確認してください。',
   INVALID_NAME: '名前は80文字以内で入力してください。',

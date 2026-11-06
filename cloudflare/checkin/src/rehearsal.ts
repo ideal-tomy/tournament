@@ -3,11 +3,25 @@ import { rows } from './lifecycle';
 import { readDrawState } from './draw';
 
 export const isRehearsalRun=(id:string)=>/^cf-through-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(id);
+const officialRun=(env:CheckinEnv)=>env.OFFICIAL_EVENT_ID&&isRehearsalRun(env.OFFICIAL_EVENT_ID)?env.OFFICIAL_EVENT_ID:null;
+/** Pre-registered tournaments. Each keeps its own participants, pairs and progress under its event_id. */
+export const FIXED_EVENTS=[
+ {id:'cf-through-20261206-1206-4206-8206-000000000001',label:'本番'},
+ {id:'cf-through-20261206-1206-4206-8206-000000000002',label:'予備1'},
+ {id:'cf-through-20261206-1206-4206-8206-000000000003',label:'予備2'},
+] as const;
+async function registerFixedEvents(env:CheckinEnv){
+ const subtitle=JSON.stringify({rehearsalTiming:'show'});
+ await env.DB.batch(FIXED_EVENTS.map(event=>env.DB.prepare("INSERT OR IGNORE INTO events(id,title,subtitle,format,environment,team_size,status) VALUES(?,?,?,'double_elimination','rehearsal',2,'draft')").bind(event.id,`大会通しリハーサル ${event.label}`,subtitle)));
+}
 export async function rehearsalRoute(request:Request,env:CheckinEnv):Promise<Response|null>{
  const path=new URL(request.url).pathname;
  if(!path.startsWith('/api/rehearsal/'))return null;
  if(env.REHEARSAL_ENABLED!=='1')throw new ClientError('NOT_FOUND',404);
- if(path==='/api/rehearsal/config'&&request.method==='GET')return response({enabled:true,sourceEventId:env.REHEARSAL_SOURCE_EVENT_ID??null});
+ if(path==='/api/rehearsal/config'&&request.method==='GET'){
+  await registerFixedEvents(env);
+  return response({enabled:true,sourceEventId:env.REHEARSAL_SOURCE_EVENT_ID??null,officialEventId:officialRun(env),events:FIXED_EVENTS});
+ }
  if(path==='/api/rehearsal/create'&&request.method==='POST'){
   const body=await readBody(request,1024),id=`cf-through-${requestId(body.requestId)}`;
   const format=body.format??'double_elimination',preset=body.timingPreset??'show';
@@ -43,7 +57,7 @@ export async function selectRehearsalRun(request:Request,env:CheckinEnv):Promise
  const url=new URL(request.url),portrait=/^\/api\/events\/([^/]+)\/participants\/checkin-[a-f0-9-]{36}\/portrait$/.exec(url.pathname);
  const requested=url.searchParams.get('run');
  if(portrait&&requested&&portrait[1]!==requested)throw new ClientError('NOT_FOUND',404);
- const id=portrait?.[1]??requested;
+ const id=portrait?.[1]??requested??officialRun(env);
  // The source event is exposed for portraits only, never for tournament commands.
  if(portrait&&request.method==='GET'&&id===env.REHEARSAL_SOURCE_EVENT_ID)return {...env,CHECKIN_EVENT_ID:id};
  if(!id||!isRehearsalRun(id))throw new ClientError('RUN_REQUIRED',409);

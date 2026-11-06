@@ -21,6 +21,8 @@ interface BracketViewProps {
   suppressConnectorHighlight?: boolean;
   /** Presentation only: keep frozen/updated layers in the same coordinate space. */
   layoutData?: StageData;
+  /** 表示範囲をこの試合群の段へ寄せ、終わった試合を暗くする */
+  focusMatchIds?: number[];
 }
 
 export default function BracketView({
@@ -32,8 +34,18 @@ export default function BracketView({
   compact = false,
   suppressConnectorHighlight = false,
   layoutData,
+  focusMatchIds,
 }: BracketViewProps) {
   const L = computeBracketLayout(layoutData??data);
+  const focus = (focusMatchIds ?? []).map((id) => L.byId[id]).filter((m) => m != null);
+  let viewBox = `0 0 ${L.width} ${L.height}`;
+  if (focus.length) {
+    const top = Math.min(...focus.map((m) => m.box.y));
+    const bottom = Math.max(...focus.map((m) => m.box.y + m.box.h));
+    const height = Math.min(L.height, Math.max(L.height * 0.55, bottom - top + 240));
+    const y = Math.max(0, Math.min(L.height - height, (top + bottom) / 2 - height / 2));
+    viewBox = `0 ${y} ${L.width} ${height}`;
+  }
 
   const wbMatches = L.matches.filter((m) => m.bracket === 'winner');
   const lbMatches = L.matches.filter((m) => m.bracket === 'loser');
@@ -72,7 +84,7 @@ export default function BracketView({
 
   return (
     <svg
-      viewBox={`0 0 ${L.width} ${L.height}`}
+      viewBox={viewBox}
       className={compact ? 'w-full h-auto max-h-48' : 'w-full h-full'}
       preserveAspectRatio="xMidYMid meet"
       role="img"
@@ -158,6 +170,7 @@ export default function BracketView({
             data-center-x={m.center.x}
             data-center-y={m.center.y}
             className={isCurrent ? bracketTheme.current.pulseClass : undefined}
+            opacity={focus.length && isDone ? 0.45 : undefined}
           >
             <rect
               x={m.box.x}

@@ -1,65 +1,64 @@
-import { useState } from 'react';
-import { api, ApiError, currentRunId, scopedUrl } from './api';
+import { useEffect, useState } from 'react';
+import { api, ApiError } from './api';
 
-type Format = 'single_elimination' | 'double_elimination';
-const formats: [Format, string][] = [['single_elimination', 'トーナメント'], ['double_elimination', 'ダブルイリミネーション']];
 const screens = [
   { path: '/checkin', label: '受付', device: 'スマホ', qr: true },
   { path: '/admin', label: '運営', device: 'スマホ', qr: true },
   { path: '/display', label: '会場モニター', device: 'PC', qr: false },
 ] as const;
 
-/** Day-of entry: one tournament and the three screens that share it. Presentation checks live under /rehearsal. */
+interface FixedEvent { id: string; label: string }
+
+/** Day-of entry: the pre-registered tournaments and their three screens. Presentation checks live under /rehearsal. */
 export default function StartPage({ onAuthRequired }: { onAuthRequired(): void }) {
-  const [run, setRun] = useState(currentRunId());
-  const [format, setFormat] = useState<Format>('single_elimination');
-  const [busy, setBusy] = useState(false);
+  const [events, setEvents] = useState<FixedEvent[] | null | undefined>(undefined);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState('');
-  async function create() {
-    if (busy) return;
-    setBusy(true); setError('');
-    try {
-      const created = await api<{ eventId: string }>('/api/rehearsal/create', { method: 'POST', body: JSON.stringify({ requestId: crypto.randomUUID(), format, timingPreset: 'show' }) });
-      const url = new URL(location.href); url.searchParams.set('run', created.eventId); history.replaceState(null, '', url);
-      setRun(created.eventId);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '大会を作れませんでした。');
+  useEffect(() => {
+    let cancelled = false;
+    api<{ officialEventId: string | null; events?: FixedEvent[] }>('/api/rehearsal/config').then(value => {
+      if (cancelled) return;
+      const list = value.events ?? [];
+      setEvents(value.officialEventId && !list.some(event => event.id === value.officialEventId) ? [{ id: value.officialEventId, label: '本番' }, ...list] : list);
+    }).catch(reason => {
+      if (cancelled) return;
       if (reason instanceof ApiError && reason.status === 401) onAuthRequired();
-    } finally { setBusy(false); }
-  }
+      else if (reason instanceof ApiError && reason.status === 404) setEvents(null);
+      else setError(reason instanceof Error ? reason.message : '接続できませんでした。');
+    });
+    return () => { cancelled = true; };
+  }, [onAuthRequired]);
   async function copy(label: string, text: string) {
     try { await navigator.clipboard.writeText(text); setCopied(label); } catch { setCopied(''); }
   }
-  if (!run) return <section className="card start-card">
-    <p className="eyebrow">本番リハーサル</p>
-    <h1>大会を作る</h1>
-    <div className="segmented" role="radiogroup" aria-label="大会の形式">
-      {formats.map(([value, label]) => <button key={value} type="button" role="radio" aria-checked={format === value} className={format === value ? 'is-on' : undefined} onClick={() => setFormat(value)}>{label}</button>)}
-    </div>
-    {error && <p role="alert" className="error">{error}</p>}
-    <button className="primary submit" disabled={busy} onClick={() => void create()}>{busy ? '作成中…' : '大会を作る'}</button>
+  if (error) return <section className="card start-card"><p role="alert" className="error">{error}</p><button onClick={() => location.reload()}>再接続</button></section>;
+  if (events === undefined) return <p role="status">大会を確認しています…</p>;
+  if (!events?.length) return <section className="card start-card">
+    <p className="eyebrow">本番</p>
+    <h1>公式大会が設定されていません</h1>
+    <p>確認用の大会は「演出を確認する」から準備してください。</p>
+    <a className="button primary" href="/rehearsal">演出を確認する</a>
   </section>;
-  return <section className="card start-card">
-    <p className="eyebrow">本番リハーサル · 大会ID …{run.slice(-8)}</p>
-    <h1>3つの画面を開く</h1>
+  return <>{events.map(event => <section key={event.id} className="card start-card">
+    <p className="eyebrow">{event.label} · 大会ID …{event.id.slice(-8)}</p>
+    <h1>{event.label}の3つの画面を開く</h1>
     <div className="start-screens">
       {screens.map(screen => {
-        const path = scopedUrl(screen.path);
+        const path = `${screen.path}?run=${event.id}`;
         const full = location.origin + path;
+        const key = `${event.id}${screen.path}`;
         return <article key={screen.path} className="start-screen">
           <div>
             <h2>{screen.label}</h2>
             <p>{screen.device}</p>
           </div>
-          {screen.qr && <img src={`https://api.qrserver.com/v1/create-qr-code/?size=144x144&data=${encodeURIComponent(full)}`} alt={`${screen.label}のQR`} width={144} height={144} />}
+          {screen.qr && <img src={`https://api.qrserver.com/v1/create-qr-code/?size=144x144&data=${encodeURIComponent(full)}`} alt={`${event.label} ${screen.label}のQR`} width={144} height={144} />}
           <div className="start-screen-actions">
             <a className="button primary" href={path} target={screen.path === '/display' ? '_blank' : undefined} rel="noreferrer">開く</a>
-            <button type="button" onClick={() => void copy(screen.path, full)}>{copied === screen.path ? 'コピーしました' : 'URLをコピー'}</button>
+            <button type="button" onClick={() => void copy(key, full)}>{copied === key ? 'コピーしました' : 'URLをコピー'}</button>
           </div>
         </article>;
       })}
     </div>
-    <button type="button" className="start-new" onClick={() => { history.replaceState(null, '', '/start'); setRun(null); }}>別の大会を作る</button>
-  </section>;
+  </section>)}</>;
 }

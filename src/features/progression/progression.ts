@@ -2,6 +2,7 @@ import type { BracketsManager } from 'brackets-manager';
 import { Status } from 'brackets-model';
 import type { BMMatch, StageData } from '../bracket/layout';
 import { toStageData } from '../bracket/manager';
+export { getBottomTierMatches, getMatchBracketKind, getMatchRoundLabel, getMatchTier, getOpenTierMatches } from './tiers';
 
 export class ProgressionError extends Error {
   constructor(message: string) {
@@ -27,22 +28,6 @@ export function getSlotTeamUuid(
   const opp = slot === 0 ? match.opponent1 : match.opponent2;
   if (opp?.id == null) return null;
   return participantIdToTeamUuid(data, opp.id as number);
-}
-
-export function getMatchBracketKind(
-  data: StageData,
-  match: BMMatch,
-): 'winner' | 'loser' | 'grand_final' {
-  const group = data.group.find((g) => g.id === match.group_id);
-  const num = group?.number ?? 1;
-  if (num === 1) return 'winner';
-  if (num === 2) return 'loser';
-  return 'grand_final';
-}
-
-export function getMatchRoundLabel(data: StageData, match: BMMatch): number {
-  const round = data.round.find((r) => r.id === match.round_id);
-  return round?.number ?? 1;
 }
 
 /** 両者確定済み・未確定の先頭 match（id 昇順） */
@@ -97,6 +82,30 @@ export async function getChampionTeamId(
     if(final.opponent1?.result==='win'&&final.opponent2?.result==='loss')return getSlotTeamUuid(data,final,0);
     if(final.opponent2?.result==='win'&&final.opponent1?.result==='loss')return getSlotTeamUuid(data,final,1);
     return null;
+  }
+}
+
+export interface FinalPlacements {
+  first: string;
+  /** Single elimination without a 3rd-place match ranks both semi-final losers 3rd. */
+  second: string[];
+  third: string[];
+}
+
+export async function getFinalPlacements(
+  manager: BracketsManager,
+): Promise<FinalPlacements | null> {
+  const first = await getChampionTeamId(manager);
+  if (!first) return null;
+  try {
+    const standings = await manager.get.finalStandings(0);
+    const at = (rank: number) => standings.filter(s => s.rank === rank && s.name).map(s => String(s.name)).filter(id => id !== first);
+    return { first, second: at(2), third: at(3) };
+  } catch {
+    // Same size=2 gap as getChampionTeamId: the sole final's other team is 2nd.
+    const data = toStageData(await manager.get.stageData(0)), final = data.match[0];
+    const second = final ? [getSlotTeamUuid(data, final, 0), getSlotTeamUuid(data, final, 1)].filter((id): id is string => !!id && id !== first) : [];
+    return { first, second, third: [] };
   }
 }
 

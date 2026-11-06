@@ -17,7 +17,7 @@ const flowSteps = [
 
 function nextAction(s: Status) {
   const count = s.participants.length;
-  if (s.scene === 'finished') return '大会終了。CHAMPIONをDisplayで確認できます。';
+  if (s.scene === 'finished') return '大会終了。Displayにお礼を表示しています。運営の「最初からやり直す」で同じ参加者のまま最初に戻せます。';
   if (s.checkinStatus === 'open') {
     if (count < 4 || count % 2) return 'スマホ受付を続けてください（現在' + count + '名。4名以上の偶数人数が必要です）。';
     return '受付画面で「受付終了」を押すと、参加者が固定されます。';
@@ -26,11 +26,12 @@ function nextAction(s: Status) {
   if (s.scene === 'idle') return '運営（Admin）で「ペア発表開始」を押してください。会場モニター（Display）に演出が出ます。';
   if (s.scene === 'draw') return '会場Displayでペア発表が終わるまで待ちます。';
   if (s.scene === 'bracket' && s.flow?.canGameStart) return '運営（Admin）で「ゲームスタート」を押してください。';
+  if (s.scene === 'interval') return '運営（Admin）の台カードで、各台の試合開始と勝者を入力してください。';
   if (s.scene === 'vs_card') return '会場Displayで対戦を確認し、運営で「試合開始」を押してください。';
   if (s.scene === 'match_live') return '運営（Admin）で実際の勝者を選んでください。';
   if (s.flow?.canAdvance) return 'DisplayでBracketの勝ち上がりを確認します。';
   if (s.scene === 'result') return 'DisplayでWINNER表示を確認してください。';
-  if (s.scene === 'award') return 'DisplayでCHAMPION演出を確認してください。';
+  if (s.scene === 'award') return 'Displayで3位・2位・優勝・表彰台を順に確認し、運営で次へ進めてください。';
   return 'Displayで進行を確認してください（' + s.scene + '）。';
 }
 

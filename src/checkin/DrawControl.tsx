@@ -15,9 +15,13 @@ import VenueOpening from './VenueOpening';
 
 const reviewDone = () => {};
 
+export interface FlowMatch {id:number;teamA:string;teamB:string;round:number;roundName?:string;kind:string;final:boolean}
+export interface CourtBoard {board:number;matchId:number|null;stage:'idle'|'call'|'live'|'result';startedAt:string|null;winnerTeamId?:string|null;loserTeamId?:string|null;match:FlowMatch|null}
+export type CeremonyStep='third'|'second'|'champion'|'podium';
+export interface Placements {first:string;second:string[];third:string[]}
 export interface DrawState {
  format?:string; timingPreset?:'show'|'fast';
- flow: {resultPresentation?:{beforeBracket:BracketSnapshot;match:{id:number;teamA:string;teamB:string;round:number;kind:string;final:boolean};winnerTeamId:string}|null;phase:string;currentMatch:{id:number;teamA:string;teamB:string;round:number;roundName?:string;kind:string;final:boolean}|null;winnerTeamId:string|null;loserTeamId:string|null;championTeamId:string|null;lastMatchId:number|null;canGameStart:boolean;canAnnounce:boolean;canStart:boolean;canScore:boolean;canAdvance:boolean;completedMatches:number}|null;
+ flow: {ceremony?:CeremonyStep|null;placements?:Placements|null;resultPresentation?:{beforeBracket:BracketSnapshot;match:{id:number;teamA:string;teamB:string;round:number;kind:string;final:boolean};winnerTeamId:string}|null;phase:string;currentMatch:FlowMatch|null;courts?:{count:number;showBracket:boolean;boards:CourtBoard[]}|null;winnerTeamId:string|null;loserTeamId:string|null;championTeamId:string|null;lastMatchId:number|null;canGameStart:boolean;canAnnounce:boolean;canStart:boolean;canScore:boolean;canAdvance:boolean;completedMatches:number}|null;
  eventId:string;title:string;checkinStatus:string;checkinRevision:number;scene:string;version:number;sceneSeq:number;
  elapsedSeconds:number;durationSec:number;canComplete:boolean;
  session:{id:string;revealOrder:string[];committedAt:string}|null;
@@ -87,7 +91,7 @@ export default function DrawControl({administration,onAuthRequired,sessionVersio
    <DrawStage key={`${state.session.id}-${state.sceneSeq}`} eventId={state.eventId} sceneSeq={state.sceneSeq} data={presentation.data} presentationMode="full" timingPreset={state.timingPreset} audioEnabled startAtSeconds={state.elapsedSeconds} onComplete={onComplete}/>
   </div>:<div className="tournament-stage" onErrorCapture={event=>{if(event.target instanceof HTMLImageElement)setPhotoError(true);}}><FlowPresentation key={state.sceneSeq} state={state}/></div>)}
   {administration&&state?.bracket&&<SavedBracket state={state}/>}
-  {!administration&&bedTrack&&<PresentationBedUnlock/>}
+  {!administration&&bedTrack&&<PresentationBedUnlock track={bedTrack}/>}
 
  </section>;
 }

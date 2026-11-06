@@ -67,6 +67,18 @@ button.op-side{justify-content:flex-start;min-height:150px}
 .op-side-label{font-size:12px;color:#94a3b8}
 .op-side-faces{display:flex;gap:4px}
 .op-side-names{font-size:14px;text-align:center;overflow-wrap:anywhere}
+.op-boards{display:grid;gap:14px}
+.op-boards>.op-link-button{margin-top:0}
+.op:has(.op-boards){padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+.op-board{display:grid;gap:10px;padding:12px;border-radius:18px;background:#0a1626;border:2px solid #2b405a}
+.op-board.is-call{border-color:#42bbce}
+.op-board.is-live{border-color:#4ade80}
+.op-board.is-result{border-color:#fbbf24}
+.op-board-head{display:flex;align-items:baseline;justify-content:space-between}
+.op-board-head strong{font-size:22px;font-weight:900}
+.op-board-head span{font-size:14px;font-weight:700;color:#a6b9cd}
+.op-board>button{width:100%;min-height:52px;font-size:17px}
+.op-board .op-note{padding:16px 0}
 .op-error{display:flex;flex-direction:column;gap:8px;margin:12px 0;padding:12px;border-radius:12px;background:#4b1827;border:1px solid #8c3c50;color:#fecaca;font-size:14px}
 .op-more{margin-top:24px;color:#94a3b8}
 .op-more summary{padding:10px 0;cursor:pointer}

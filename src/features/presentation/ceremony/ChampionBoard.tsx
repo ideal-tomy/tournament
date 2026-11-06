@@ -3,6 +3,7 @@ import gsap from 'gsap';
 import { TOURNAMENT_EFFECTS as FX } from '../../../lib/tournamentEffects';
 import CeremonyFrame, { cardSlots, people, type CeremonyTeam } from './CeremonyFrame';
 import { useCeremonyIntro, type CeremonyIntroOptions } from './useCeremonyIntro';
+import RatedName from './RatedName';
 
 const DESCEND = 10;
 const AFTER = 5;
@@ -31,7 +32,8 @@ function glowScale(t: number) {
   return (1 - p) * 36;
 }
 const PODIUM_CENTERS = [702, 1206];
-const CARD = { width: 300, height: 450, top: 300 };
+const CARD = { width: 420, height: 600, top: 176 };
+const NAME_WIDTH = 500;
 
 function cardCenters(count: number) {
   if (count === 2) return PODIUM_CENTERS;
@@ -109,7 +111,7 @@ export default function ChampionBoard({ team, ...intro }: CeremonyIntroOptions &
         {members.map((person, index) => <article key={`${person.name}-${index}`} className="cer-card cb-card" style={{ left: centers[index] - CARD.width / 2, top: CARD.top, width: CARD.width, height: CARD.height }}>
           {person.face ? <img src={person.face} alt={person.name} /> : <div className="cer-empty">?</div>}
         </article>)}
-        {members.map((person, index) => <p key={`name-${index}`} className="cb-name" style={{ left: centers[index] - 210 }}>{person.name}</p>)}
+        {members.map((person, index) => <p key={`name-${index}`} className="cb-name" style={{ left: centers[index] - NAME_WIDTH / 2, width: NAME_WIDTH }}><RatedName text={person.name} /></p>)}
         <p className="cer-text cb-team">{team.name}</p>
       </div>
       <div className="cb-ball" aria-hidden="true">

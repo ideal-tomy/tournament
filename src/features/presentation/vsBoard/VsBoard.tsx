@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from 'react';
 import gsap from 'gsap';
 import { TOURNAMENT_EFFECTS as FX } from '../../../lib/tournamentEffects';
 import { playPresentationAudio } from '../backdrop/playPresentationAudio';
+import RatedName from '../ceremony/RatedName';
 import './vsBoard.css';
 
 export interface VsSide {
@@ -114,6 +115,6 @@ function Side({ side, team, xs }: { side: 'left' | 'right'; team: VsSide; xs: nu
     {people.map((person, index) => <article key={`${side}-${person.name}-${index}`} className={`vsb-card vsb-card-${side}`} style={{ left: slots[index] }}>
       {person.face ? <img src={person.face} alt={person.name} /> : <div className="vsb-empty">?</div>}
     </article>)}
-    {people.map((person, index) => <p key={`${side}-name-${index}`} className="vsb-name" style={{ left: slots[index] }}>{person.name}</p>)}
+    {people.map((person, index) => <p key={`${side}-name-${index}`} className="vsb-name" style={{ left: slots[index] }}><RatedName text={person.name} /></p>)}
   </>;
 }

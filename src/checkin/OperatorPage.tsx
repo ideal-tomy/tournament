@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError, scopedUrl, type Participant } from './api';
-import type { DrawState } from './DrawControl';
+import type { CeremonyStep, CourtBoard, DrawState, FlowMatch } from './DrawControl';
 import { useTournamentState } from './useTournamentState';
 import { makeBalancedTeams } from '../features/draw/draw';
 
@@ -74,8 +74,7 @@ function ArmedButton({ label, armedLabel, disabled, onFire, className = 'primary
   return <button className={`${className}${armed ? ' is-armed' : ''}`} disabled={disabled} onClick={() => { if (armed) { setArmed(false); onFire(); } else setArmed(true); }}>{armed ? armedLabel : label}</button>;
 }
 
-function MatchCard({ state, choose, chosen }: { state: DrawState; choose?(slot: 0 | 1): void; chosen?: 0 | 1 | null }) {
-  const match = state.flow!.currentMatch!;
+function MatchCard({ state, match = state.flow!.currentMatch!, choose, chosen }: { state: DrawState; match?: FlowMatch; choose?(slot: 0 | 1): void; chosen?: 0 | 1 | null }) {
   const byId = new Map(state.participants.map(p => [p.id, p]));
   const sides = [match.teamA, match.teamB].map(id => state.teams.find(team => team.id === id));
   const side = (team: Team | undefined, slot: 0 | 1) => {
@@ -94,11 +93,35 @@ function MatchCard({ state, choose, chosen }: { state: DrawState; choose?(slot: 
   </section>;
 }
 
+const boardStage: Record<CourtBoard['stage'], string> = { idle: '空き', call: '呼び出し中', live: '試合中', result: '勝者確定' };
+
+function BoardCard({ state, board, busy, pick, onPick, onCommand }: {
+  state: DrawState; board: CourtBoard; busy: boolean; pick?: 0 | 1;
+  onPick(slot: 0 | 1): void; onCommand(action: 'court-start' | 'court-winner' | 'court-next', extra?: Record<string, unknown>): void;
+}) {
+  const match = board.match;
+  const teamName = (id: string | null | undefined) => state.teams.find(team => team.id === id)?.name ?? '';
+  const settled = board.stage === 'result' && match ? (board.winnerTeamId === match.teamA ? 0 : 1) : null;
+  return <section className={`op-board is-${board.stage}`} aria-label={`台 ${board.board}`}>
+    <header className="op-board-head"><strong>台 {board.board}</strong><span>{boardStage[board.stage]}</span></header>
+    {match
+      ? <MatchCard state={state} match={match} chosen={board.stage === 'live' ? pick ?? null : settled} choose={board.stage === 'live' ? onPick : undefined} />
+      : <p className="op-note">下の段の試合が終わると、次の試合が入ります</p>}
+    {board.stage === 'call' && <button className="primary" disabled={busy} onClick={() => onCommand('court-start')}>試合開始</button>}
+    {board.stage === 'live' && match && (pick == null
+      ? <button className="primary" disabled>勝ったチームをタップ</button>
+      : <button className="primary" disabled={busy} onClick={() => onCommand('court-winner', { winnerSlot: pick })}>{teamName(pick === 0 ? match.teamA : match.teamB)} の勝利で確定</button>)}
+    {board.stage === 'result' && <button className="primary" disabled={busy} onClick={() => onCommand('court-next')}>この台に次の試合</button>}
+  </section>;
+}
+
+const ceremonyLabel: Record<CeremonyStep, string> = { third: '3位', second: '2位', champion: '優勝', podium: '表彰台' };
+
 function phase(state: DrawState) {
   if (state.checkinStatus === 'open') return '受付中';
   if (!state.session) return '組み合わせ';
   if (state.flow?.phase === 'bracket_update') return '勝ち上がり';
-  return ({ idle: '発表前', draw: 'ペア発表', bracket: 'ブラケット', vs_card: 'VS', match_live: '試合中', result: '勝者発表', award: '表彰', finished: '大会終了' } as Record<string, string>)[state.scene] ?? state.scene;
+  return ({ idle: '発表前', draw: 'ペア発表', bracket: 'ブラケット', interval: `${state.flow?.courts?.count ?? ''}台で進行`, vs_card: 'VS', match_live: '試合中', result: '勝者発表', award: '表彰', finished: '大会終了' } as Record<string, string>)[state.scene] ?? state.scene;
 }
 
 export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAuthRequired(): void; sessionVersion: number }) {
@@ -106,6 +129,7 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState('');
   const [winner, setWinner] = useState<0 | 1 | null>(null);
+  const [picks, setPicks] = useState<Partial<Record<number, 0 | 1>>>({});
   const pending = useRef<Command | null>(null);
   const [, setPendingVersion] = useState(0);
   const matchId = state?.flow?.currentMatch?.id;
@@ -128,7 +152,7 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
       }
     } finally { setBusy(false); setPendingVersion(v => v + 1); }
   }
-  const flow = (action: 'advance' | 'game-start' | 'start' | 'winner', extra: Record<string, unknown> = {}) => send(`/api/tournament/${action}`, extra);
+  const flow = (action: 'advance' | 'game-start' | 'start' | 'winner' | 'courts-open' | 'court-start' | 'court-winner' | 'court-next' | 'courts-view', extra: Record<string, unknown> = {}) => send(`/api/tournament/${action}`, extra);
 
   if (!state) return <section className="op"><p className="op-loading" role="status">{error || '大会を読み込んでいます…'}</p></section>;
   const byId = new Map(state.participants.map(p => [p.id, p]));
@@ -155,7 +179,19 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
     bar = gate(f?.canAdvance, 'ブラケットを表示', 'ペア発表中…', () => void flow('advance'));
   } else if (state.scene === 'bracket' && f?.phase !== 'bracket_update') {
     body = <p className="op-note">会場にブラケットを表示しています</p>;
-    bar = gate(f?.canGameStart, 'ゲームスタート', 'まもなく押せます', () => void flow('game-start'));
+    bar = !f?.canGameStart ? <Waiting label="まもなく押せます" /> : <ActionBar>
+      {!f.completedMatches && [2, 3].map(count => <button key={count} className="primary" disabled={busy} onClick={() => void flow('courts-open', { count })}>{count}台で開始</button>)}
+      <button className={f.completedMatches ? 'primary' : 'op-secondary'} disabled={busy} onClick={() => void flow('game-start')}>ゲームスタート</button>
+    </ActionBar>;
+  } else if (state.scene === 'interval' && f?.courts) {
+    const courts = f.courts;
+    body = <div className="op-boards">
+      <button className="op-link-button" disabled={busy} onClick={() => void flow('courts-view', { show: !courts.showBracket })}>{courts.showBracket ? '会場を台の表示に戻す' : '会場にトーナメント表を出す'}</button>
+      {courts.boards.map(board => <BoardCard key={board.board} state={state} board={board} busy={busy}
+        pick={board.match ? picks[board.match.id] : undefined}
+        onPick={slot => board.match && setPicks(value => ({ ...value, [board.match!.id]: value[board.match!.id] === slot ? undefined : slot }))}
+        onCommand={(action, extra) => void flow(action, { board: board.board, ...extra })} />)}
+    </div>;
   } else if (f?.phase === 'bracket_update') {
     body = <p className="op-note">勝ち上がりを表示しています</p>;
     bar = gate(f.canAdvance, '次の試合へ', '勝ち上がり表示中…', () => void flow('advance'));
@@ -173,12 +209,21 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
     body = <div className="op-big"><span>勝者</span><strong className="op-team-name">{teamName(f?.winnerTeamId)}</strong></div>;
     bar = gate(f?.canAdvance, '次へ', 'WINNER表示中…', () => void flow('advance'));
   } else if (state.scene === 'award') {
-    body = <div className="op-big"><span>優勝</span><strong className="op-team-name">{teamName(f?.championTeamId)}</strong></div>;
-    bar = gate(f?.canAdvance, '大会を終える', 'CHAMPION演出中…', () => void flow('advance'));
+    const step = f?.ceremony ?? 'champion', places = f?.placements;
+    const shown = step === 'third' ? places?.third : step === 'second' ? places?.second : step === 'champion' ? [f?.championTeamId ?? ''] : [];
+    const next = step === 'third' ? (places?.second.length ? '2位へ' : '優勝へ') : step === 'second' ? '優勝へ' : step === 'champion' ? '表彰台へ' : '大会を終える';
+    body = step === 'podium'
+      ? <ol className="op-pairs">{([['優勝', [places?.first ?? f?.championTeamId ?? '']], ['2位', places?.second ?? []], ['3位', places?.third ?? []]] as const).filter(([, ids]) => ids.length).map(([label, ids]) => <li key={label} className="op-pair"><span className="op-pair-no">{label}</span><span>{ids.map(teamName).join(' ／ ')}</span></li>)}</ol>
+      : <div className="op-big"><span>{ceremonyLabel[step]}</span><strong className="op-team-name">{(shown ?? []).map(teamName).join(' ／ ')}</strong></div>;
+    bar = gate(f?.canAdvance, next, `${ceremonyLabel[step]}の演出中…`, () => void flow('advance'));
   } else if (state.scene === 'finished') {
     body = <div className="op-big"><span>大会終了 · 優勝</span><strong className="op-team-name">{teamName(f?.championTeamId)}</strong></div>;
-    bar = <ActionBar><a className="button" href="/start">次の大会を作る</a></ActionBar>;
+    bar = <ActionBar>
+      <ArmedButton label="最初からやり直す" armedLabel="もう一度押すと最初に戻す" disabled={busy} onFire={() => void send('/api/tournament/replay', {})} />
+      <a className="button op-secondary" href="/start">大会を選ぶ</a>
+    </ActionBar>;
   }
+  const replayable = !!state.session && state.scene !== 'idle' && state.scene !== 'finished';
 
   return <section className="op" data-op-scene={state.scene}>
     <header className="op-head">
@@ -191,6 +236,7 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
       <a className="button" href={scopedUrl('/display')} target="_blank" rel="noreferrer">会場モニターを開く</a>
       <a className="button" href={scopedUrl('/checkin')}>受付を開く</a>
       <a className="button" href={scopedUrl('/rehearsal')}>演出の確認</a>
+      {replayable && <ArmedButton className="op-secondary" label="最初からやり直す（結果は消えます）" armedLabel="もう一度押すと最初に戻す" disabled={busy} onFire={() => void send('/api/tournament/replay', {})} />}
     </details>
     {bar}
   </section>;

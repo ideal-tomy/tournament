@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { setup } from './testSupport';
-import type {BracketSnapshot} from '../../../src/features/bracket/manager';
-interface View {scene:string;version:number;flow:{phase:string;nextMatch:unknown|null;currentMatch:{id:number;teamA:string;teamB:string;kind:string}|null;championTeamId:string|null;canStart:boolean;canAdvance:boolean;canGameStart:boolean;completedMatches:number};bracket:unknown;teams:{id:string}[]}
+import {toStageData,type BracketSnapshot} from '../../../src/features/bracket/manager';
+import {getMatchTier,getOpenTierMatches} from '../../../src/features/progression/progression';
+interface View {scene:string;version:number;sceneSeq:number;participants:{id:string;rating:number|null}[];session:{id:string}|null;flow:{ceremony:string|null;placements:{first:string;second:string[];third:string[]}|null;phase:string;nextMatch:unknown|null;currentMatch:{id:number;teamA:string;teamB:string;kind:string}|null;championTeamId:string|null;canStart:boolean;canAdvance:boolean;canGameStart:boolean;completedMatches:number};bracket:unknown;teams:{id:string}[]}
 async function prepared(count=8){const s=setup();await s.login();for(let i=0;i<count;i++)await s.create(`player ${i}`);const reception=await s.request('/api/checkin/state').then(r=>r.json()) as {revision:number};await s.request('/api/checkin/close','POST',{requestId:crypto.randomUUID(),expectedRevision:reception.revision});expect((await s.pair()).status).toBe(200);expect((await s.request('/api/draw/start','POST',{requestId:crypto.randomUUID(),expectedVersion:1})).status).toBe(200);
  const view=()=>s.request('/api/draw/state').then(r=>r.json()) as Promise<View>;
  const age=()=>s.db.exec("UPDATE event_state SET scene_started_at=strftime('%Y-%m-%dT%H:%M:%fZ','now','-5 minutes')");
@@ -13,7 +14,9 @@ describe('one continuous tournament with automatic scheduling',()=>{
   const s=await prepared(4);await s.advance();const first=await s.advance();s.age();await s.command('start');expect((await s.command('winner',{winnerSlot:1})).response.status).toBe(200);
   const result=await s.view();expect(result.flow.championTeamId).toBe(first.flow.currentMatch!.teamB);
   s.db.exec("UPDATE event_state SET scene='bracket',scene_payload=json_remove(scene_payload,'$.championTeamId'),scene_started_at=strftime('%Y-%m-%dT%H:%M:%fZ','now','-5 minutes')");
-  const restored=await s.advance();expect(restored.scene).toBe('award');expect(restored.flow.championTeamId).toBe(first.flow.currentMatch!.teamB);expect((await s.advance()).scene).toBe('finished');
+  const restored=await s.advance();expect(restored.scene).toBe('award');expect(restored.flow.championTeamId).toBe(first.flow.currentMatch!.teamB);
+  expect(restored.flow.ceremony).toBe('second');expect(restored.flow.placements).toEqual({first:first.flow.currentMatch!.teamB,second:[first.flow.currentMatch!.teamA],third:[]});
+  expect((await s.advance()).flow.ceremony).toBe('champion');expect((await s.advance()).flow.ceremony).toBe('podium');expect((await s.advance()).scene).toBe('finished');
   expect(s.db.prepare("SELECT COUNT(*) n FROM matches WHERE status='done'").get()!.n).toBe(1);expect(s.db.prepare("SELECT COUNT(*) n FROM operation_log WHERE action='flow.winner'").get()!.n).toBe(1);
  });
  it('persists the winner and advancement before presenting result, then shows updated bracket and resolves the next match',async()=>{
@@ -64,9 +67,65 @@ describe('one continuous tournament with automatic scheduling',()=>{
   }
   expect(guard).toBeLessThan(20);expect(sawLoser).toBe(true);expect(grandFinals).toBe(2);expect(new Set(selected).size).toBe(selected.length);
   expect(state.scene).toBe('award');expect(state.teams.some(t=>t.id===state.flow.championTeamId)).toBe(true);expect(state.flow.nextMatch).toBeNull();
-  state=await s.advance();expect(state.scene).toBe('finished');expect(s.db.prepare('SELECT status FROM events').get()!.status).toBe('finished');
+  const steps=[state.flow.ceremony];const placements=state.flow.placements!;
+  expect(placements.first).toBe(state.flow.championTeamId);expect(placements.second).toHaveLength(1);expect(placements.third).toHaveLength(1);
+  expect((await s.command('advance')).response.status).toBe(409); // the 3rd-place presentation is still playing
+  while(state.scene==='award'&&steps.length<6){state=await s.advance();if(state.scene==='award')steps.push(state.flow.ceremony);}
+  expect(steps).toEqual(['third','second','champion','podium']);
+  expect(state.scene).toBe('finished');expect(s.db.prepare('SELECT status FROM events').get()!.status).toBe('finished');
   expect(s.db.prepare("SELECT COUNT(*) n FROM matches WHERE status='done'").get()!.n).toBe(selected.length);
   expect((await s.command('start')).response.status).toBe(409);expect((await s.command('winner',{winnerSlot:0})).response.status).toBe(409);
+ });
+ it('runs two boards from the bottom tier, keeps each board independent, and returns to one board for the grand final',async()=>{
+  const s=await prepared(16);expect((await s.advance()).scene).toBe('bracket');s.age();
+  expect((await s.command('courts-open',{count:4})).response.status).toBe(400);
+  expect((await s.command('court-start',{board:1})).response.status).toBe(409);
+  expect((await s.command('courts-open',{count:2})).response.status).toBe(200);
+  type Courts={count:number;boards:{board:number;matchId:number|null;stage:string;match:{id:number;kind:string;roundName:string}|null}[]};
+  const courts=async()=>{const v=await s.view();return {v,c:(v.flow as typeof v.flow&{courts:Courts|null}).courts};};
+  let {v,c}=await courts();expect(v.scene).toBe('interval');expect(c!.boards.map(b=>b.stage)).toEqual(['call','call']);
+  expect(c!.boards.every(b=>b.match?.roundName==='ウィナーズ 1回戦')).toBe(true);expect(new Set(c!.boards.map(b=>b.matchId)).size).toBe(2);
+  expect((await s.command('court-start',{board:1})).response.status).toBe(200);expect((await s.command('court-start',{board:2})).response.status).toBe(200);
+  const other=(await courts()).c!.boards[1].matchId;
+  const scored=await s.command('court-winner',{board:1,winnerSlot:0});expect(scored.response.status).toBe(200);
+  ({v,c}=await courts());expect(c!.boards.map(b=>b.stage)).toEqual(['result','live']);expect(c!.boards[1].matchId).toBe(other);
+  expect(s.db.prepare("SELECT COUNT(*) n FROM matches WHERE status='in_progress'").get()!.n).toBe(1);
+  expect((await s.request('/api/tournament/court-winner','POST',scored.body)).status).toBe(200);expect((await s.view()).version).toBe(v.version);
+  const tierOf=(view:View,id:number)=>{const data=toStageData(view.bracket as BracketSnapshot);return getMatchTier(data,data.match.find(m=>m.id===id)!);};
+  const lowestOpen=(view:View)=>{const data=toStageData(view.bracket as BracketSnapshot);return getMatchTier(data,getOpenTierMatches(data)[0]);};
+  let guard=0,sawLoser=false;
+  while(v.scene==='interval'&&guard++<120){
+   for(const board of c!.boards){
+    if(board.stage==='call'){expect(tierOf(v,board.matchId!)).toBe(lowestOpen(v));sawLoser||=board.match!.kind==='loser';expect((await s.command('court-start',{board:board.board})).response.status).toBe(200);}
+    else if(board.stage==='live')expect((await s.command('court-winner',{board:board.board,winnerSlot:0})).response.status).toBe(200);
+    else expect((await s.command('court-next',{board:board.board})).response.status).toBe(200);
+    ({v,c}=await courts());if(v.scene!=='interval')break;
+   }
+  }
+  expect(sawLoser).toBe(true);expect(v.scene).toBe('bracket');expect(v.flow.canGameStart).toBe(false);s.age();expect((await s.view()).flow.canGameStart).toBe(true);
+  expect(s.db.prepare("SELECT COUNT(*) n FROM matches WHERE status='in_progress'").get()!.n).toBe(0);
+  const final=await s.advance();expect(final.scene).toBe('vs_card');expect(final.flow.currentMatch!.kind).toBe('grand_final');
+ });
+ it('replays a finished tournament from the announcement with the same participants and pairs',async()=>{
+  const s=await prepared(4);
+  await s.advance();await s.advance();s.age();await s.command('start');await s.command('winner',{winnerSlot:0});
+  let state=await s.advance();while(state.scene!=='finished')state=await s.advance();
+  const before={participants:s.db.prepare('SELECT COUNT(*) n FROM participants').get()!.n,teams:s.db.prepare('SELECT id FROM teams ORDER BY seed').all(),session:state.session!.id};
+  const stale={requestId:crypto.randomUUID(),expectedVersion:state.version-1};
+  expect((await s.request('/api/tournament/replay','POST',stale)).status).toBe(409);
+  const replayed=await s.command('replay');expect(replayed.response.status).toBe(200);
+  expect((await s.request('/api/tournament/replay','POST',replayed.body)).status).toBe(200);
+  const reset=await s.view();
+  expect(reset.scene).toBe('idle');expect(reset.session!.id).toBe(before.session);expect(reset.flow.completedMatches).toBe(0);expect(reset.flow.currentMatch).toBeNull();expect(reset.flow.championTeamId).toBeNull();
+  expect(s.db.prepare('SELECT COUNT(*) n FROM participants').get()!.n).toBe(before.participants);
+  expect(s.db.prepare('SELECT id FROM teams ORDER BY seed').all()).toEqual(before.teams);
+  expect(s.db.prepare("SELECT COUNT(*) n FROM matches WHERE status='done'").get()!.n).toBe(0);
+  expect(s.db.prepare('SELECT status,bm_current_match_id FROM events').get()).toEqual({status:'drawn',bm_current_match_id:null});
+  expect(s.db.prepare("SELECT COUNT(*) n FROM operation_log WHERE action='tournament.replay'").get()!.n).toBe(1);
+  expect((await s.command('replay')).response.status).toBe(409);
+  expect((await s.request('/api/draw/start','POST',{requestId:crypto.randomUUID(),expectedVersion:reset.version})).status).toBe(200);
+  expect((await s.view()).scene).toBe('draw');
+  state=await s.advance();expect(state.scene).toBe('bracket');state=await s.advance();expect(state.scene).toBe('vs_card');
  });
  it('allows only one winner for a live match across concurrent operators and rolls back partial writes',async()=>{
   const s=await prepared(4);await s.advance();await s.advance();s.age();expect((await s.command('start')).response.status).toBe(200);

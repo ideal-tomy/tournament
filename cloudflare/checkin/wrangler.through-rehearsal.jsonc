@@ -8,5 +8,5 @@
   "d1_databases": [{ "binding": "DB", "database_name": "tournament-rehearsal-db", "database_id": "0a7528e1-7f14-4e54-a896-4fbe2cf2c42c" }],
   "r2_buckets": [{ "binding": "PORTRAITS", "bucket_name": "tournament-rehearsal-portraits" }],
   "triggers": { "crons": ["*/5 * * * *"] },
-  "vars": { "CHECKIN_EVENT_ID": "cf-through-control", "REHEARSAL_ENABLED": "1" }
+  "vars": { "CHECKIN_EVENT_ID": "cf-through-control", "REHEARSAL_ENABLED": "1", "OFFICIAL_EVENT_ID": "cf-through-20261206-1206-4206-8206-000000000001" }
 }

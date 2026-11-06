@@ -1,7 +1,7 @@
 import MatchTransitionPage from './MatchTransitionPage';
 import { StrictMode, useCallback, useEffect, useState, type FormEvent } from 'react';
 import { createRoot } from 'react-dom/client';
-import { api, ApiError, currentRunId, scopedUrl } from './api';
+import { api, ApiError, scopedUrl } from './api';
 import RehearsalPage from './RehearsalPage';
 import CheckinWorkspace from './CheckinWorkspace';
 import DisplayPage from './DisplayPage';
@@ -32,8 +32,8 @@ function TournamentWorkspace({ onAuthRequired, sessionVersion }: { onAuthRequire
   useEffect(() => {
     if (!needsSelection) return;
     let cancelled = false;
-    api<{ enabled: boolean }>('/api/rehearsal/config').then(value => {
-      if (!cancelled) setSelection(value.enabled ? 'required' : 'ready');
+    api<{ enabled: boolean; officialEventId: string | null }>('/api/rehearsal/config').then(value => {
+      if (!cancelled) setSelection(value.enabled && !value.officialEventId ? 'required' : 'ready');
     }).catch(reason => {
       if (cancelled) return;
       if (reason instanceof ApiError && reason.status === 404) setSelection('ready');
@@ -73,7 +73,7 @@ function App() {
   const logout = authenticated && <button onClick={async () => { try { await api('/api/session', { method: 'DELETE' }); location.reload(); } catch { setError('ログアウトできませんでした。再試行してください。'); } }}>ログアウト</button>;
   const live = LIVE_PATHS.includes(location.pathname);
   return <main className={live ? 'is-live' : undefined}>{location.pathname !== '/display' && (live
-    ? <nav className="topbar live-topbar" aria-label="大会ナビゲーション"><a href="/">ホーム</a>{currentRunId() && <><a href={scopedUrl('/checkin')} aria-current={location.pathname === '/checkin' ? 'page' : undefined}>受付</a><a href={scopedUrl('/admin')} aria-current={location.pathname === '/admin' ? 'page' : undefined}>運営</a></>}{logout}</nav>
+    ? <nav className="topbar live-topbar" aria-label="大会ナビゲーション"><a href="/">ホーム</a><a href={scopedUrl('/checkin')} aria-current={location.pathname === '/checkin' ? 'page' : undefined}>受付</a><a href={scopedUrl('/admin')} aria-current={location.pathname === '/admin' ? 'page' : undefined}>運営</a>{logout}</nav>
     : <nav className="topbar" aria-label="大会ナビゲーション"><a href={scopedUrl('/')}>ホーム</a><a href={scopedUrl('/rehearsal')}>大会の全体確認</a><details><summary>個別画面</summary><a href={scopedUrl('/checkin')}>参加者受付</a><a href={scopedUrl('/admin')}>運営（Admin）</a><a href={scopedUrl('/display')}>会場Display</a></details><details><summary>開発ツール</summary><a href={scopedUrl('/show-preview')}>Animation Preview</a><a href={scopedUrl('/cloudflare-check')}>Cloudflare接続確認</a></details>{logout}</nav>)}
     {loading ? <p className="loading" role="status">接続を確認しています…</p> : <>
       <div hidden={!authenticated}>{initialized && <Workspace onAuthRequired={onAuthRequired} sessionVersion={sessionVersion} />}</div>

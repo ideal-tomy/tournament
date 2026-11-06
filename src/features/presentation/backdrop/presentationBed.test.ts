@@ -13,7 +13,7 @@ describe('resolveVenueBed', () => {
     expect(resolveVenueBed({ ...idle, scene: 'match_live' })).toBeNull();
     expect(resolveVenueBed({ ...idle, scene: 'result' })).toBeNull();
     expect(resolveVenueBed({ ...idle, scene: 'award' })).toBeNull();
-    expect(resolveVenueBed({ ...idle, scene: 'finished' })).toBeNull();
+    expect(resolveVenueBed({ ...idle, scene: 'finished' })).toBe('ending');
   });
 
   it('follows a read-only review only when that stage is on screen', () => {

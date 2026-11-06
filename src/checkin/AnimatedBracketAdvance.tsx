@@ -5,6 +5,7 @@ import {toStageData} from '../features/bracket/stageData';
 import {resolveResultAdvance} from '../features/bracket/resultAdvance';
 import type {DrawState} from './DrawControl';
 import {portraitUrlFor} from './portraitCache';
+import {ratedName} from './presentationAdapter';
 
 export default function AnimatedBracketAdvance({state,winnerOverlay,controlledTime}:{state:DrawState;winnerOverlay:ReactNode;controlledTime?:number}){
  const root=useRef<HTMLDivElement>(null),timeline=useRef<gsap.core.Timeline>();
@@ -28,7 +29,7 @@ export default function AnimatedBracketAdvance({state,winnerOverlay,controlledTi
  useLayoutEffect(()=>{if(controlledTime!=null)timeline.current?.pause().seek(Math.max(0,Math.min(6,controlledTime)),false);},[controlledTime]);
  if(!data||!presentation)return null;
  const faceUrlByTeamId=Object.fromEntries(state.teams.map(t=>[t.id,t.memberIds.map(id=>(()=>{const p=state.participants.find(p=>p.id===id);return p?portraitUrlFor(p):'';})())]));
- const labels=Object.fromEntries(state.teams.map(t=>[t.id,t.name])),names=Object.fromEntries(state.teams.map(t=>[t.id,t.memberIds.map(id=>state.participants.find(p=>p.id===id)?.name??'')]));
+ const labels=Object.fromEntries(state.teams.map(t=>[t.id,t.name])),names=Object.fromEntries(state.teams.map(t=>[t.id,t.memberIds.map(id=>{const p=state.participants.find(p=>p.id===id);return p?ratedName(p):'';})]));
  const winner=state.teams.find(t=>t.id===presentation.winnerTeamId),people=winner?.memberIds.map(id=>state.participants.find(p=>p.id===id)).filter(p=>!!p)??[];
  const view=data.advance?.layout;
  return <div ref={root} className="audience-advance" data-advance-from={data.advance?.sourceMatchId} data-advance-to={data.advance?.targetMatchId}>

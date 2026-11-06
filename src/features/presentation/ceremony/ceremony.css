@@ -11,7 +11,7 @@
 .cer-card>img,.cer-empty{display:block;width:100%;height:100%;object-fit:cover}
 .cer-empty{display:grid;place-items:center;font-size:96px;color:#94a3b8}
 .cer-card::after{content:'';position:absolute;left:0;right:0;bottom:0;height:38%;background:linear-gradient(transparent,rgba(0,0,0,.85))}
-.cer-card-name{position:absolute;left:14px;right:14px;bottom:20px;z-index:1;margin:0;text-align:center;font-size:40px;font-weight:900;line-height:1.1;letter-spacing:.03em;text-shadow:0 2px 0 #000,0 0 14px #000;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cer-card-name{position:absolute;left:14px;right:14px;bottom:20px;z-index:1;margin:0;text-align:center;font-size:40px;font-weight:900;line-height:1.1;letter-spacing:.03em;text-shadow:0 2px 0 #000,0 0 14px #000;word-break:keep-all;overflow-wrap:anywhere}
 .cer-hold .cer-card{animation:cer-glow 2.8s ease-in-out infinite}
 .cer-hold .cer-card+.cer-card{animation-delay:-1.4s}
 @keyframes cer-glow{50%{box-shadow:0 0 0 1px rgba(0,0,0,.6),0 24px 60px rgba(0,0,0,.6),0 0 72px rgba(251,191,36,.6)}}
@@ -59,8 +59,25 @@
 .cer-hold .cb-haze{opacity:0;visibility:hidden}
 .cer-hold .cb-corona{animation:none;opacity:.2}
 .cb-flare{position:absolute;left:260px;top:449px;width:1400px;height:60px;background:radial-gradient(ellipse 50% 50% at 50% 50%,#fff8dc,rgba(251,191,36,.6) 35%,transparent 70%);mix-blend-mode:screen;opacity:0;visibility:hidden;pointer-events:none}
-.cb-title{top:52px;font-size:140px;letter-spacing:.16em;padding-left:.16em}
-.cb-name{position:absolute;top:800px;width:420px;margin:0;text-align:center;font-size:42px;font-weight:900;line-height:1.1;color:#fff;text-shadow:0 2px 0 #000,0 0 14px #000;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cb-title{top:24px;font-size:140px;letter-spacing:.16em;padding-left:.16em}
+.cb-name{position:absolute;top:796px;margin:0;text-align:center;font-size:42px;font-weight:900;line-height:1.1;color:#fff;text-shadow:0 2px 0 #000,0 0 14px #000;word-break:keep-all;overflow-wrap:anywhere}
 .cb-team{top:930px;left:160px;right:160px;font-size:52px;letter-spacing:.08em;color:#fde68a;text-shadow:0 3px 0 #000,0 0 24px rgba(0,0,0,.9);overflow:hidden;text-overflow:ellipsis}
 
-@media(prefers-reduced-motion:reduce){.pc-drift,.pc-spin,.wb-drift,.wb-glow,.wb-dust,.cb-drift,.cb-corona,.cb-beams,.cer-hold .cer-card{animation:none}.cb-plate,.cb-haze,.cb-corona{filter:none}}
+/* Podium: blocks stand on y=1040; 1st in the middle, 2nd on the left, 3rd on the right. */
+.pd-board{background:#020306}
+.pd-bg{opacity:.4}
+.pd-title{top:40px;font-size:110px;letter-spacing:.2em;padding-left:.2em}
+.pd-name{position:absolute;margin:0;text-align:center;font-size:28px;font-weight:900;line-height:1.1;color:#fff;text-shadow:0 2px 0 #000,0 0 12px #000;word-break:keep-all;overflow-wrap:anywhere}
+.pd-block{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:14px;box-sizing:border-box;border:2px solid rgba(253,224,138,.75);border-bottom:0;background:linear-gradient(180deg,rgba(120,83,20,.92),rgba(30,20,6,.95));box-shadow:0 0 40px rgba(251,191,36,.25)}
+.pd-place-1 .pd-block{background:linear-gradient(180deg,rgba(202,138,4,.95),rgba(66,40,4,.96))}
+.pd-rank{margin:0;font-size:96px;font-weight:900;line-height:1;color:#fde68a;text-shadow:0 4px 0 #000}
+.pd-label{margin:6px 0 0;font-size:30px;font-weight:900;letter-spacing:.2em;padding-left:.2em;color:#fef3c7;text-shadow:0 2px 0 #000}
+.pd-place-3 .pd-rank{font-size:72px}
+
+/* Thanks: shown after the tournament is closed. */
+.th-board{background:#020306}
+.th-bg{opacity:.55;animation:cer-breathe 24s ease-in-out infinite alternate}
+.th-title{top:380px;font-size:104px;line-height:1.5;letter-spacing:.08em;padding-left:.08em;word-break:keep-all;animation:th-in 2.4s ease-out both}
+@keyframes th-in{from{opacity:0;transform:translateY(24px)}}
+
+@media(prefers-reduced-motion:reduce){.th-bg,.th-title,.pc-drift,.pc-spin,.wb-drift,.wb-glow,.wb-dust,.cb-drift,.cb-corona,.cb-beams,.cer-hold .cer-card{animation:none}.cb-plate,.cb-haze,.cb-corona{filter:none}}

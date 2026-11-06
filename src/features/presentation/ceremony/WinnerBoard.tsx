@@ -2,13 +2,14 @@ import { useRef } from 'react';
 import { TOURNAMENT_EFFECTS as FX } from '../../../lib/tournamentEffects';
 import CeremonyFrame, { cardSlots, people, type CeremonyTeam } from './CeremonyFrame';
 import { useCeremonyIntro, type CeremonyIntroOptions } from './useCeremonyIntro';
+import RatedName from './RatedName';
 
 const INTRO_END = 3;
 const BEAM_X = 962;
 
 /** Venue WINNER: the winners rise into the light shaft; the opponent fades out at the edge. */
-export default function WinnerBoard({ team, opponent, contained = false, ...intro }: CeremonyIntroOptions & {
-  team: CeremonyTeam; opponent?: CeremonyTeam; contained?: boolean;
+export default function WinnerBoard({ team, opponent, contained = false, title = 'WINNER', label = `${team.name} の勝利`, ...intro }: CeremonyIntroOptions & {
+  team: CeremonyTeam; opponent?: CeremonyTeam; contained?: boolean; title?: string; label?: string;
 }) {
   const stageRef = useRef<HTMLDivElement>(null);
   useCeremonyIntro(stageRef, INTRO_END, (tl, cue) => {
@@ -30,7 +31,7 @@ export default function WinnerBoard({ team, opponent, contained = false, ...intr
   const members = people(team);
   const width = members.length >= 3 ? 260 : 320;
   const slots = cardSlots(members.length, width, members.length >= 3 ? 28 : 84, BEAM_X);
-  return <CeremonyFrame stageRef={stageRef} contained={contained} className="wb-board" label={`${team.name} の勝利`}>
+  return <CeremonyFrame stageRef={stageRef} contained={contained} className="wb-board" label={label}>
     <div className="cer-layer wb-scene">
       <div className="wb-drift">
         <div className="cer-img" style={{ backgroundImage: `url(${FX.backgrounds.winnerShaft})` }} />
@@ -39,10 +40,10 @@ export default function WinnerBoard({ team, opponent, contained = false, ...intr
       </div>
     </div>
     <div className="cer-vignette" />
-    <h2 className="cer-text cer-gold wb-title">WINNER</h2>
+    <h2 className="cer-text cer-gold wb-title">{title}</h2>
     {members.map((person, index) => <article key={`${person.name}-${index}`} className="cer-card wb-card" style={{ left: slots[index], top: 276, width, height: width * 1.5 }}>
       {person.face ? <img src={person.face} alt={person.name} /> : <div className="cer-empty">?</div>}
-      <p className="cer-card-name">{person.name}</p>
+      <p className="cer-card-name"><RatedName text={person.name} /></p>
     </article>)}
     <p className="cer-text wb-team">{team.name}</p>
     {opponent && <p className="wb-loser">vs {opponent.name}</p>}

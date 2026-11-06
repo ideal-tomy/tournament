@@ -1,24 +1,35 @@
 import BracketView from '../features/bracket/BracketView';
 import { toStageData } from '../features/bracket/stageData';
-import { toPresentationTeam } from './presentationAdapter';
+import { ratedName, toPresentationTeam } from './presentationAdapter';
 import type { DrawState } from './DrawControl';
 import { portraitUrlFor } from './portraitCache';
 import AnimatedBracketAdvance from './AnimatedBracketAdvance';
 import VsBoard from '../features/presentation/vsBoard/VsBoard';
 import WinnerBoard from '../features/presentation/ceremony/WinnerBoard';
 import ChampionBoard from '../features/presentation/ceremony/ChampionBoard';
+import PodiumBoard from '../features/presentation/ceremony/PodiumBoard';
+import ThanksBoard from '../features/presentation/ceremony/ThanksBoard';
+import { getOpenTierMatches } from '../features/progression/tiers';
+import CourtBoards from './CourtBoards';
 
-export function SavedBracket({state}:{state:DrawState}){
+export function SavedBracket({state,focusBottomTier=false}:{state:DrawState;focusBottomTier?:boolean}){
  if(!state.bracket)return null;
- return <div className="persisted-bracket"><h2>確定ペアのBracket</h2><BracketView data={toStageData(state.bracket)}
+ const data=toStageData(state.bracket),focusMatchIds=focusBottomTier?getOpenTierMatches(data).map(m=>m.id):undefined;
+ return <div className="persisted-bracket"><h2>確定ペアのBracket</h2><BracketView data={data} focusMatchIds={focusMatchIds}
   faceUrlByTeamId={Object.fromEntries(state.teams.map(team=>[team.id,team.memberIds.map(id=>(()=>{const p=state.participants.find(p=>p.id===id);return p?portraitUrlFor(p):'';})())]))}
   labelByTeamId={Object.fromEntries(state.teams.map(team=>[team.id,team.name]))}
-  memberNamesByTeamId={Object.fromEntries(state.teams.map(team=>[team.id,team.memberIds.map(id=>state.participants.find(p=>p.id===id)?.name??'')]))}/></div>;
+  memberNamesByTeamId={Object.fromEntries(state.teams.map(team=>[team.id,team.memberIds.map(id=>{const p=state.participants.find(p=>p.id===id);return p?ratedName(p):'';})]))}/></div>;
 }
 function existingTeam(state:DrawState,id:string|null|undefined){
  const team=state.teams.find(t=>t.id===id);if(!team)throw new Error('確定チームが見つかりません。');
  const people=team.memberIds.map(id=>{const p=state.participants.find(p=>p.id===id);if(!p)throw new Error('確定参加者が見つかりません。');return p;});
  const value=toPresentationTeam(people);return {...value,name:team.name,faces:people.map(p=>portraitUrlFor(p))};
+}
+/** Single elimination ranks both semi-final losers 3rd; they are introduced together. */
+function placeTeam(state:DrawState,ids:string[]|undefined){
+ const teams=(ids??[]).map(id=>existingTeam(state,id));
+ if(teams.length<2)return teams[0];
+ return {name:teams.map(t=>t.name).join(' ／ '),members:teams.flatMap(t=>t.members),faces:teams.flatMap(t=>t.faces),participantIds:teams.flatMap(t=>t.participantIds)};
 }
 export default function FlowPresentation({state,controlledTime}:{state:DrawState;controlledTime?:number}){
  try{
@@ -26,7 +37,18 @@ export default function FlowPresentation({state,controlledTime}:{state:DrawState
    if(state.flow?.phase==='bracket_update'&&state.flow.resultPresentation&&state.flow.winnerTeamId){const left=existingTeam(state,state.flow.winnerTeamId),right=existingTeam(state,state.flow.loserTeamId);return <AnimatedBracketAdvance state={state} controlledTime={controlledTime} winnerOverlay={<WinnerBoard contained settled team={left} opponent={right}/>}/>;}
    return <SavedBracket state={state}/>;
   }
-  if(state.scene==='award'||state.scene==='finished')return <ChampionBoard key={state.sceneSeq} team={existingTeam(state,state.flow?.championTeamId)} settled={state.scene==='finished'} startAt={state.elapsedSeconds} controlledTime={controlledTime} audioEnabled={controlledTime==null&&state.scene==='award'}/>;
+  if(state.scene==='interval')return state.flow?.courts?.showBracket?<SavedBracket state={state} focusBottomTier/>:<CourtBoards state={state}/>;
+  if(state.scene==='finished')return <ThanksBoard/>;
+  if(state.scene==='award'){
+   const step=state.flow?.ceremony??'champion',placements=state.flow?.placements;
+   const timing={startAt:state.elapsedSeconds,controlledTime,audioEnabled:controlledTime==null};
+   if(step==='third'||step==='second'){
+    const team=placeTeam(state,placements?.[step]);if(!team)throw new Error('順位のチームが見つかりません。');
+    return <WinnerBoard key={state.sceneSeq} team={team} title={step==='third'?'3RD PLACE':'2ND PLACE'} label={`${step==='third'?'3位':'2位'} ${team.name}`} {...timing}/>;
+   }
+   if(step==='podium')return <PodiumBoard key={state.sceneSeq} first={existingTeam(state,placements?.first??state.flow?.championTeamId)} second={placeTeam(state,placements?.second)} third={placeTeam(state,placements?.third)} {...timing}/>;
+   return <ChampionBoard key={state.sceneSeq} team={existingTeam(state,state.flow?.championTeamId)} {...timing}/>;
+  }
   if(state.scene==='vs_card'||state.scene==='match_live'){
    const left=existingTeam(state,state.flow?.currentMatch?.teamA);
    const right=existingTeam(state,state.flow?.currentMatch?.teamB);

@@ -34,6 +34,29 @@ describe('isolated through rehearsal using normal tournament APIs',()=>{
   const corrupt=await s.request('/api/rehearsal/status'+suffix).then(r=>r.json()) as {integrity:{consistent:boolean}};expect(corrupt.integrity.consistent).toBe(false);
   const second=await s.request('/api/rehearsal/create','POST',{requestId:crypto.randomUUID()}).then(r=>r.json()) as {eventId:string};expect(second.eventId).not.toBe(first.eventId);expect(s.db.prepare('SELECT COUNT(*) n FROM participants WHERE event_id=?').get(first.eventId)!.n).toBe(4);
  });
+ it('opens the official event without run, and keeps explicit runs on their own event',async()=>{
+  const s=setup();await s.login();s.env.REHEARSAL_ENABLED='1';
+  const official='cf-through-20261206-1206-4206-8206-000000000001';s.env.OFFICIAL_EVENT_ID=official;
+  expect((await s.request('/api/participants')).status).toBe(404);
+  const config=await s.request('/api/rehearsal/config').then(r=>r.json()) as {officialEventId:string;events:{id:string;label:string}[]};
+  expect(config.officialEventId).toBe(official);expect(config.events.map(e=>e.id)).toContain(official);
+  const body={requestId:official.slice('cf-through-'.length),format:'double_elimination',timingPreset:'show'};
+  for(let i=0;i<2;i++)expect((await s.request('/api/rehearsal/create','POST',body).then(r=>r.json()) as {eventId:string}).eventId).toBe(official);
+  const created=await s.request('/api/participants','POST',s.input('official')).then(r=>r.json()) as {participant:{eventId:string;portraitUrl:string}};
+  expect(created.participant.eventId).toBe(official);expect((await s.request(created.participant.portraitUrl)).status).toBe(200);
+  expect((await s.request('/api/checkin/state').then(r=>r.json()) as {eventId:string;count:number})).toMatchObject({eventId:official,count:1});
+  const other=await s.request('/api/rehearsal/create','POST',{requestId:crypto.randomUUID()}).then(r=>r.json()) as {eventId:string};
+  expect((await s.request('/api/checkin/state?run='+other.eventId).then(r=>r.json()) as {count:number}).count).toBe(0);
+  s.env.OFFICIAL_EVENT_ID='cf-rehearsal-001';expect((await s.request('/api/participants')).status).toBe(409);
+ });
+ it('registers the fixed tournaments once and keeps each event separate',async()=>{
+  const s=setup();await s.login();s.env.REHEARSAL_ENABLED='1';
+  for(let i=0;i<2;i++)expect((await s.request('/api/rehearsal/config')).status).toBe(200);
+  const [first,second]=['cf-through-20261206-1206-4206-8206-000000000002','cf-through-20261206-1206-4206-8206-000000000003'];
+  expect(s.db.prepare('SELECT COUNT(*) n FROM events WHERE id IN (?,?)').get(first,second)!.n).toBe(2);
+  expect((await s.request('/api/participants?run='+first,'POST',s.input('spare'))).status).toBe(201);
+  expect((await s.request('/api/checkin/state?run='+second).then(r=>r.json()) as {count:number}).count).toBe(0);
+ });
  it('exposes registered source portraits read-only without allowing source event commands',async()=>{
   const s=setup();await s.login();const p=await s.create('source');s.env.REHEARSAL_ENABLED='1';s.env.REHEARSAL_SOURCE_EVENT_ID='cf-rehearsal-001';
   const source=await s.request('/api/rehearsal/source').then(r=>r.json()) as {participants:{id:string;portraitUrl:string}[]};expect(source.participants[0].id).toBe(p.participant.id);expect((await s.request(source.participants[0].portraitUrl)).status).toBe(200);

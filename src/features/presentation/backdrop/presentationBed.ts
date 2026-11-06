@@ -7,11 +7,13 @@ export const BED_LOOP_CROSSFADE_SEC = 3;
 export const BED_SCENE_CROSSFADE_SEC = 1.5;
 const BED_VOLUME = 0.4;
 
-export type BedTrack = 'opening' | 'pair';
+export type BedTrack = 'opening' | 'pair' | 'ending';
 
 const BED_URL: Record<BedTrack, string> = {
   opening: FX.audio.opening,
   pair: FX.audio.pair,
+  /** No dedicated ending track yet; replace this URL when one is added. */
+  ending: FX.audio.opening,
 };
 
 export function bedOverlapSec(duration: number) {
@@ -21,7 +23,7 @@ export function bedOverlapSec(duration: number) {
 
 type VenueReview = 'draw' | 'vs' | 'winner' | 'champion' | null;
 
-/** 会場で今流す曲。試合中・結果・表彰は止める。 */
+/** 会場で今流す曲。試合中・結果・表彰は止め、大会終了後のお礼で再び流す。 */
 export function resolveVenueBed(input: {
   review: VenueReview;
   scene?: string;
@@ -35,6 +37,7 @@ export function resolveVenueBed(input: {
   if (!input.hasSession || !input.scene || input.scene === 'idle') return 'opening';
   if (input.scene === 'draw' && !input.photoError) return 'pair';
   if (input.scene === 'bracket' || input.scene === 'vs_card') return 'opening';
+  if (input.scene === 'finished') return 'ending';
   return null;
 }
 

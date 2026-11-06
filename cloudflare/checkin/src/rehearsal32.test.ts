@@ -37,7 +37,12 @@ describe('persisted 32-person rehearsal through the existing tournament APIs',()
    age();expect((await cmd('advance')).status).toBe(200);v=await state();
    if(i<14){expect(v.flow.phase).toBe('bracket_update');age();expect((await cmd('advance')).status).toBe(200);}
   }
-  age();expect((await cmd('advance')).status).toBe(200);v=await state();expect(v.scene).toBe('finished');expect(v.flow.championTeamId).toBeTruthy();
+  const award=await state() as View&{flow:{ceremony:string;placements:{first:string;second:string[];third:string[]}}};
+  expect(award.scene).toBe('award');expect(award.flow.placements.second).toHaveLength(1);expect(award.flow.placements.third).toHaveLength(2);
+  const steps=[award.flow.ceremony];
+  for(let i=0;i<4;i++){age();expect((await cmd('advance')).status).toBe(200);const next=await state() as typeof award;if(next.scene==='award')steps.push(next.flow.ceremony);}
+  expect(steps).toEqual(['third','second','champion','podium']);
+  v=await state();expect(v.scene).toBe('finished');expect(v.flow.championTeamId).toBeTruthy();
   expect(rounds.filter(r=>r==='Round of 16')).toHaveLength(8);expect(rounds.filter(r=>r==='Quarter Final')).toHaveLength(4);expect(rounds.filter(r=>r==='Semi Final')).toHaveLength(2);expect(rounds.filter(r=>r==='Final')).toHaveLength(1);
   expect(JSON.stringify(v.teams)).toBe(pairs);expect(v.session.id).toBe(session);
   expect(s.db.prepare("SELECT COUNT(*) n FROM matches WHERE event_id=? AND status='done'").get(created.eventId)!.n).toBe(15);

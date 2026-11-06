@@ -22,6 +22,7 @@ export interface CheckinEnv {
   CHECKIN_EVENT_ID: string;
   REHEARSAL_ENABLED?: string;
   REHEARSAL_SOURCE_EVENT_ID?: string;
+  OFFICIAL_EVENT_ID?: string;
   REHEARSAL_ACCESS_CODE?: string;
   SESSION_SECRET?: string;
 }

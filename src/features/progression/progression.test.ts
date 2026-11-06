@@ -10,7 +10,11 @@ import {
 import type { StageData } from '../bracket/layout';
 import {
   applyResult,
+  getBottomTierMatches,
   getChampionTeamId,
+  getFinalPlacements,
+  getMatchBracketKind,
+  getMatchTier,
   getNextMatch,
   isTournamentFinished,
 } from './progression';
@@ -59,6 +63,18 @@ describe('progression — full tournament', () => {
     expect(await getChampionTeamId(before)).toBeNull();expect(await isTournamentFinished(before)).toBe(false);
     snapshot=await playNext(snapshot,()=>slot);const manager=createManagerFromSnapshot(snapshot);
     expect(await getChampionTeamId(manager)).toBe(`team-${slot}`);expect(await isTournamentFinished(manager)).toBe(true);
+  });
+  it('2 チームは 1位・2位だけ、4 チーム DE は 1位・2位・3位が1チームずつ', async () => {
+    let two = await buildSnapshotForTeamCount(2);
+    expect(await getFinalPlacements(createManagerFromSnapshot(two))).toBeNull();
+    two = await playNext(two, () => 1);
+    expect(await getFinalPlacements(createManagerFromSnapshot(two))).toEqual({ first: 'team-1', second: ['team-0'], third: [] });
+    const { snapshot, champion } = await runToCompletion(4);
+    const placements = (await getFinalPlacements(createManagerFromSnapshot(snapshot)))!;
+    expect(placements.first).toBe(champion);
+    expect(placements.second).toHaveLength(1);
+    expect(placements.third).toHaveLength(1);
+    expect(new Set([placements.first, ...placements.second, ...placements.third]).size).toBe(3);
   });
   it('4 チーム DE: 全試合完走・優勝 1 チーム', async () => {
     const { snapshot, champion } = await runToCompletion(4);
@@ -140,6 +156,44 @@ describe('progression — grand final reset', () => {
     expect(await isTournamentFinished(manager)).toBe(true);
     const champion = await getChampionTeamId(manager);
     expect(champion).toBe('team-0');
+  });
+});
+
+describe('progression — bottom tier first', () => {
+  it('8 チーム DE: ウィナーズ1回戦とルーザーズ1回戦を2回戦より先に返す', async () => {
+    let snapshot = await buildSnapshotForTeamCount(8);
+    let data = toStageData(snapshot);
+    const first = getBottomTierMatches(data);
+    expect(first).toHaveLength(4);
+    expect(first.every((m) => getMatchBracketKind(data, m) === 'winner' && getMatchTier(data, m) === 1)).toBe(true);
+    for (const match of first) {
+      const manager = createManagerFromSnapshot(snapshot);
+      await applyResult(manager, toStageData(snapshot), match.id, 0, match.id);
+      snapshot = await exportSnapshot(manager);
+    }
+    data = toStageData(snapshot);
+    const second = getBottomTierMatches(data);
+    expect(second.map((m) => getMatchBracketKind(data, m))).toEqual(['loser', 'loser']);
+    expect(second.every((m) => getMatchTier(data, m) === 1)).toBe(true);
+    expect(getBottomTierMatches(data, new Set(second.map((m) => m.id)))).toEqual([]);
+  });
+
+  it.each([8, 18])('%i チーム DE: 下の段を終えてから上の段へ進み、優勝まで届く', async (count) => {
+    let snapshot = await buildSnapshotForTeamCount(count);
+    let tier = 0;
+    for (let guard = 0; guard < 200; guard++) {
+      const data = toStageData(snapshot);
+      const [match] = getBottomTierMatches(data);
+      if (!match) break;
+      const at = getMatchTier(data, match);
+      expect(at).toBeGreaterThanOrEqual(tier);
+      tier = at;
+      const manager = createManagerFromSnapshot(snapshot);
+      await applyResult(manager, data, match.id, 0, match.id);
+      snapshot = await exportSnapshot(manager);
+      if (await isTournamentFinished(createManagerFromSnapshot(snapshot))) break;
+    }
+    expect(await getChampionTeamId(createManagerFromSnapshot(snapshot))).toMatch(/^team-\d+$/);
   });
 });
 

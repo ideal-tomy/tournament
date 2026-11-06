@@ -1,4 +1,4 @@
-import { flowCommand, flowView, matchProjection } from './flow';
+import { flowCommand, flowView, matchProjection, type FlowAction } from './flow';
 import { makeBalancedTeams, buildRevealOrder, teamRatingSum } from '../../../src/features/draw/draw';
 import { buildDoubleElimination, buildSingleElimination } from '../../../src/features/bracket/manager';
 import { estimateDrawDurationSec } from '../../../src/features/presentation/drawAnimationTiming';
@@ -125,6 +125,42 @@ async function resetPairs(env:CheckinEnv,body:Record<string,unknown>){
   if(committed?.request_hash!==requestHash)throw new ClientError('VERSION_CONFLICT',409);
   return response(await read(env));
 }
+/** Keeps participants, photos, ratings and confirmed pairs; rebuilds an unplayed bracket and waits for the announcement again. */
+async function replay(env:CheckinEnv,body:Record<string,unknown>){
+  const id=requestId(body.requestId),expected=body.expectedVersion;
+  if(!Number.isSafeInteger(expected)||Number(expected)<0)throw new ClientError('INVALID_VERSION',400);
+  await initialize(env);
+  const requestHash=await hash(JSON.stringify(['tournament.replay',expected]));
+  const receipt=await env.DB.prepare('SELECT action,request_hash FROM command_receipts WHERE event_id=? AND request_id=?').bind(env.CHECKIN_EVENT_ID,id).first<{action:string;request_hash:string}>();
+  if(receipt){if(receipt.action!=='tournament.replay'||receipt.request_hash!==requestHash)throw new ClientError('REQUEST_CONFLICT',409);return response(await read(env));}
+  const current=await scene(env),draw=await session(env);
+  if(current.version!==expected)throw new ClientError('VERSION_CONFLICT',409);
+  if(!draw||current.scene==='idle')throw new ClientError('REPLAY_NOT_AVAILABLE',409);
+  const teams=(await env.DB.prepare('SELECT id FROM teams WHERE event_id=? AND draw_session_id=? ORDER BY seed').bind(env.CHECKIN_EVENT_ID,draw.id).all<{id:string}>()).results.map(t=>t.id);
+  const members=await env.DB.prepare('SELECT COUNT(*) n FROM team_members m JOIN teams t ON t.id=m.team_id WHERE t.event_id=? AND t.draw_session_id=?').bind(env.CHECKIN_EVENT_ID,draw.id).first<{n:number}>();
+  const profile=await eventProfile(env);
+  const snapshot=await (profile.format==='single_elimination'?buildSingleElimination:buildDoubleElimination)(teams);
+  const count=Number(members?.n??0);
+  const payload=JSON.stringify({drawSessionId:draw.id,participantCount:count,teamCount:teams.length,durationSec:estimateDrawDurationSec(count,'full',teams.length,profile.timingPreset)});
+  const nonce=crypto.randomUUID();
+  const authorized=`EXISTS(SELECT 1 FROM command_receipts WHERE event_id=? AND request_id=? AND json_extract(response_json,'$.attempt')='${nonce}')`;
+  const gate=[env.CHECKIN_EVENT_ID,id] as const;
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO command_receipts(event_id,request_id,actor_id,action,request_hash,expected_version,committed_version,response_json)
+      SELECT ?,?,'checkin-session','tournament.replay',?,?,?,json_object('attempt','${nonce}') WHERE EXISTS(SELECT 1 FROM event_state WHERE event_id=? AND version=? AND scene<>'idle')`)
+      .bind(env.CHECKIN_EVENT_ID,id,requestHash,expected,Number(expected)+1,env.CHECKIN_EVENT_ID,expected),
+    env.DB.prepare(`UPDATE event_state SET scene='idle',scene_payload=?,version=version+1,scene_seq=scene_seq+1,scene_started_at=NULL,current_match_id=NULL,awaiting_operator=1,playback='holding',updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE event_id=? AND version=? AND ${authorized}`).bind(payload,env.CHECKIN_EVENT_ID,expected,...gate),
+    env.DB.prepare(`DELETE FROM matches WHERE event_id=? AND ${authorized}`).bind(env.CHECKIN_EVENT_ID,...gate),
+    ...matchProjection(env,snapshot,authorized,id),
+    env.DB.prepare(`UPDATE events SET status='drawn',bracket_snapshot=?,bm_current_match_id=NULL,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=? AND ${authorized}`).bind(JSON.stringify(snapshot),env.CHECKIN_EVENT_ID,...gate),
+    env.DB.prepare(`INSERT INTO operation_log(event_id,actor_id,request_id,version,action,target_table,target_id,before_data,after_data)
+      SELECT ?,'checkin-session',?,?,'tournament.replay','event_state',?,?,? WHERE ${authorized}`)
+      .bind(env.CHECKIN_EVENT_ID,id,Number(expected)+1,env.CHECKIN_EVENT_ID,JSON.stringify({scene:current.scene}),JSON.stringify({scene:'idle'}),...gate),
+  ]);
+  const committed=await env.DB.prepare('SELECT request_hash FROM command_receipts WHERE event_id=? AND request_id=?').bind(env.CHECKIN_EVENT_ID,id).first<{request_hash:string}>();
+  if(committed?.request_hash!==requestHash)throw new ClientError('VERSION_CONFLICT',409);
+  return response(await read(env));
+}
 async function announce(env:CheckinEnv,body:Record<string,unknown>){
   await initialize(env);
   if(!await session(env))throw new ClientError('PAIRS_NOT_PREPARED',409);
@@ -144,11 +180,12 @@ async function complete(env:CheckinEnv,body:Record<string,unknown>){
 }
 export async function drawRoute(request:Request,env:CheckinEnv):Promise<Response|null>{
   const url=new URL(request.url);
-  const flow=/^\/api\/tournament\/(advance|game-start|start|winner)$/.exec(url.pathname);
-  if(flow&&request.method==='POST'){await flowCommand(env,flow[1] as 'advance'|'game-start'|'start'|'winner',await readBody(request,1024));return response(await read(env));}
+  const flow=/^\/api\/tournament\/(advance|game-start|start|winner|courts-open|court-start|court-winner|court-next|courts-view)$/.exec(url.pathname);
+  if(flow&&request.method==='POST'){await flowCommand(env,flow[1] as FlowAction,await readBody(request,1024));return response(await read(env));}
   if(url.pathname==='/api/draw/state'&&request.method==='GET')return response(await read(env));
   if(url.pathname==='/api/draw/pairs'&&request.method==='POST')return prepare(env,await readBody(request,16384));
   if(url.pathname==='/api/draw/pairs/reset'&&request.method==='POST')return resetPairs(env,await readBody(request,1024));
+  if(url.pathname==='/api/tournament/replay'&&request.method==='POST')return replay(env,await readBody(request,1024));
   if(url.pathname==='/api/draw/start'&&request.method==='POST')return announce(env,await readBody(request,1024));
   if(url.pathname==='/api/draw/complete'&&request.method==='POST')return complete(env,await readBody(request,1024));
   return null;
