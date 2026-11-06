@@ -22,6 +22,7 @@ const messages: Record<string, string> = {
   INVALID_PAIRS: '全員が1回ずつ入る2人組にしてください。',
   PAIRS_LOCKED: 'ペア発表が始まったので、組み直せません。',
   REPLAY_NOT_AVAILABLE: 'ペア発表前なので、やり直す進行はありません。',
+  REOPEN_NOT_AVAILABLE: 'この大会は受付からやり直せません。',
   INVALID_TITLE: '大会名は80文字以内で入力してください。',
   OPENING_LOCKED: 'ペア発表が始まったので、待機画像は変更できません。',
   INVALID_REHEARSAL_PROFILE: 'ゲーム形式を選び直してください。',

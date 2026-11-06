@@ -222,11 +222,14 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
   } else if (state.scene === 'finished') {
     body = <div className="op-big"><span>大会終了 · 優勝</span><strong className="op-team-name">{teamName(f?.championTeamId)}</strong></div>;
     bar = <ActionBar>
-      <ArmedButton label="最初からやり直す" armedLabel="もう一度押すと最初に戻す" disabled={busy} onFire={() => void send('/api/tournament/replay', {})} />
+      {state.official
+        ? <ArmedButton label="受付からやり直す" armedLabel="もう一度押すと受付に戻す" disabled={busy} onFire={() => void send('/api/tournament/reopen', {})} />
+        : <ArmedButton label="最初からやり直す" armedLabel="もう一度押すと最初に戻す" disabled={busy} onFire={() => void send('/api/tournament/replay', {})} />}
       <a className="button op-secondary" href="/start">大会を選ぶ</a>
     </ActionBar>;
   }
-  const replayable = !!state.session && state.scene !== 'idle' && state.scene !== 'finished';
+  const replayable = !!state.session && state.scene !== 'idle' && state.scene !== 'finished' && !state.official;
+  const showRestart = !!state.official && state.scene !== 'finished' && (state.checkinStatus === 'closed' || state.scene !== 'idle');
 
   return <section className="op" data-op-scene={state.scene}>
     <p className="op-event">{[state.title, formatLabel(state.format)].filter(Boolean).join(' · ')}</p>
@@ -234,6 +237,7 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
       <span className="op-phase">{phase(state)}</span>
       <span className="op-meta">{state.participants.length}名{state.teams.length ? ` · ${state.teams.length}組` : ''}{f?.completedMatches ? ` · ${f.completedMatches}試合済` : ''}</span>
     </header>
+    {showRestart && <ArmedButton className="op-restart" label="受付からやり直す" armedLabel="もう一度押すと受付に戻す" disabled={busy} onFire={() => void send('/api/tournament/reopen', {})} />}
     <div className="op-body">{body}</div>
     {(failure || error) && <div className="op-error" role="alert"><p>{failure || error}</p>{pending.current && !busy ? <button onClick={() => void send(pending.current!.path, {})}>同じ操作を再試行</button> : <button onClick={refresh}>更新</button>}</div>}
     <details className="op-more"><summary>その他</summary>

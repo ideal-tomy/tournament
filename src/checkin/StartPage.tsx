@@ -50,7 +50,7 @@ export default function StartPage({ onAuthRequired }: { onAuthRequired(): void }
     try {
       const value = await api<{ officialEventId: string | null; events?: SavedEvent[] }>('/api/rehearsal/config');
       const list = value.events ?? [];
-      setEvents(value.officialEventId && !list.some(event => event.id === value.officialEventId) ? [{ id: value.officialEventId, label: '本番', format: '', count: 0, fixed: true }, ...list] : list);
+      setEvents(value.officialEventId && !list.some(event => event.id === value.officialEventId) ? [{ id: value.officialEventId, label: '大会00000001', format: '', count: 0, fixed: true }, ...list] : list);
     } catch (reason) {
       if (reason instanceof ApiError && reason.status === 401) onAuthRequired();
       else if (reason instanceof ApiError && reason.status === 404) setEvents(null);
@@ -82,7 +82,7 @@ export default function StartPage({ onAuthRequired }: { onAuthRequired(): void }
   if (error) return <section className="card start-card"><p role="alert" className="error">{error}</p><button onClick={() => location.reload()}>再接続</button></section>;
   if (events === undefined) return <p role="status">大会を確認しています…</p>;
   if (events === null) return <section className="card start-card">
-    <p className="eyebrow">本番</p>
+    <p className="eyebrow">大会00000001</p>
     <h1>大会を作れない環境です</h1>
     <p>この公開先では、大会の作成と一覧を使えません。</p>
   </section>;

@@ -22,6 +22,7 @@ export interface CourtSpotlight {id:string;kind:'vs'|'winner';board:number;match
 export type CeremonyStep='third'|'second'|'champion'|'podium';
 export interface Placements {first:string;second:string[];third:string[]}
 export interface DrawState {
+ official?:boolean;
  format?:string; timingPreset?:'show'|'fast'; openingVersion?:string|null;
  flow: {ceremony?:CeremonyStep|null;placements?:Placements|null;resultPresentation?:ResultPresentation|null;phase:string;currentMatch:FlowMatch|null;courts?:{count:number;showBracket:boolean;spotlight:CourtSpotlight|null;boards:CourtBoard[]}|null;winnerTeamId:string|null;loserTeamId:string|null;championTeamId:string|null;lastMatchId:number|null;canGameStart:boolean;canAnnounce:boolean;canStart:boolean;canScore:boolean;canAdvance:boolean;completedMatches:number}|null;
  eventId:string;title:string;checkinStatus:string;checkinRevision:number;scene:string;version:number;sceneSeq:number;

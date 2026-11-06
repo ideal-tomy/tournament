@@ -2,7 +2,7 @@ import { flowCommand, flowView, matchProjection, type FlowAction } from './flow'
 import { makeBalancedTeams, buildRevealOrder, teamRatingSum } from '../../../src/features/draw/draw';
 import { buildDoubleElimination, buildSingleElimination } from '../../../src/features/bracket/manager';
 import { estimateDrawDurationSec } from '../../../src/features/presentation/drawAnimationTiming';
-import { ClientError, hash, participantDto, readBody, requestId, response, type CheckinEnv } from './domain';
+import { ClientError, hash, OFFICIAL_FIXED_EVENT_ID, participantDto, readBody, requestId, response, type CheckinEnv } from './domain';
 import { readiness, rows, state } from './lifecycle';
 import { eventProfile } from './profile';
 
@@ -24,7 +24,7 @@ async function read(env:CheckinEnv){
   const payload=JSON.parse(current.scene_payload) as {durationSec?:number;drawSessionId?:string};
   const profile=await eventProfile(env);
   const elapsed=current.scene_started_at?Math.max(0,(Date.now()-Date.parse(current.scene_started_at))/1000):0;
-  return {...profile,flow:draw&&current.bracket_snapshot?await flowView(env,{scene:current,snapshot:JSON.parse(current.bracket_snapshot),payload,current:current.bm_current_match_id}):null,eventId:env.CHECKIN_EVENT_ID,title:checkin.title,checkinStatus:checkin.status,checkinRevision:checkin.revision,scene:current.scene,version:current.version,sceneSeq:current.scene_seq,startedAt:current.scene_started_at,elapsedSeconds:elapsed,durationSec:payload.durationSec??0,canComplete:current.scene==='draw'&&elapsed>=(payload.durationSec??Infinity),session:draw?{id:draw.id,revealOrder:JSON.parse(draw.reveal_order) as string[],committedAt:draw.committed_at}:null,participants,teams:teamRows.results.map(t=>({...t,memberIds:memberships.results.filter(m=>m.team_id===t.id).map(m=>m.participant_id)})),bracket:current.bracket_snapshot?JSON.parse(current.bracket_snapshot):null};
+  return {official:env.CHECKIN_EVENT_ID===OFFICIAL_FIXED_EVENT_ID,...profile,flow:draw&&current.bracket_snapshot?await flowView(env,{scene:current,snapshot:JSON.parse(current.bracket_snapshot),payload,current:current.bm_current_match_id}):null,eventId:env.CHECKIN_EVENT_ID,title:checkin.title,checkinStatus:checkin.status,checkinRevision:checkin.revision,scene:current.scene,version:current.version,sceneSeq:current.scene_seq,startedAt:current.scene_started_at,elapsedSeconds:elapsed,durationSec:payload.durationSec??0,canComplete:current.scene==='draw'&&elapsed>=(payload.durationSec??Infinity),session:draw?{id:draw.id,revealOrder:JSON.parse(draw.reveal_order) as string[],committedAt:draw.committed_at}:null,participants,teams:teamRows.results.map(t=>({...t,memberIds:memberships.results.filter(m=>m.team_id===t.id).map(m=>m.participant_id)})),bracket:current.bracket_snapshot?JSON.parse(current.bracket_snapshot):null};
 }
 export const readDrawState=read;
 function manualPairs(value:unknown){
@@ -161,6 +161,39 @@ async function replay(env:CheckinEnv,body:Record<string,unknown>){
   if(committed?.request_hash!==requestHash)throw new ClientError('VERSION_CONFLICT',409);
   return response(await read(env));
 }
+/** Production event only: drop pairs and results, keep people and the standby image, and reopen check-in. */
+async function reopen(env:CheckinEnv,body:Record<string,unknown>){
+  if(env.CHECKIN_EVENT_ID!==OFFICIAL_FIXED_EVENT_ID)throw new ClientError('REOPEN_NOT_AVAILABLE',409);
+  const id=requestId(body.requestId),expected=body.expectedVersion;
+  if(!Number.isSafeInteger(expected)||Number(expected)<0)throw new ClientError('INVALID_VERSION',400);
+  await initialize(env);
+  const requestHash=await hash(JSON.stringify(['tournament.reopen',expected]));
+  const receipt=await env.DB.prepare('SELECT action,request_hash FROM command_receipts WHERE event_id=? AND request_id=?').bind(env.CHECKIN_EVENT_ID,id).first<{action:string;request_hash:string}>();
+  if(receipt){if(receipt.action!=='tournament.reopen'||receipt.request_hash!==requestHash)throw new ClientError('REQUEST_CONFLICT',409);return response(await read(env));}
+  const current=await scene(env),checkin=await state(env),draw=await session(env);
+  if(current.version!==expected)throw new ClientError('VERSION_CONFLICT',409);
+  if(current.scene==='idle'&&checkin.status==='open'&&!draw)throw new ClientError('REOPEN_NOT_AVAILABLE',409);
+  const nonce=crypto.randomUUID();
+  const authorized=`EXISTS(SELECT 1 FROM command_receipts WHERE event_id=? AND request_id=? AND json_extract(response_json,'$.attempt')='${nonce}')`;
+  const gate=[env.CHECKIN_EVENT_ID,id] as const;
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO command_receipts(event_id,request_id,actor_id,action,request_hash,expected_version,committed_version,response_json)
+      SELECT ?,?,'checkin-session','tournament.reopen',?,?,?,json_object('attempt','${nonce}') WHERE EXISTS(SELECT 1 FROM event_state WHERE event_id=? AND version=? AND (scene<>'idle' OR EXISTS(SELECT 1 FROM checkin_state WHERE event_id=? AND status='closed') OR EXISTS(SELECT 1 FROM draw_sessions WHERE event_id=? AND committed_at IS NOT NULL)))`)
+      .bind(env.CHECKIN_EVENT_ID,id,requestHash,expected,Number(expected)+1,env.CHECKIN_EVENT_ID,expected,env.CHECKIN_EVENT_ID,env.CHECKIN_EVENT_ID),
+    env.DB.prepare(`UPDATE event_state SET scene='idle',scene_payload='{}',version=version+1,scene_seq=scene_seq+1,scene_started_at=NULL,current_match_id=NULL,awaiting_operator=1,playback='holding',updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE event_id=? AND version=? AND ${authorized}`).bind(env.CHECKIN_EVENT_ID,expected,...gate),
+    env.DB.prepare(`DELETE FROM matches WHERE event_id=? AND ${authorized}`).bind(env.CHECKIN_EVENT_ID,...gate),
+    env.DB.prepare(`DELETE FROM teams WHERE event_id=? AND ${authorized}`).bind(env.CHECKIN_EVENT_ID,...gate),
+    env.DB.prepare(`DELETE FROM draw_sessions WHERE event_id=? AND ${authorized}`).bind(env.CHECKIN_EVENT_ID,...gate),
+    env.DB.prepare(`UPDATE events SET status='draft',draw_mode='full_random',bracket_snapshot=NULL,bm_current_match_id=NULL,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=? AND ${authorized}`).bind(env.CHECKIN_EVENT_ID,...gate),
+    env.DB.prepare(`UPDATE checkin_state SET status='open',closed_at=NULL,closed_roster='[]',revision=revision+1,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE event_id=? AND ${authorized}`).bind(env.CHECKIN_EVENT_ID,...gate),
+    env.DB.prepare(`INSERT INTO operation_log(event_id,actor_id,request_id,version,action,target_table,target_id,before_data,after_data)
+      SELECT ?,'checkin-session',?,?,'tournament.reopen','event_state',?,?,? WHERE ${authorized}`)
+      .bind(env.CHECKIN_EVENT_ID,id,Number(expected)+1,env.CHECKIN_EVENT_ID,JSON.stringify({scene:current.scene,checkin:checkin.status}),JSON.stringify({scene:'idle',checkin:'open'}),...gate),
+  ]);
+  const committed=await env.DB.prepare('SELECT request_hash FROM command_receipts WHERE event_id=? AND request_id=?').bind(env.CHECKIN_EVENT_ID,id).first<{request_hash:string}>();
+  if(committed?.request_hash!==requestHash)throw new ClientError('VERSION_CONFLICT',409);
+  return response(await read(env));
+}
 async function announce(env:CheckinEnv,body:Record<string,unknown>){
   await initialize(env);
   if(!await session(env))throw new ClientError('PAIRS_NOT_PREPARED',409);
@@ -186,6 +219,7 @@ export async function drawRoute(request:Request,env:CheckinEnv):Promise<Response
   if(url.pathname==='/api/draw/pairs'&&request.method==='POST')return prepare(env,await readBody(request,16384));
   if(url.pathname==='/api/draw/pairs/reset'&&request.method==='POST')return resetPairs(env,await readBody(request,1024));
   if(url.pathname==='/api/tournament/replay'&&request.method==='POST')return replay(env,await readBody(request,1024));
+  if(url.pathname==='/api/tournament/reopen'&&request.method==='POST')return reopen(env,await readBody(request,1024));
   if(url.pathname==='/api/draw/start'&&request.method==='POST')return announce(env,await readBody(request,1024));
   if(url.pathname==='/api/draw/complete'&&request.method==='POST')return complete(env,await readBody(request,1024));
   return null;

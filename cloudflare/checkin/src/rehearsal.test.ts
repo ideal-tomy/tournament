@@ -69,7 +69,7 @@ describe('isolated through rehearsal using normal tournament APIs',()=>{
   expect((await s.request('/api/rehearsal/create','POST',{requestId:crypto.randomUUID(),title:'RR',format:'round_robin'})).status).toBe(400);
   for(let i=0;i<2;i++)expect((await s.request('/api/participants?run='+created.eventId,'POST',s.input(`venue ${i}`))).status).toBe(201);
   const config=await s.request('/api/rehearsal/config').then(r=>r.json()) as {events:{id:string;label:string;format:string;count:number;fixed:boolean}[]};
-  expect(config.events[0]).toMatchObject({id:main,label:'本番',count:1,fixed:true});
+  expect(config.events[0]).toMatchObject({id:main,label:'大会00000001',count:1,fixed:true});
   expect(config.events.find(e=>e.id===created.eventId)).toMatchObject({label:'渋谷会場 11月大会',format:'single_elimination',count:2,fixed:false});
   const state=await s.request('/api/draw/state?run='+created.eventId).then(r=>r.json()) as {format:string;title:string};
   expect(state).toMatchObject({format:'single_elimination',title:'渋谷会場 11月大会'});
@@ -107,5 +107,68 @@ describe('isolated through rehearsal using normal tournament APIs',()=>{
   const source=await s.request('/api/rehearsal/source').then(r=>r.json()) as {participants:{id:string;portraitUrl:string}[]};expect(source.participants[0].id).toBe(p.participant.id);expect((await s.request(source.participants[0].portraitUrl)).status).toBe(200);
   expect((await s.request('/api/tournament/start?run=cf-rehearsal-001','POST',{requestId:crypto.randomUUID(),expectedVersion:0})).status).toBe(409);
   const missing=`cf-through-${crypto.randomUUID()}`;expect((await s.request('/api/draw/state?run='+missing)).status).toBe(404);
+ });
+ it('returns only the production event to open check-in, and keeps pairs on another event',async()=>{
+  const s=setup();await s.login();s.env.REHEARSAL_ENABLED='1';
+  const main='cf-through-20261206-1206-4206-8206-000000000001',spare='cf-through-20261206-1206-4206-8206-000000000002';
+  await s.request('/api/rehearsal/config');
+  const run=(id:string)=>'?run='+id;
+  expect((await s.request(`/api/events/${main}/opening${run(main)}`,'POST',{image:s.input().photo})).status).toBe(200);
+  const created=[];
+  for(let i=0;i<4;i++){
+   const response=await s.request('/api/participants'+run(main),'POST',{...s.input(`本番 ${i}`),rating:10+i});
+   expect(response.status).toBe(201);created.push((await response.json() as {participant:{id:string;version:number}}).participant);
+   expect((await s.request('/api/participants'+run(spare),'POST',s.input(`予備 ${i}`))).status).toBe(201);
+  }
+  for(const id of [main,spare]){
+   const checkin=await s.request('/api/checkin/state'+run(id)).then(r=>r.json()) as {revision:number};
+   expect((await s.request('/api/checkin/close'+run(id),'POST',{requestId:crypto.randomUUID(),expectedRevision:checkin.revision})).status).toBe(200);
+   expect((await s.pair({mode:'auto'},run(id))).status).toBe(200);
+   const ready=await s.request('/api/draw/state'+run(id)).then(r=>r.json()) as {version:number};
+   expect((await s.request('/api/draw/start'+run(id),'POST',{requestId:crypto.randomUUID(),expectedVersion:ready.version})).status).toBe(200);
+  }
+  const post=async(action:string,extra:Record<string,unknown>={})=>{
+   const state=await s.request('/api/draw/state'+run(main)).then(r=>r.json()) as {version:number};
+   return s.request(`/api/tournament/${action}`+run(main),'POST',{requestId:crypto.randomUUID(),expectedVersion:state.version,...extra});
+  };
+  const age=()=>s.db.prepare("UPDATE event_state SET scene_started_at=strftime('%Y-%m-%dT%H:%M:%fZ','now','-5 minutes') WHERE event_id=?").run(main);
+  age();expect((await post('advance')).status).toBe(200);
+  age();expect((await post('game-start')).status).toBe(200);
+  age();expect((await post('start')).status).toBe(200);
+  expect((await post('winner',{winnerSlot:0})).status).toBe(200);
+  const before=await s.request('/api/draw/state'+run(main)).then(r=>r.json()) as {official:boolean;scene:string;version:number};
+  expect(before.official).toBe(true);expect(before.scene).not.toBe('idle');
+  expect(s.db.prepare("SELECT COUNT(*) n FROM matches WHERE event_id=? AND status='done'").get(main)!.n).toBeGreaterThan(0);
+  expect((await s.request(`/api/participants/${created[0].id}${run(main)}`,'PATCH',{requestId:crypto.randomUUID(),expectedVersion:created[0].version,name:'途中',rating:11})).status).toBe(409);
+  const denied=await s.request('/api/tournament/reopen'+run(spare),'POST',{requestId:crypto.randomUUID(),expectedVersion:0});
+  expect(denied.status).toBe(409);expect((await denied.json() as {error:string}).error).toBe('REOPEN_NOT_AVAILABLE');
+  expect((await s.request('/api/tournament/reopen'+run(main),'POST',{requestId:crypto.randomUUID(),expectedVersion:before.version-1})).status).toBe(409);
+  const body={requestId:crypto.randomUUID(),expectedVersion:before.version};
+  const opened=await s.request('/api/tournament/reopen'+run(main),'POST',body);expect(opened.status).toBe(200);
+  expect((await s.request('/api/tournament/reopen'+run(main),'POST',body)).status).toBe(200);
+  const reset=await opened.json() as {official:boolean;scene:string;checkinStatus:string;session:null;version:number;format:string;openingVersion:string|null;teams:unknown[];participants:{name:string;rating:number|null}[]};
+  expect(reset).toMatchObject({official:true,scene:'idle',checkinStatus:'open',session:null,format:'double_elimination'});
+  expect(reset.teams).toHaveLength(0);expect(reset.openingVersion).toBeTruthy();
+  expect(reset.participants.map(p=>p.name).sort()).toEqual(['本番 0','本番 1','本番 2','本番 3']);
+  expect(reset.participants.map(p=>p.rating).sort()).toEqual([10,11,12,13]);
+  expect(s.db.prepare('SELECT COUNT(*) n FROM participants WHERE event_id=?').get(main)!.n).toBe(4);
+  for(const table of ['matches','teams','draw_sessions'])expect(s.db.prepare(`SELECT COUNT(*) n FROM ${table} WHERE event_id=?`).get(main)!.n).toBe(0);
+  expect(s.db.prepare('SELECT COUNT(*) n FROM team_members m JOIN participants p ON p.id=m.participant_id WHERE p.event_id=?').get(main)!.n).toBe(0);
+  expect(s.db.prepare('SELECT status,format,bracket_snapshot FROM events WHERE id=?').get(main)).toEqual({status:'draft',format:'double_elimination',bracket_snapshot:null});
+  expect(s.db.prepare("SELECT status FROM checkin_state WHERE event_id=?").get(main)!.status).toBe('open');
+  expect(s.db.prepare("SELECT COUNT(*) n FROM operation_log WHERE event_id=? AND action='tournament.reopen'").get(main)!.n).toBe(1);
+  expect((await s.request(`/api/events/${main}/opening${run(main)}`)).status).toBe(200);
+  expect((await s.request(`/api/participants/${created[0].id}${run(main)}`,'PATCH',{requestId:crypto.randomUUID(),expectedVersion:created[0].version,name:'改名',rating:15})).status).toBe(200);
+  expect((await s.request('/api/participants'+run(main),'POST',s.input('追加'))).status).toBe(201);
+  expect((await s.request(`/api/participants/${created[1].id}${run(main)}`,'DELETE',{requestId:crypto.randomUUID(),expectedVersion:created[1].version})).status).toBe(200);
+  expect((await s.request('/api/checkin/state'+run(main)).then(r=>r.json()) as {status:string;count:number})).toMatchObject({status:'open',count:4});
+  const again=await s.request('/api/tournament/reopen'+run(main),'POST',{requestId:crypto.randomUUID(),expectedVersion:reset.version});
+  expect(again.status).toBe(409);expect((await again.json() as {error:string}).error).toBe('REOPEN_NOT_AVAILABLE');
+  const spareState=await s.request('/api/draw/state'+run(spare)).then(r=>r.json()) as {official:boolean;version:number;scene:string;teams:unknown[]};
+  expect(spareState).toMatchObject({official:false,scene:'draw'});expect(spareState.teams).toHaveLength(2);
+  expect((await s.request('/api/tournament/replay'+run(spare),'POST',{requestId:crypto.randomUUID(),expectedVersion:spareState.version})).status).toBe(200);
+  const kept=await s.request('/api/draw/state'+run(spare)).then(r=>r.json()) as {scene:string;checkinStatus:string;teams:unknown[]};
+  expect(kept).toMatchObject({scene:'idle',checkinStatus:'closed'});expect(kept.teams).toHaveLength(2);
+  expect((await s.request('/api/checkin/state'+run(spare)).then(r=>r.json()) as {count:number}).count).toBe(4);
  });
 });

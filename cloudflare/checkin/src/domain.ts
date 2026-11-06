@@ -31,6 +31,8 @@ export interface Participant {
   note: string; created_at: string; updated_at: string; checkin_version: number;
 }
 export const AUTOMATED_CAMERA_TEST_ID = 'checkin-981ee495-ed79-44fd-a00c-6a8792e17102';
+/** Fixed production event. Only this event can return to open check-in after a practice run. */
+export const OFFICIAL_FIXED_EVENT_ID = 'cf-through-20261206-1206-4206-8206-000000000001';
 export const imageTypes = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp' } as const;
 export class ClientError extends Error {
   constructor(public code: string, public status: number, public details?: unknown) { super(code); }
