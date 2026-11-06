@@ -10,6 +10,7 @@ describe('resolveVenueBed', () => {
     expect(resolveVenueBed({ ...idle, scene: 'draw' })).toBe('pair');
     expect(resolveVenueBed({ ...idle, scene: 'bracket' })).toBe('opening');
     expect(resolveVenueBed({ ...idle, scene: 'vs_card' })).toBe('opening');
+    expect(resolveVenueBed({ ...idle, scene: 'interval' })).toBe('opening');
     expect(resolveVenueBed({ ...idle, scene: 'match_live' })).toBeNull();
     expect(resolveVenueBed({ ...idle, scene: 'result' })).toBeNull();
     expect(resolveVenueBed({ ...idle, scene: 'award' })).toBeNull();
@@ -83,7 +84,7 @@ describe('setPresentationBed', () => {
     vi.unstubAllGlobals();
   });
 
-  it('fades in, keeps looping, and fades out when the stage ends', async () => {
+  it('fades in, crosses into a second voice near the end, and fades out when the stage ends', async () => {
     vi.stubGlobal('Audio', class {
       constructor() {
         const audio = new FakeAudio();
@@ -113,23 +114,37 @@ describe('setPresentationBed', () => {
     setPresentationBed('opening');
     await Promise.resolve();
     expect(audios).toHaveLength(1);
-    expect(audios[0].loop).toBe(true);
+    expect(audios[0].loop).toBe(false);
     expect(audios[0].src).toContain(encodeURIComponent('オープニング.mp3'));
     expect(audios[0].paused).toBe(false);
     expect(audios[0].volume).toBeCloseTo(0.4);
 
+    audios[0].currentTime = 5;
+    watch?.();
+    expect(audios).toHaveLength(1);
+
     audios[0].currentTime = 8;
     watch?.();
+    expect(audios).toHaveLength(2);
+    expect(audios[1].src).toBe(audios[0].src);
+    expect(audios[1].currentTime).toBe(0);
+    expect(audios[1].paused).toBe(false);
+    expect(audios[1].volume).toBeCloseTo(0.4);
+    expect(audios[0].paused).toBe(true);
+
+    audios[1].currentTime = 8;
+    watch?.();
+    expect(audios).toHaveLength(2);
     expect(audios[0].paused).toBe(false);
-    expect(audios[0].loop).toBe(true);
+    expect(audios[0].currentTime).toBe(0);
+    expect(audios[1].paused).toBe(true);
 
     setPresentationBed('pair');
     await Promise.resolve();
     const pair = audios.filter((audio) => audio.src.includes(encodeURIComponent('ペア.mp3')) && !audio.paused);
     expect(pair).toHaveLength(1);
     expect(pair[0].volume).toBeCloseTo(0.4);
-    expect(audios[0].paused).toBe(true);
-    expect(pair[0].loop).toBe(true);
+    expect(audios.slice(0, 2).every((audio) => audio.paused)).toBe(true);
 
     setPresentationBed(null);
     expect(audios.every((audio) => audio.paused)).toBe(true);
@@ -164,7 +179,7 @@ describe('setPresentationBed', () => {
     setPresentationBed('opening');
     await Promise.resolve();
     const playing = audios.find((audio) => !audio.paused);
-    expect(playing?.loop).toBe(true);
+    expect(playing?.loop).toBe(false);
     expect(playing?.volume).toBeCloseTo(0.4);
     expect(playing?.volume).toBeGreaterThanOrEqual(0);
   });

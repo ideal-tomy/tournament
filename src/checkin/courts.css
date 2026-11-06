@@ -1,23 +1,6 @@
-/* Venue split view: 1920x1080 stage, one column per board. */
-.court-stage{background:radial-gradient(circle at 50% 0,#0f2238,#04050a 70%)}
-.court-grid{position:absolute;inset:48px;display:grid;gap:32px}
-.court-column{display:flex;flex-direction:column;gap:24px;padding:32px 28px;border-radius:28px;background:rgba(12,25,41,.88);border:2px solid #22d3ee;box-shadow:0 0 40px rgba(34,211,238,.18)}
-.court-column.is-loser{background:rgba(26,15,18,.88);border-color:#fb7185;box-shadow:0 0 40px rgba(244,63,94,.18)}
-.court-column.is-grand_final{background:rgba(26,20,8,.88);border-color:#fbbf24}
-.court-column.is-idle{border-color:#334155;box-shadow:none}
-.court-head{display:flex;align-items:baseline;justify-content:space-between;gap:16px}
-.court-no{font-size:64px;font-weight:900;line-height:1;color:#f8fafc}
-.court-round{font-size:30px;font-weight:800;color:#67e8f9;word-break:keep-all;text-align:right}
-.is-loser .court-round{color:#fda4af}
-.court-match{flex:1;display:flex;flex-direction:column;justify-content:center;gap:20px}
-.court-side{display:flex;flex-direction:column;align-items:center;gap:14px;transition:opacity .4s}
-.court-side.is-loser{opacity:.35}
-.court-side.is-winner .court-faces img{box-shadow:0 0 0 6px #fbbf24,0 0 40px rgba(251,191,36,.6)}
-.court-faces{display:flex;justify-content:center;gap:16px}
-.court-faces img{width:170px;height:170px;object-fit:cover;border-radius:24px;background:#1c2d43}
-.court-names{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 24px;font-size:38px;font-weight:800;line-height:1.25;word-break:keep-all;text-align:center}
-.court-vs{text-align:center;font-size:44px;font-weight:900;color:#fcd34d;letter-spacing:.08em}
-.court-status{padding:14px;border-radius:16px;text-align:center;font-size:34px;font-weight:900;background:#0a1626;color:#a6b9cd}
-.court-status.is-call{background:#0d6679;color:#fff}
-.court-status.is-live{background:#14532d;color:#bbf7d0}
-.court-status.is-result{background:#78350f;color:#fde68a}
+/* Venue split view: one column per board, each holding the same 16:9 stage as a single board. */
+.court-split{position:fixed;inset:0;display:grid;background:#05070c}
+.court-cell{position:relative;overflow:hidden;border-left:2px solid rgba(255,255,255,.14)}
+.court-cell:first-child{border-left:0}
+.court-tag{position:absolute;top:24px;left:50%;z-index:5;margin:0;padding:6px 22px;transform:translateX(-50%);border-radius:999px;background:rgba(5,7,12,.82);border:1px solid rgba(253,230,138,.6);color:#fde68a;font-size:clamp(18px,2.2vw,34px);font-weight:900;letter-spacing:.12em;white-space:nowrap}
+.court-idle{position:absolute;inset:0;display:grid;place-items:center;color:#94a3b8;font-size:clamp(18px,2vw,30px);font-weight:800}

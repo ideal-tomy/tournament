@@ -3,12 +3,20 @@ import { api, ApiError } from './api';
 import type { DrawState } from './DrawControl';
 import { preparePortraits } from './portraitCache';
 
+/** Which board beat is on screen, and which boards still wait for theirs. Advances with time, not version. */
+function courtBeat(state: DrawState) {
+  const courts = state.flow?.courts, spot = courts?.spotlight;
+  const phase = spot ? `${spot.id}:${spot.kind === 'winner' && spot.elapsed >= spot.winnerSec ? 'bracket' : spot.kind}` : '';
+  return `${phase}|${courts?.boards.map(b => b.showing ? 1 : 0).join('') ?? ''}`;
+}
+
 /** Fields that change while the version stays the same: time gates open without a new write. */
 function same(previous: DrawState, next: DrawState) {
-  return previous.version === next.version && previous.checkinRevision === next.checkinRevision
+  return previous.version === next.version && previous.checkinRevision === next.checkinRevision && previous.openingVersion === next.openingVersion
     && previous.participants.length === next.participants.length
     && previous.flow?.canStart === next.flow?.canStart && previous.flow?.canGameStart === next.flow?.canGameStart
-    && previous.flow?.canAdvance === next.flow?.canAdvance && previous.canComplete === next.canComplete;
+    && previous.flow?.canAdvance === next.flow?.canAdvance && previous.canComplete === next.canComplete
+    && courtBeat(previous) === courtBeat(next);
 }
 
 export function useTournamentState(onAuthRequired: () => void, sessionVersion: number, { automaticAdvance = false, portraits = true }: { automaticAdvance?: boolean; portraits?: boolean } = {}) {

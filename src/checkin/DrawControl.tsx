@@ -16,12 +16,14 @@ import VenueOpening from './VenueOpening';
 const reviewDone = () => {};
 
 export interface FlowMatch {id:number;teamA:string;teamB:string;round:number;roundName?:string;kind:string;final:boolean}
-export interface CourtBoard {board:number;matchId:number|null;stage:'idle'|'call'|'live'|'result';startedAt:string|null;winnerTeamId?:string|null;loserTeamId?:string|null;match:FlowMatch|null}
+export interface CourtBoard {board:number;matchId:number|null;stage:'idle'|'call'|'live'|'result';startedAt:string|null;winnerTeamId?:string|null;loserTeamId?:string|null;showing:boolean;match:FlowMatch|null}
+export type ResultPresentation={beforeBracket:BracketSnapshot;match:{id:number;teamA:string;teamB:string;round:number;kind:string;final:boolean};winnerTeamId:string};
+export interface CourtSpotlight {id:string;kind:'vs'|'winner';board:number;match:FlowMatch;elapsed:number;winnerSec:number;winnerTeamId:string|null;loserTeamId:string|null;resultPresentation:ResultPresentation|null}
 export type CeremonyStep='third'|'second'|'champion'|'podium';
 export interface Placements {first:string;second:string[];third:string[]}
 export interface DrawState {
- format?:string; timingPreset?:'show'|'fast';
- flow: {ceremony?:CeremonyStep|null;placements?:Placements|null;resultPresentation?:{beforeBracket:BracketSnapshot;match:{id:number;teamA:string;teamB:string;round:number;kind:string;final:boolean};winnerTeamId:string}|null;phase:string;currentMatch:FlowMatch|null;courts?:{count:number;showBracket:boolean;boards:CourtBoard[]}|null;winnerTeamId:string|null;loserTeamId:string|null;championTeamId:string|null;lastMatchId:number|null;canGameStart:boolean;canAnnounce:boolean;canStart:boolean;canScore:boolean;canAdvance:boolean;completedMatches:number}|null;
+ format?:string; timingPreset?:'show'|'fast'; openingVersion?:string|null;
+ flow: {ceremony?:CeremonyStep|null;placements?:Placements|null;resultPresentation?:ResultPresentation|null;phase:string;currentMatch:FlowMatch|null;courts?:{count:number;showBracket:boolean;spotlight:CourtSpotlight|null;boards:CourtBoard[]}|null;winnerTeamId:string|null;loserTeamId:string|null;championTeamId:string|null;lastMatchId:number|null;canGameStart:boolean;canAnnounce:boolean;canStart:boolean;canScore:boolean;canAdvance:boolean;completedMatches:number}|null;
  eventId:string;title:string;checkinStatus:string;checkinRevision:number;scene:string;version:number;sceneSeq:number;
  elapsedSeconds:number;durationSec:number;canComplete:boolean;
  session:{id:string;revealOrder:string[];committedAt:string}|null;
@@ -63,7 +65,8 @@ export default function DrawControl({administration,onAuthRequired,sessionVersio
  const showOpening=!administration&&!currentReview()&&(!state||!state.session||state.scene==='idle');
  useEffect(()=>onActiveChange?.(!!state?.session||showOpening),[state?.session?.id,showOpening,onActiveChange]);
  useEffect(()=>{if(!administration)preloadPresentationAssets();},[administration]);
- const bedTrack=administration||!state?null:resolveVenueBed({review:currentReview(),scene:state.scene,hasSession:!!state.session,photoError});
+ const bedScene=state?.scene==='interval'&&state.flow?.courts?.spotlight?.kind==='winner'?'result':state?.scene;
+ const bedTrack=administration||!state?null:resolveVenueBed({review:currentReview(),scene:bedScene,hasSession:!!state.session,photoError});
  usePresentationBed(bedTrack,!administration);
  const onComplete=useCallback(()=>refresh(),[refresh]);
  return <section className={administration?'card draw-operations':'draw-monitor'} data-draw-scene={state?.scene??'loading'} data-draw-version={state?.version??0}>
@@ -87,9 +90,9 @@ export default function DrawControl({administration,onAuthRequired,sessionVersio
    <a className="button" href={scopedUrl('/display')} target="_blank" rel="noreferrer">会場Displayを開く</a>
   </>}
   {(error||commandError||presentation?.error||photoError)&&<p role="alert" className="error">{error||commandError||presentation?.error||'保存写真を読み込めません。接続を確認してください。'}<button onClick={()=>{setPhotoError(false);refresh();}}>再読み込み</button></p>}
-  {!administration&&(currentReview()&&state?.session&&presentation?.data&&!photoError?currentReview()==='draw'?<div className="live-draw-stage"><DrawStage key={`review-draw-${state.session.id}`} eventId={state.eventId} sceneSeq={state.sceneSeq} data={presentation.data} presentationMode="full" timingPreset={state.timingPreset} audioEnabled startAtSeconds={0} onComplete={reviewDone}/></div>:<div className="tournament-stage"><FlowPresentation key={`review-${currentReview()}`} state={reviewState(state,currentReview() as 'vs'|'winner'|'champion')}/></div>:!state?.session||state.scene==='idle'?<VenueOpening count={state?.participants.length??0} checkinClosed={state?.checkinStatus==='closed'}/>:state.scene==='draw'&&presentation?.data&&!photoError?<div className="live-draw-stage" onErrorCapture={event=>{if(event.target instanceof HTMLImageElement)setPhotoError(true);}}>
+  {!administration&&(currentReview()&&state?.session&&presentation?.data&&!photoError?currentReview()==='draw'?<div className="live-draw-stage"><DrawStage key={`review-draw-${state.session.id}`} eventId={state.eventId} sceneSeq={state.sceneSeq} data={presentation.data} presentationMode="full" timingPreset={state.timingPreset} audioEnabled startAtSeconds={0} onComplete={reviewDone}/></div>:<div className="tournament-stage"><FlowPresentation key={`review-${currentReview()}`} state={reviewState(state,currentReview() as 'vs'|'winner'|'champion')}/></div>:!state?.session||state.scene==='idle'?<VenueOpening count={state?.participants.length??0} checkinClosed={state?.checkinStatus==='closed'} eventId={state?.eventId} openingVersion={state?.openingVersion} format={state?.format} title={state?.title}/>:state.scene==='draw'&&presentation?.data&&!photoError?<div className="live-draw-stage" onErrorCapture={event=>{if(event.target instanceof HTMLImageElement)setPhotoError(true);}}>
    <DrawStage key={`${state.session.id}-${state.sceneSeq}`} eventId={state.eventId} sceneSeq={state.sceneSeq} data={presentation.data} presentationMode="full" timingPreset={state.timingPreset} audioEnabled startAtSeconds={state.elapsedSeconds} onComplete={onComplete}/>
-  </div>:<div className="tournament-stage" onErrorCapture={event=>{if(event.target instanceof HTMLImageElement)setPhotoError(true);}}><FlowPresentation key={state.sceneSeq} state={state}/></div>)}
+  </div>:<div className="tournament-stage" onErrorCapture={event=>{if(event.target instanceof HTMLImageElement)setPhotoError(true);}}><FlowPresentation key={state.scene==='interval'?'interval':state.sceneSeq} state={state}/></div>)}
   {administration&&state?.bracket&&<SavedBracket state={state}/>}
   {!administration&&bedTrack&&<PresentationBedUnlock track={bedTrack}/>}
 

@@ -16,8 +16,10 @@ const LEFT_X = [120, 440];
 const RIGHT_X = [1180, 1500];
 
 /** Venue VS card. Pixel positions are a 1920×1080 stage, scaled to the monitor. */
-export default function VsBoard({ left, right, roundLabel, settled = false, startAt = 0, audioEnabled = false }: {
+export default function VsBoard({ left, right, roundLabel, settled = false, startAt = 0, audioEnabled = false, contained = false }: {
   left: VsSide; right: VsSide; roundLabel?: string; settled?: boolean; startAt?: number; audioEnabled?: boolean;
+  /** Fit inside the parent box instead of the whole window. */
+  contained?: boolean;
 }) {
   const fitRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -84,7 +86,7 @@ export default function VsBoard({ left, right, roundLabel, settled = false, star
     // One intro per mount. A later poll creates new player objects and must not replay the collision.
   }, []);
 
-  return <div ref={fitRef} className="vsb-fit">
+  return <div ref={fitRef} className={`vsb-fit${contained ? ' is-contained' : ''}`}>
     <div ref={stageRef} className="vsb-stage" aria-label={`${left.name} 対 ${right.name}`}>
      <div className="vsb-hole" aria-hidden="true">
       <img src={FX.backgrounds.vsBlackHole} alt="" />

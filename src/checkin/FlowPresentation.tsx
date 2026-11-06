@@ -1,7 +1,7 @@
 import BracketView from '../features/bracket/BracketView';
 import { toStageData } from '../features/bracket/stageData';
 import { ratedName, toPresentationTeam } from './presentationAdapter';
-import type { DrawState } from './DrawControl';
+import type { CourtSpotlight, DrawState } from './DrawControl';
 import { portraitUrlFor } from './portraitCache';
 import AnimatedBracketAdvance from './AnimatedBracketAdvance';
 import VsBoard from '../features/presentation/vsBoard/VsBoard';
@@ -25,6 +25,15 @@ function existingTeam(state:DrawState,id:string|null|undefined){
  const people=team.memberIds.map(id=>{const p=state.participants.find(p=>p.id===id);if(!p)throw new Error('確定参加者が見つかりません。');return p;});
  const value=toPresentationTeam(people);return {...value,name:team.name,faces:people.map(p=>portraitUrlFor(p))};
 }
+/** A board's start or result, played full screen with the same scenes as a single board. */
+function CourtSpotlightView({state,spot}:{state:DrawState;spot:CourtSpotlight}){
+ const label=[`台 ${spot.board}`,spot.match.final?'FINAL':spot.match.roundName].filter(Boolean).join(' · ');
+ if(spot.kind==='vs')return <VsBoard key={spot.id} left={existingTeam(state,spot.match.teamA)} right={existingTeam(state,spot.match.teamB)} roundLabel={label} startAt={spot.elapsed} audioEnabled/>;
+ const team=existingTeam(state,spot.winnerTeamId),opponent=existingTeam(state,spot.loserTeamId);
+ if(spot.elapsed<spot.winnerSec||!spot.resultPresentation)return <WinnerBoard key={`${spot.id}-winner`} team={team} opponent={opponent} startAt={spot.elapsed} audioEnabled/>;
+ const advance:DrawState={...state,scene:'bracket',elapsedSeconds:spot.elapsed-spot.winnerSec,flow:{...state.flow!,phase:'bracket_update',resultPresentation:spot.resultPresentation,winnerTeamId:spot.winnerTeamId,loserTeamId:spot.loserTeamId}};
+ return <AnimatedBracketAdvance key={`${spot.id}-bracket`} state={advance} winnerOverlay={<WinnerBoard contained settled team={team} opponent={opponent}/>}/>;
+}
 /** Single elimination ranks both semi-final losers 3rd; they are introduced together. */
 function placeTeam(state:DrawState,ids:string[]|undefined){
  const teams=(ids??[]).map(id=>existingTeam(state,id));
@@ -37,7 +46,11 @@ export default function FlowPresentation({state,controlledTime}:{state:DrawState
    if(state.flow?.phase==='bracket_update'&&state.flow.resultPresentation&&state.flow.winnerTeamId){const left=existingTeam(state,state.flow.winnerTeamId),right=existingTeam(state,state.flow.loserTeamId);return <AnimatedBracketAdvance state={state} controlledTime={controlledTime} winnerOverlay={<WinnerBoard contained settled team={left} opponent={right}/>}/>;}
    return <SavedBracket state={state}/>;
   }
-  if(state.scene==='interval')return state.flow?.courts?.showBracket?<SavedBracket state={state} focusBottomTier/>:<CourtBoards state={state}/>;
+  if(state.scene==='interval'){
+   const courts=state.flow?.courts;
+   if(courts?.spotlight)return <CourtSpotlightView state={state} spot={courts.spotlight}/>;
+   return courts?.showBracket?<SavedBracket state={state} focusBottomTier/>:<CourtBoards state={state} teamOf={id=>existingTeam(state,id)}/>;
+  }
   if(state.scene==='finished')return <ThanksBoard/>;
   if(state.scene==='award'){
    const step=state.flow?.ceremony??'champion',placements=state.flow?.placements;

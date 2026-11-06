@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { setup } from './testSupport';
 import {toStageData,type BracketSnapshot} from '../../../src/features/bracket/manager';
 import {getMatchTier,getOpenTierMatches} from '../../../src/features/progression/progression';
@@ -81,14 +81,23 @@ describe('one continuous tournament with automatic scheduling',()=>{
   expect((await s.command('courts-open',{count:4})).response.status).toBe(400);
   expect((await s.command('court-start',{board:1})).response.status).toBe(409);
   expect((await s.command('courts-open',{count:2})).response.status).toBe(200);
-  type Courts={count:number;boards:{board:number;matchId:number|null;stage:string;match:{id:number;kind:string;roundName:string}|null}[]};
+  type Courts={count:number;spotlight:{kind:string;board:number;elapsed:number;winnerSec:number;resultPresentation:{match:{id:number}}|null}|null;boards:{board:number;matchId:number|null;stage:string;showing:boolean;match:{id:number;kind:string;roundName:string}|null}[]};
   const courts=async()=>{const v=await s.view();return {v,c:(v.flow as typeof v.flow&{courts:Courts|null}).courts};};
   let {v,c}=await courts();expect(v.scene).toBe('interval');expect(c!.boards.map(b=>b.stage)).toEqual(['call','call']);
   expect(c!.boards.every(b=>b.match?.roundName==='ウィナーズ 1回戦')).toBe(true);expect(new Set(c!.boards.map(b=>b.matchId)).size).toBe(2);
+  vi.useFakeTimers({toFake:['Date']});
+  try{
+  const later=(seconds:number)=>vi.setSystemTime(Date.now()+seconds*1000);
   expect((await s.command('court-start',{board:1})).response.status).toBe(200);expect((await s.command('court-start',{board:2})).response.status).toBe(200);
-  const other=(await courts()).c!.boards[1].matchId;
+  ({v,c}=await courts());expect(c!.spotlight).toMatchObject({kind:'vs',board:1});expect(c!.boards.map(b=>b.showing)).toEqual([true,true]);
+  const busy=await s.command('court-winner',{board:1,winnerSlot:0});expect(busy.response.status).toBe(409);expect((await busy.response.json() as {error:string}).error).toBe('SPOTLIGHT_PLAYING');
+  later(9);({v,c}=await courts());expect(c!.spotlight).toMatchObject({kind:'vs',board:2});expect(c!.spotlight!.elapsed).toBeLessThan(1);expect(c!.boards.map(b=>b.showing)).toEqual([false,true]);
+  const other=c!.boards[1].matchId;
   const scored=await s.command('court-winner',{board:1,winnerSlot:0});expect(scored.response.status).toBe(200);
   ({v,c}=await courts());expect(c!.boards.map(b=>b.stage)).toEqual(['result','live']);expect(c!.boards[1].matchId).toBe(other);
+  expect(c!.spotlight).toMatchObject({kind:'vs',board:2});expect((await s.command('court-next',{board:1})).response.status).toBe(409);
+  later(9);({v,c}=await courts());expect(c!.spotlight).toMatchObject({kind:'winner',board:1,winnerSec:6});expect(c!.spotlight!.resultPresentation!.match.id).toBe(c!.boards[0].matchId);
+  later(13);({v,c}=await courts());expect(c!.spotlight).toBeNull();
   expect(s.db.prepare("SELECT COUNT(*) n FROM matches WHERE status='in_progress'").get()!.n).toBe(1);
   expect((await s.request('/api/tournament/court-winner','POST',scored.body)).status).toBe(200);expect((await s.view()).version).toBe(v.version);
   const tierOf=(view:View,id:number)=>{const data=toStageData(view.bracket as BracketSnapshot);return getMatchTier(data,data.match.find(m=>m.id===id)!);};
@@ -96,14 +105,17 @@ describe('one continuous tournament with automatic scheduling',()=>{
   let guard=0,sawLoser=false;
   while(v.scene==='interval'&&guard++<120){
    for(const board of c!.boards){
+    later(30);
     if(board.stage==='call'){expect(tierOf(v,board.matchId!)).toBe(lowestOpen(v));sawLoser||=board.match!.kind==='loser';expect((await s.command('court-start',{board:board.board})).response.status).toBe(200);}
     else if(board.stage==='live')expect((await s.command('court-winner',{board:board.board,winnerSlot:0})).response.status).toBe(200);
     else expect((await s.command('court-next',{board:board.board})).response.status).toBe(200);
     ({v,c}=await courts());if(v.scene!=='interval')break;
    }
   }
-  expect(sawLoser).toBe(true);expect(v.scene).toBe('bracket');expect(v.flow.canGameStart).toBe(false);s.age();expect((await s.view()).flow.canGameStart).toBe(true);
+  expect(sawLoser).toBe(true);expect(v.scene).toBe('bracket');
+  }finally{vi.useRealTimers();}
   expect(s.db.prepare("SELECT COUNT(*) n FROM matches WHERE status='in_progress'").get()!.n).toBe(0);
+  s.age();expect((await s.view()).flow.canGameStart).toBe(true);
   const final=await s.advance();expect(final.scene).toBe('vs_card');expect(final.flow.currentMatch!.kind).toBe('grand_final');
  });
  it('replays a finished tournament from the announcement with the same participants and pairs',async()=>{

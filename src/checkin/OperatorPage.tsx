@@ -3,6 +3,7 @@ import { api, ApiError, scopedUrl, type Participant } from './api';
 import type { CeremonyStep, CourtBoard, DrawState, FlowMatch } from './DrawControl';
 import { useTournamentState } from './useTournamentState';
 import { makeBalancedTeams } from '../features/draw/draw';
+import { formatLabel } from './eventFormat';
 
 type Command = { path: string; body: Record<string, unknown> };
 type Team = DrawState['teams'][number];
@@ -108,10 +109,12 @@ function BoardCard({ state, board, busy, pick, onPick, onCommand }: {
       ? <MatchCard state={state} match={match} chosen={board.stage === 'live' ? pick ?? null : settled} choose={board.stage === 'live' ? onPick : undefined} />
       : <p className="op-note">下の段の試合が終わると、次の試合が入ります</p>}
     {board.stage === 'call' && <button className="primary" disabled={busy} onClick={() => onCommand('court-start')}>試合開始</button>}
-    {board.stage === 'live' && match && (pick == null
-      ? <button className="primary" disabled>勝ったチームをタップ</button>
-      : <button className="primary" disabled={busy} onClick={() => onCommand('court-winner', { winnerSlot: pick })}>{teamName(pick === 0 ? match.teamA : match.teamB)} の勝利で確定</button>)}
-    {board.stage === 'result' && <button className="primary" disabled={busy} onClick={() => onCommand('court-next')}>この台に次の試合</button>}
+    {board.stage === 'live' && match && (board.showing
+      ? <button className="primary" disabled>会場でVS演出中…</button>
+      : pick == null
+        ? <button className="primary" disabled>勝ったチームをタップ</button>
+        : <button className="primary" disabled={busy} onClick={() => onCommand('court-winner', { winnerSlot: pick })}>{teamName(pick === 0 ? match.teamA : match.teamB)} の勝利で確定</button>)}
+    {board.stage === 'result' && <button className="primary" disabled={busy || board.showing} onClick={() => onCommand('court-next')}>{board.showing ? '会場で勝者演出中…' : 'この台に次の試合'}</button>}
   </section>;
 }
 
@@ -213,7 +216,7 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
     const shown = step === 'third' ? places?.third : step === 'second' ? places?.second : step === 'champion' ? [f?.championTeamId ?? ''] : [];
     const next = step === 'third' ? (places?.second.length ? '2位へ' : '優勝へ') : step === 'second' ? '優勝へ' : step === 'champion' ? '表彰台へ' : '大会を終える';
     body = step === 'podium'
-      ? <ol className="op-pairs">{([['優勝', [places?.first ?? f?.championTeamId ?? '']], ['2位', places?.second ?? []], ['3位', places?.third ?? []]] as const).filter(([, ids]) => ids.length).map(([label, ids]) => <li key={label} className="op-pair"><span className="op-pair-no">{label}</span><span>{ids.map(teamName).join(' ／ ')}</span></li>)}</ol>
+      ? <ol className="op-pairs" aria-label="表彰台">{([[1, [places?.first ?? f?.championTeamId ?? '']], [2, places?.second ?? []], [3, places?.third ?? []]] as const).filter(([, ids]) => ids.length).map(([rank, ids]) => <li key={rank} className="op-pair"><span className="op-pair-no">{rank}</span><span>{ids.map(teamName).join(' ／ ')}</span></li>)}</ol>
       : <div className="op-big"><span>{ceremonyLabel[step]}</span><strong className="op-team-name">{(shown ?? []).map(teamName).join(' ／ ')}</strong></div>;
     bar = gate(f?.canAdvance, next, `${ceremonyLabel[step]}の演出中…`, () => void flow('advance'));
   } else if (state.scene === 'finished') {
@@ -226,6 +229,7 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
   const replayable = !!state.session && state.scene !== 'idle' && state.scene !== 'finished';
 
   return <section className="op" data-op-scene={state.scene}>
+    <p className="op-event">{[state.title, formatLabel(state.format)].filter(Boolean).join(' · ')}</p>
     <header className="op-head">
       <span className="op-phase">{phase(state)}</span>
       <span className="op-meta">{state.participants.length}名{state.teams.length ? ` · ${state.teams.length}組` : ''}{f?.completedMatches ? ` · ${f.completedMatches}試合済` : ''}</span>

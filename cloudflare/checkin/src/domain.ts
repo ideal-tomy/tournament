@@ -52,12 +52,12 @@ export function fields(body: Record<string,unknown>) {
   if (rating!==null && (typeof rating!=='number' || !Number.isFinite(rating) || rating<=0 || rating>30)) throw new ClientError('INVALID_RATING',400);
   return {name,rating:rating as number|null};
 }
-export function decodePortrait(value: unknown) {
+export function decodePortrait(value: unknown, limit = 512*1024) {
   const encoded=typeof value==='string' ? /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(value):null;
   if (!encoded) throw new ClientError('INVALID_PHOTO',400);
   let bytes:Uint8Array;
   try {bytes=Uint8Array.from(atob(encoded[2]),char=>char.charCodeAt(0));} catch {throw new ClientError('INVALID_PHOTO',400);}
-  if (bytes.length>512*1024) throw new ClientError('PHOTO_TOO_LARGE',413);
+  if (bytes.length>limit) throw new ClientError('PHOTO_TOO_LARGE',413);
   let format:keyof typeof imageTypes|null=null;
   if(bytes.length>=64) {
     if(bytes[0]===255 && bytes[1]===216 && bytes[2]===255 && bytes.at(-2)===255 && bytes.at(-1)===217) format='jpg';

@@ -2,6 +2,7 @@ import { AUTOMATED_CAMERA_TEST_ID, ClientError, hash, imageTypes, readBody, resp
 import { drawRoute } from './draw';
 import { lifecycleRoute, drainCleanup } from './lifecycle';
 import { rehearsalRoute, selectRehearsalRun } from './rehearsal';
+import { openingRoute } from './opening';
 export type { CheckinEnv } from './domain';
 const COOKIE = '__Host-tournament-checkin';
 const SESSION_SECONDS = 8 * 60 * 60;
@@ -73,6 +74,8 @@ async function route(request: Request, env: CheckinEnv): Promise<Response> {
   if (draw) return draw;
   const lifecycle = await lifecycleRoute(request, env);
   if (lifecycle) return lifecycle;
+  const opening = await openingRoute(request, env);
+  if (opening) return opening;
   const canonical = /^\/api\/events\/([a-zA-Z0-9_-]{1,128})\/participants\/(checkin-[a-f0-9-]{36})\/portrait$/.exec(url.pathname);
   const legacy = /^\/api\/participants\/(checkin-[a-f0-9-]{36})\/photo$/.exec(url.pathname);
   const participantId = canonical?.[2] ?? legacy?.[1];

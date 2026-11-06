@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { TOURNAMENT_EFFECTS as FX } from '../../../lib/tournamentEffects';
 
-/** 開始フェードと場面の切り替え。秒。周回は要素の loop に任せる。 */
+/** 開始フェード、周回のクロスフェード、場面の切り替え。秒。 */
 export const BED_FADE_IN_SEC = 0.8;
 export const BED_LOOP_CROSSFADE_SEC = 3;
 export const BED_SCENE_CROSSFADE_SEC = 1.5;
@@ -36,7 +36,7 @@ export function resolveVenueBed(input: {
   if (reviewing) return null;
   if (!input.hasSession || !input.scene || input.scene === 'idle') return 'opening';
   if (input.scene === 'draw' && !input.photoError) return 'pair';
-  if (input.scene === 'bracket' || input.scene === 'vs_card') return 'opening';
+  if (input.scene === 'bracket' || input.scene === 'vs_card' || input.scene === 'interval') return 'opening';
   if (input.scene === 'finished') return 'ending';
   return null;
 }
@@ -72,52 +72,105 @@ function animateVolume(apply: (amount: number) => void, seconds: number, done?: 
   };
 }
 
+/**
+ * Two voices of the same track: near the end the next one starts from the top while
+ * the current one fades, so the silence padded around an MP3 loop is never heard alone.
+ */
 class LoopingBed {
-  private readonly audio = new Audio();
+  private readonly voices: HTMLAudioElement[] = [];
+  private readonly gain = new Map<HTMLAudioElement, number>();
+  private current: HTMLAudioElement;
+  private level = 0;
   private stopped = false;
   private audible = false;
-  private cancelFade: (() => void) | null = null;
+  private crossing = false;
+  private watch: number | null = null;
+  private cancelLevel: (() => void) | null = null;
+  private cancelCross: (() => void) | null = null;
 
   constructor(
-    url: string,
+    private readonly url: string,
     private readonly fadeSec: number,
     private readonly onPlaying: () => void,
     private readonly onBlocked: () => void,
   ) {
-    this.audio.preload = 'auto';
-    this.audio.loop = true;
-    this.audio.volume = 0;
-    this.audio.src = url;
+    this.current = this.voice();
+    this.gain.set(this.current, 1);
+    this.apply();
     this.kick();
   }
 
   unlockFromGesture() {
-    if (this.stopped) return;
-    void this.audio.play().then(() => {
-      if (this.stopped) {
-        this.audio.pause();
-        return;
-      }
-      this.markAudible();
-    }).catch(() => this.onBlocked());
+    this.kick();
   }
 
   fadeOut(seconds: number) {
     if (this.stopped) return;
     this.stopped = true;
-    this.cancelFade?.();
-    const from = this.audio.volume;
-    this.cancelFade = animateVolume((amount) => {
-      setVolume(this.audio, from * Math.cos(amount * Math.PI / 2));
+    if (this.watch != null) window.clearInterval(this.watch);
+    this.cancelLevel?.();
+    const from = this.level;
+    this.cancelLevel = animateVolume((amount) => {
+      this.level = from * Math.cos(amount * Math.PI / 2);
+      this.apply();
     }, seconds, () => {
-      this.audio.pause();
+      this.cancelCross?.();
+      for (const voice of this.voices) voice.pause();
+    });
+  }
+
+  private voice() {
+    const audio = new Audio();
+    audio.preload = 'auto';
+    audio.loop = false;
+    audio.volume = 0;
+    audio.src = this.url;
+    audio.addEventListener('ended', () => {
+      if (audio === this.current && !this.stopped) this.cross(0);
+    });
+    this.voices.push(audio);
+    return audio;
+  }
+
+  private apply() {
+    for (const voice of this.voices) setVolume(voice, BED_VOLUME * this.level * (this.gain.get(voice) ?? 0));
+  }
+
+  private readonly tick = () => {
+    if (this.stopped || this.crossing) return;
+    const { duration, currentTime } = this.current;
+    if (!Number.isFinite(duration) || duration <= 0) return;
+    const overlap = bedOverlapSec(duration);
+    if (currentTime >= duration - overlap) this.cross(overlap);
+  };
+
+  private cross(seconds: number) {
+    if (this.crossing) return;
+    this.crossing = true;
+    const from = this.current;
+    const to = this.voices.find((voice) => voice !== from && voice.paused) ?? this.voice();
+    to.currentTime = 0;
+    this.gain.set(to, 0);
+    this.current = to;
+    void to.play().catch(() => undefined);
+    this.cancelCross = animateVolume((amount) => {
+      this.gain.set(from, Math.cos(amount * Math.PI / 2));
+      this.gain.set(to, Math.sin(amount * Math.PI / 2));
+      this.apply();
+    }, seconds, () => {
+      from.pause();
+      this.gain.set(from, 0);
+      this.apply();
+      this.crossing = false;
+      this.cancelCross = null;
     });
   }
 
   private kick() {
-    void this.audio.play().then(() => {
+    if (this.stopped) return;
+    void this.current.play().then(() => {
       if (this.stopped) {
-        this.audio.pause();
+        this.current.pause();
         return;
       }
       this.markAudible();
@@ -128,8 +181,10 @@ class LoopingBed {
     this.onPlaying();
     if (this.audible || this.stopped) return;
     this.audible = true;
-    this.cancelFade = animateVolume((amount) => {
-      setVolume(this.audio, BED_VOLUME * Math.sin(amount * Math.PI / 2));
+    if (typeof window !== 'undefined' && typeof window.setInterval === 'function') this.watch = window.setInterval(this.tick, 200);
+    this.cancelLevel = animateVolume((amount) => {
+      this.level = Math.sin(amount * Math.PI / 2);
+      this.apply();
     }, this.fadeSec);
   }
 }
