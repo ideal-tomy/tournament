@@ -6,6 +6,7 @@ import { TOURNAMENT_EFFECTS as FX } from '../../../lib/tournamentEffects';
 import { groupDrawParticipants, shouldShowBackOnlyEffect } from '../drawVisualState';
 import type { RehearsalTimingPreset } from '../../../lib/rehearsalTiming';
 import { drawSeconds, type DrawAnimationTimingKey } from '../drawAnimationTiming';
+import RatedName from '../ceremony/RatedName';
 import PairConfirmed from './PairConfirmed';
 import PresentationBackdrop from '../backdrop/PresentationBackdrop';
 import { appendPairCelebration, pairCardsMeetOffset, startBackdropLoops } from '../backdrop/appendPresentationBackdrop';
@@ -230,7 +231,7 @@ export default function DrawStage({
           {data.participants.map((participant) => (
             <div key={participant.id} className="rounded-xl border border-cyan-300/40 bg-black/65 p-3 text-center">
               <ParticipantFace participant={participant} className="mx-auto aspect-square w-full max-w-24 rounded-lg" />
-              <p className="mt-2 truncate text-sm font-bold text-white">{participant.displayName}</p>
+              <p className="mt-2 text-sm font-bold leading-tight text-white"><RatedName text={participant.displayName} /></p>
             </div>
           ))}
         </div>
@@ -259,7 +260,7 @@ export default function DrawStage({
                 {members.map((member) => (
                   <div key={member.id} className="min-w-0 flex-1 text-center">
                     <ParticipantFace participant={member} className="mx-auto h-16 w-16" />
-                    <p className="mt-2 truncate text-sm font-bold text-white">{member.displayName}</p>
+                    <p className="mt-2 text-sm font-bold leading-tight text-white"><RatedName text={member.displayName} /></p>
                   </div>
                 ))}
               </div>
@@ -295,8 +296,8 @@ function RevealCard({
           </div>
           <div className="draw-player-reveal absolute bottom-[8%] left-[14%] right-[14%]">
             <img src={FX.frames.nameplate} alt="" className="absolute inset-0 h-full w-full object-fill opacity-80" />
-            <p className="relative truncate px-4 py-3 text-center text-xl font-black text-white drop-shadow-lg">
-              {participant.displayName}
+            <p className="relative px-4 py-3 text-center text-xl font-black leading-tight text-white drop-shadow-lg">
+              <RatedName text={participant.displayName} />
             </p>
           </div>
         </div>

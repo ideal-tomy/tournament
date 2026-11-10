@@ -33,10 +33,10 @@ describe('ceremony boards', () => {
   });
 
   it('titles a place board and keeps the rating with the name', () => {
-    const markup = renderToStaticMarkup(<WinnerBoard team={{ ...blue, members: ['山田（Rt.12.5）'] }} title="3RD PLACE" label="3位" />);
+    const markup = renderToStaticMarkup(<WinnerBoard team={{ ...blue, members: ['山田（Rt.12）'] }} title="3RD PLACE" label="3位" />);
     expect(markup).toContain('3RD PLACE');
     expect(markup).not.toContain('WINNER');
-    expect(markup).toContain('山田<wbr/>（Rt.12.5）');
+    expect(markup).toContain('山田</span><br/><span class="rated-name-line">（Rt.12）');
   });
 
   it('introduces 3rd, 2nd and 1st on the podium, skipping an absent place', () => {

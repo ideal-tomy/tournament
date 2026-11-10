@@ -1,9 +1,10 @@
 import type { Participant } from './api';
 export interface PresentationParticipant { id: string; displayName: string; rating: number | null; faceUrl: string }
 export interface PresentationTeam { name: string; members: string[]; faces: string[]; participantIds: string[] }
-/** Venue label: the rating is shown beside the name because handicaps are decided from it. */
+/** Venue label. The stored rating stays exact for pairing; the screen shows it truncated. */
 export function ratedName(participant: Pick<Participant, 'name' | 'rating'>): string {
-  return participant.rating == null ? participant.name : `${participant.name}（Rt.${participant.rating}）`;
+  if (participant.rating == null) return participant.name;
+  return `${participant.name}（Rt.${Math.floor(participant.rating)}）`;
 }
 export function toPresentationParticipant(participant: Participant): PresentationParticipant {
   if ((!['cf-rehearsal-001', 'cf-checkin-e2e-20261025', 'cf-flow-e2e-20261025', 'cf-pair-gates-e2e-20261025', 'cf-match-loop-e2e-20261025'].includes(participant.eventId)&&!/^cf-through-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(participant.eventId)) || participant.portraitSource !== 'uploaded' || !participant.name.trim()

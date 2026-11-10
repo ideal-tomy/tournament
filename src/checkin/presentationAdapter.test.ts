@@ -12,7 +12,8 @@ describe('participant to presentation boundary', () => {
   });
   it('shows the name alone when no rating was registered', () => {
     expect(toPresentationParticipant({ ...participant, rating: null }).displayName).toBe('登録した本人');
-    expect(ratedName({ name: 'A', rating: 12.5 })).toBe('A（Rt.12.5）');
+    expect(ratedName({ name: 'A', rating: 12.9 })).toBe('A（Rt.12）');
+    expect(ratedName({ name: 'A', rating: 12.1 })).toBe('A（Rt.12）');
   });
   it.each([
     { portraitSource: 'automated-test' as const }, { eventId: 'live-event' }, { portraitUrl: 'blob:temporary-image' }, { portraitUrl: '/images/test01.png' }, { portraitUrl: 'https://example.invalid/photo.jpg' }, { portraitContentType: 'text/html' },
