@@ -8,8 +8,8 @@ import type { RehearsalTimingPreset } from '../../../lib/rehearsalTiming';
 import { drawSeconds, type DrawAnimationTimingKey } from '../drawAnimationTiming';
 import PairConfirmed from './PairConfirmed';
 import PresentationBackdrop from '../backdrop/PresentationBackdrop';
-import { appendPairCelebration, startBackdropLoops } from '../backdrop/appendPresentationBackdrop';
-import { playPresentationAudio, type PresentationCue } from '../backdrop/playPresentationAudio';
+import { appendPairCelebration, pairCardsMeetOffset, startBackdropLoops } from '../backdrop/appendPresentationBackdrop';
+import { cueCatchUpOffset, playPresentationAudio, syncedCueAt, type PresentationCue } from '../backdrop/playPresentationAudio';
 export interface DrawStageProps { timingPreset?:RehearsalTimingPreset; eventId:string; sceneSeq:number; presentationMode:PresentationMode; audioEnabled:boolean; forceComplete?:boolean; restoreCompleted?:boolean; data:DrawPresentationData; startAtSeconds?:number; onComplete?():Promise<void>|void }
 
 export default function DrawStage({
@@ -65,7 +65,12 @@ export default function DrawStage({
       const tl = gsap.timeline({ onComplete: () => void finish() });
       // seek() with events replays every passed callback at once; keep restores silent.
       let restoring = false;
+      const armed: { name: PresentationCue; at: number }[] = [];
       const cue = (name: PresentationCue) => () => { if (!restoring) playPresentationAudio(name, audioEnabled); };
+      const schedule = (name: PresentationCue, visualAt: number) => {
+        armed.push({ name, at: visualAt });
+        return syncedCueAt(visualAt, name);
+      };
 
       gsap.set(cards, { autoAlpha: 0 });
       gsap.set(pairStages, { autoAlpha: 0, scale: 1 });
@@ -112,20 +117,19 @@ export default function DrawStage({
                 { autoAlpha: 1, y: 0, scale: 1, duration: seconds('cardEnter'), ease: 'power3.out', immediateRender: false },
                 start,
               )
-              .call(cue('dartFly'), [], fly)
               .fromTo(
                 [dart, streak],
                 { autoAlpha: 0, x: '65vw', y: '-24vh', scale: 0.72, transformOrigin: '0% 0%' },
                 { autoAlpha: 1, x: 0, y: 0, scale: 1, duration: seconds('dartFlight'), ease: 'power4.in', immediateRender: false },
                 fly,
               )
-              .call(cue('impact'), [], hit)
+              .call(cue('impact'), [], schedule('impact', hit))
               .set(streak, { autoAlpha: 0 }, hit + 0.04)
               .set(impactMark, { autoAlpha: shouldShowBackOnlyEffect('back', 'impact') ? 1 : 0 }, hit)
               .fromTo(shell, { x: 0 }, { x: 12, duration: 0.04, yoyo: true, repeat: 5, ease: 'none', immediateRender: false }, hit)
               .fromTo(flash, { autoAlpha: 1, scale: 0.3 }, { autoAlpha: 0, scale: 1.5, duration: seconds('impactBurst'), ease: 'expo.out', immediateRender: false }, hit)
               .fromTo(ring, { autoAlpha: 0.9, scale: 0.3 }, { autoAlpha: 0, scale: 1.9, duration: seconds('impactBurst') + 0.3, ease: 'expo.out', immediateRender: false }, hit)
-              .call(cue('cardFlip'), [], flip)
+              .call(cue('cardOpen'), [], schedule('cardOpen', flip + seconds('cardFlip')))
               .to(shell, { rotationY: 180, duration: seconds('cardFlip'), ease: 'power2.inOut' }, flip)
               .to(playerReveal, { autoAlpha: 1, duration: seconds('playerReveal'), ease: 'power2.out' }, flip + seconds('cardFlip'))
               .to(card, { autoAlpha: 0, scale: 0.96, duration: seconds('memberExit'), ease: 'power2.inOut' }, leave);
@@ -135,20 +139,22 @@ export default function DrawStage({
           if (pairStage) {
             const pairAt = tl.duration();
             const hold = seconds('pairReveal') + seconds('pairConfirmHold');
-            tl.call(cue('teamConfirm'), [], pairAt)
+            const meet = pairAt + pairCardsMeetOffset(members.length);
+            tl.call(cue('pairImpact'), [], schedule('pairImpact', meet))
               .fromTo(pairStage, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.25, ease: 'power2.out', immediateRender: false }, pairAt)
               .to(pairStage, { autoAlpha: 0, scale: 1.04, duration: seconds('transitionToNext'), ease: 'power2.inOut' }, pairAt + hold);
             appendPairCelebration(tl, root, pairStage, { at: pairAt, hold, exit: seconds('transitionToNext') });
           }
         });
 
-        tl.call(cue('teamConfirm'))
+        const summaryAt = tl.duration();
+        tl.call(cue('cardOpen'), [], schedule('cardOpen', summaryAt))
           .to(summary, {
             autoAlpha: 1,
             scale: 1,
             duration: seconds('summaryEnter'),
             ease: 'back.out(1.4)',
-          })
+          }, summaryAt)
           .to({}, { duration: seconds('summaryHold') });
       } else if (presentationMode === 'short') {
         tl.set(intro, { autoAlpha: 0 })
@@ -159,20 +165,27 @@ export default function DrawStage({
           )
           .to({}, { duration: seconds('shortGridHold') })
           .to(shortGrid, { autoAlpha: 0, duration: seconds('shortGridExit') })
-          .call(cue('teamConfirm'))
+          .call(cue('cardOpen'), [], schedule('cardOpen', tl.duration()))
           .to(summary, { autoAlpha: 1, scale: 1, duration: seconds('summaryEnter') })
           .to({}, { duration: seconds('summaryHold') });
       } else {
         tl.set([intro, cards, shortGrid], { autoAlpha: 0 })
           .set(summary, { autoAlpha: 1, scale: 1 })
-          .call(cue('teamConfirm'))
+          .call(cue('cardOpen'))
           .to({}, { duration: seconds('liteHold') });
       }
       startBackdropLoops(root, presentationMode);
       if (startAtSeconds > 0) {
+        const elapsed = Math.min(startAtSeconds, tl.duration());
         restoring = true;
-        tl.seek(Math.min(startAtSeconds, tl.duration()), false);
+        tl.seek(elapsed, false);
         restoring = false;
+        if (audioEnabled) {
+          for (const item of armed) {
+            const offset = cueCatchUpOffset(item.at, elapsed, item.name);
+            if (offset != null) playPresentationAudio(item.name, true, offset);
+          }
+        }
       }
     }, root);
 

@@ -41,9 +41,11 @@ export const TOURNAMENT_EFFECTS = {
   },
   audio: {
     dartFly: audioFile('dart-fly.mp3'),
-    impact: audioFile('impact.mp3'),
+    impact: audioFile('dragon-studio-hard-heavy-impact-515256.mp3'),
     cardFlip: audioFile('card-flip.mp3'),
+    cardOpen: audioFile('トランプが開かれたとき.mp3'),
     teamConfirm: audioFile('team-confirm.mp3'),
+    pairImpact: audioFile('audiopapkin-sound-design-elements-impact-sfx-ps-130-420088.mp3'),
     opening: audioFile('オープニング.mp3'),
     pair: audioFile('ペア.mp3'),
   },

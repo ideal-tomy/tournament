@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
-import { subscribePresentationBed, unlockPresentationBed, type BedTrack } from './presentationBed';
+import { subscribePresentationBed, unlockPresentationBed } from './presentationBed';
 
-export default function PresentationBedUnlock({ track }: { track?: BedTrack }) {
+export default function PresentationBedUnlock() {
   const [needsGesture, setNeedsGesture] = useState(false);
   useEffect(() => subscribePresentationBed(setNeedsGesture), []);
   if (!needsGesture) return null;
   return (
     <button type="button" className="bed-unlock" onClick={() => unlockPresentationBed()}>
-      {track === 'ending' ? 'タップすると、音楽が流れます' : 'タップすると、ペア発表まで音楽が流れます'}
+      タップすると、音楽が流れます
     </button>
   );
 }

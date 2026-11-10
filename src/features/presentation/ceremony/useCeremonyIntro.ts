@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, type RefObject } from 'react';
 import gsap from 'gsap';
-import { playPresentationAudio, type PresentationCue } from '../backdrop/playPresentationAudio';
+import { cueCatchUpOffset, playPresentationAudio, syncedCueAt, type PresentationCue } from '../backdrop/playPresentationAudio';
 
 export interface CeremonyIntroOptions {
   startAt?: number;
@@ -21,19 +21,31 @@ export function useCeremonyIntro(stageRef: RefObject<HTMLDivElement>, end: numbe
   useLayoutEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
-    const { startAt = 0, settled = false, audioEnabled = false, controlledTime, build } = initial.current;
+    const { settled = false, audioEnabled = false, controlledTime, build } = initial.current;
     const scrubbed = controlledTime != null;
     const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     const ctx = gsap.context(() => {
       const tl = gsap.timeline({ paused: true });
       timeline.current = tl;
-      build(tl, (name, at) => { tl.call(() => { if (!restoring.current) playPresentationAudio(name, audioEnabled && !scrubbed); }, [], at); });
+      const armed: { name: PresentationCue; at: number }[] = [];
+      build(tl, (name, at) => {
+        armed.push({ name, at });
+        tl.call(() => { if (!restoring.current) playPresentationAudio(name, audioEnabled && !scrubbed); }, [], syncedCueAt(at, name));
+      });
       tl.call(() => stage.classList.add('cer-hold'), [], end).to({}, { duration: end }, 0);
-      const at = reduced || settled ? end : Math.min(end, Math.max(0, scrubbed ? controlledTime : startAt));
+      // Live boards always open from the first frame, so the hit and its sound
+      // still happen when the venue screen joins a second or two late.
+      const at = reduced || settled ? end : Math.min(end, Math.max(0, scrubbed ? controlledTime ?? 0 : 0));
       if (at > 0.02) {
         restoring.current = true;
         tl.seek(at, false);
         restoring.current = false;
+        if (audioEnabled && !scrubbed && !settled && !reduced) {
+          for (const cue of armed) {
+            const offset = cueCatchUpOffset(cue.at, at, cue.name);
+            if (offset != null) playPresentationAudio(cue.name, true, offset);
+          }
+        }
       }
       if (!reduced && !settled && !scrubbed && at < end) tl.play();
     }, stage);

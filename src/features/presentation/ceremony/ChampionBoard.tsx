@@ -83,8 +83,8 @@ export default function ChampionBoard({ team, ...intro }: CeremonyIntroOptions &
       .to('.cb-aura, .cb-flare, .cb-haze', { autoAlpha: 0, duration: CLEAR, ease: 'sine.inOut' }, reveal)
       .to('.cb-ball', { autoAlpha: 1, duration: CLEAR, ease: 'sine.inOut' }, reveal)
       .to('.cb-cast', { autoAlpha: 1, duration: CLEAR, ease: 'sine.inOut' }, reveal);
-    cue('impact', DESCEND);
-    cue('teamConfirm', reveal);
+    cue('pairImpact', DESCEND);
+    cue('pairImpact', reveal);
   }, intro);
 
   const members = people(team);

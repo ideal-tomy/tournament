@@ -66,8 +66,7 @@ export default function DrawControl({administration,onAuthRequired,sessionVersio
  const showOpening=!administration&&!currentReview()&&(!state||!state.session||state.scene==='idle');
  useEffect(()=>onActiveChange?.(!!state?.session||showOpening),[state?.session?.id,showOpening,onActiveChange]);
  useEffect(()=>{if(!administration)preloadPresentationAssets();},[administration]);
- const bedScene=state?.scene==='interval'&&state.flow?.courts?.spotlight?.kind==='winner'?'result':state?.scene;
- const bedTrack=administration||!state?null:resolveVenueBed({review:currentReview(),scene:bedScene,hasSession:!!state.session,photoError});
+ const bedTrack=administration?null:resolveVenueBed({review:currentReview(),scene:state?.scene,hasSession:!!state?.session,photoError});
  usePresentationBed(bedTrack,!administration);
  const onComplete=useCallback(()=>refresh(),[refresh]);
  return <section className={administration?'card draw-operations':'draw-monitor'} data-draw-scene={state?.scene??'loading'} data-draw-version={state?.version??0}>
@@ -95,7 +94,7 @@ export default function DrawControl({administration,onAuthRequired,sessionVersio
    <DrawStage key={`${state.session.id}-${state.sceneSeq}`} eventId={state.eventId} sceneSeq={state.sceneSeq} data={presentation.data} presentationMode="full" timingPreset={state.timingPreset} audioEnabled startAtSeconds={state.elapsedSeconds} onComplete={onComplete}/>
   </div>:<div className="tournament-stage" onErrorCapture={event=>{if(event.target instanceof HTMLImageElement)setPhotoError(true);}}><FlowPresentation key={state.scene==='interval'?'interval':state.sceneSeq} state={state}/></div>)}
   {administration&&state?.bracket&&<SavedBracket state={state}/>}
-  {!administration&&bedTrack&&<PresentationBedUnlock track={bedTrack}/>}
+  {!administration&&bedTrack&&<PresentationBedUnlock/>}
 
  </section>;
 }

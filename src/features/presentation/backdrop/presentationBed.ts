@@ -23,22 +23,16 @@ export function bedOverlapSec(duration: number) {
 
 type VenueReview = 'draw' | 'vs' | 'winner' | 'champion' | null;
 
-/** 会場で今流す曲。試合中・結果・表彰は止め、大会終了後のお礼で再び流す。 */
+/** 会場のBGM。ペア発表だけ別曲で、それ以外は待機と同じ音源をループし続ける。 */
 export function resolveVenueBed(input: {
   review: VenueReview;
   scene?: string;
   hasSession: boolean;
   photoError: boolean;
-}): BedTrack | null {
-  const reviewing = input.review !== null && input.hasSession && !input.photoError;
-  if (reviewing && input.review === 'draw') return 'pair';
-  if (reviewing && input.review === 'vs') return 'opening';
-  if (reviewing) return null;
-  if (!input.hasSession || !input.scene || input.scene === 'idle') return 'opening';
-  if (input.scene === 'draw' && !input.photoError) return 'pair';
-  if (input.scene === 'bracket' || input.scene === 'vs_card' || input.scene === 'interval') return 'opening';
-  if (input.scene === 'finished') return 'ending';
-  return null;
+}): BedTrack {
+  const showingPair = input.hasSession && !input.photoError
+    && (input.review === 'draw' || (input.review == null && input.scene === 'draw'));
+  return showingPair ? 'pair' : 'opening';
 }
 
 function fadeAmount(now: number, start: number, seconds: number) {

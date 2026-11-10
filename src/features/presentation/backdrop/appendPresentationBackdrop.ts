@@ -57,6 +57,17 @@ function shockwave(tl: Timeline, target: HTMLElement | null, at: number, scale =
   tl.fromTo(target, { autoAlpha: 0.95, scale: 0.2 }, { autoAlpha: 0, scale, duration: 0.9, ease: 'expo.out', immediateRender: false }, at);
 }
 
+const PAIR_APPROACH_START = 0.1;
+const PAIR_APPROACH_DURATION = 0.7;
+const PAIR_APPROACH_STAGGER = 0.06;
+const PAIR_APPROACH_OVERSHOOT = 1.5;
+
+/** When the last card first reaches the centre. back.out lands, then overshoots. */
+export function pairCardsMeetOffset(cardCount: number) {
+  const last = Math.max(0, cardCount - 1);
+  return PAIR_APPROACH_START + last * PAIR_APPROACH_STAGGER + PAIR_APPROACH_DURATION / (PAIR_APPROACH_OVERSHOOT + 1);
+}
+
 /** One pair reveal: the table darkens, the gold rings close in, the two cards meet in the circle, then a still hold. */
 export function appendPairCelebration(tl: Timeline, root: Element, pairStage: Element, { at, hold, exit }: { at: number; hold: number; exit: number }) {
   const scrim = layer(root, 'pair', 'scrim');
@@ -76,7 +87,7 @@ export function appendPairCelebration(tl: Timeline, root: Element, pairStage: El
   }
   if (cards.length) {
     const centre = (cards.length - 1) / 2;
-    tl.fromTo(cards, { autoAlpha: 0, scale: 0.85, x: index => (index - centre) * 420 }, { autoAlpha: 1, scale: 1, x: 0, duration: 0.7, ease: 'back.out(1.5)', stagger: 0.06, immediateRender: false }, at + 0.1);
+    tl.fromTo(cards, { autoAlpha: 0, scale: 0.85, x: index => (index - centre) * 420 }, { autoAlpha: 1, scale: 1, x: 0, duration: PAIR_APPROACH_DURATION, ease: `back.out(${PAIR_APPROACH_OVERSHOOT})`, stagger: PAIR_APPROACH_STAGGER, immediateRender: false }, at + PAIR_APPROACH_START);
   }
   if (title) tl.fromTo(title, { autoAlpha: 0, scale: 1.4 }, { autoAlpha: 1, scale: 1, duration: 0.5, ease: 'expo.out', immediateRender: false }, at + 0.55);
   if (teamNo) tl.fromTo(teamNo, { autoAlpha: 0, y: -16 }, { autoAlpha: 1, y: 0, duration: 0.4, immediateRender: false }, at + 0.75);

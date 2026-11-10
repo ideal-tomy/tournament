@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from 'react';
 import gsap from 'gsap';
 import { TOURNAMENT_EFFECTS as FX } from '../../../lib/tournamentEffects';
-import { playPresentationAudio } from '../backdrop/playPresentationAudio';
+import { cueCatchUpOffset, playPresentationAudio, syncedCueAt } from '../backdrop/playPresentationAudio';
 import RatedName from '../ceremony/RatedName';
 import './vsBoard.css';
 
@@ -48,8 +48,8 @@ export default function VsBoard({ left, right, roundLabel, settled = false, star
     const ctx = gsap.context(() => {
       const tl = gsap.timeline({ paused: true });
       let restoring = false;
-      const cue = (name: 'dartFly' | 'impact' | 'cardFlip', at: number) => {
-        tl.call(() => { if (!restoring) playPresentationAudio(name, audioEnabled); }, [], at);
+      const cue = (name: 'dartFly' | 'impact' | 'cardFlip' | 'pairImpact', at: number) => {
+        tl.call(() => { if (!restoring) playPresentationAudio(name, audioEnabled); }, [], syncedCueAt(at, name));
       };
       tl.set('.vsb-card-left', { x: -520 })
         .set('.vsb-card-right', { x: 520 })
@@ -71,14 +71,17 @@ export default function VsBoard({ left, right, roundLabel, settled = false, star
         .to('.vsb-name', { autoAlpha: 1, duration: 0.35, stagger: 0.04 }, 1.35)
         .call(() => stage.classList.add('vsb-hold'), [], INTRO_END)
         .to({}, { duration: INTRO_END }, 0);
-      cue('dartFly', 0.5);
-      cue('impact', 1.2);
-      cue('cardFlip', 1.28);
-      const at = reduced || settled ? INTRO_END : Math.min(INTRO_END, Math.max(0, startAt));
+      cue('pairImpact', 1.2);
+      // Live cards always fly in from the start. The venue screen usually renders
+      // after the server clock has already passed this 2s intro, which used to skip
+      // every match after the first. Replay pages still scrub with startAt.
+      const at = reduced || settled ? INTRO_END : audioEnabled ? 0 : Math.min(INTRO_END, Math.max(0, startAt));
       if (at > 0.02) {
         restoring = true;
         tl.seek(at, false);
         restoring = false;
+        const offset = !settled && !reduced && audioEnabled ? cueCatchUpOffset(1.2, at, 'pairImpact') : null;
+        if (offset != null) playPresentationAudio('pairImpact', true, offset);
       }
       if (!reduced && !settled && at < INTRO_END) tl.play();
     }, stage);

@@ -5,7 +5,7 @@ import placeholder from '../../../assets/placeholder_face.svg';
 import { postMatchTiming } from './timing';
 import PresentationBackdrop from '../backdrop/PresentationBackdrop';
 import { appendPostMatchBackdrop, startBackdropLoops } from '../backdrop/appendPresentationBackdrop';
-import { playPresentationAudio } from '../backdrop/playPresentationAudio';
+import { playPresentationAudio, syncedCueAt } from '../backdrop/playPresentationAudio';
 import './postMatch.css';
 
 export interface StageControls {
@@ -66,8 +66,7 @@ const PostMatchStage = forwardRef<StageControls, Props>(function PostMatchStage(
         .to({}, { duration: t.hold }, 0);
       appendPostMatchBackdrop(tl, root.current!, t);
       tl.call(() => playPresentationAudio('teamConfirm', audioEnabled), [], 0.05)
-        .call(() => playPresentationAudio('dartFly', audioEnabled), [], t.approach + 0.05)
-        .call(() => playPresentationAudio('impact', audioEnabled), [], t.impact);
+        .call(() => playPresentationAudio('impact', audioEnabled), [], syncedCueAt(t.impact, 'impact'));
       startBackdropLoops(root.current!, mode);
       onProgress(0, false);
     }, root);

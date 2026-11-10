@@ -4,26 +4,22 @@ import { bedOverlapSec, BED_LOOP_CROSSFADE_SEC, resolveVenueBed, setPresentation
 const idle = { review: null, scene: 'idle', hasSession: true, photoError: false } as const;
 
 describe('resolveVenueBed', () => {
-  it('plays opening until the match, and pair only on the draw', () => {
+  it('loops the waiting track on every stage except the pair announcement', () => {
     expect(resolveVenueBed({ ...idle, hasSession: false, scene: undefined })).toBe('opening');
     expect(resolveVenueBed(idle)).toBe('opening');
     expect(resolveVenueBed({ ...idle, scene: 'draw' })).toBe('pair');
-    expect(resolveVenueBed({ ...idle, scene: 'bracket' })).toBe('opening');
-    expect(resolveVenueBed({ ...idle, scene: 'vs_card' })).toBe('opening');
-    expect(resolveVenueBed({ ...idle, scene: 'interval' })).toBe('opening');
-    expect(resolveVenueBed({ ...idle, scene: 'match_live' })).toBeNull();
-    expect(resolveVenueBed({ ...idle, scene: 'result' })).toBeNull();
-    expect(resolveVenueBed({ ...idle, scene: 'award' })).toBeNull();
-    expect(resolveVenueBed({ ...idle, scene: 'finished' })).toBe('ending');
+    for (const scene of ['bracket', 'vs_card', 'interval', 'match_live', 'result', 'award', 'finished'] as const) {
+      expect(resolveVenueBed({ ...idle, scene })).toBe('opening');
+    }
   });
 
   it('follows a read-only review only when that stage is on screen', () => {
     expect(resolveVenueBed({ ...idle, review: 'draw' })).toBe('pair');
     expect(resolveVenueBed({ ...idle, review: 'vs', scene: 'idle' })).toBe('opening');
-    expect(resolveVenueBed({ ...idle, review: 'winner' })).toBeNull();
-    expect(resolveVenueBed({ ...idle, review: 'champion' })).toBeNull();
+    expect(resolveVenueBed({ ...idle, review: 'winner' })).toBe('opening');
+    expect(resolveVenueBed({ ...idle, review: 'champion' })).toBe('opening');
     expect(resolveVenueBed({ ...idle, review: 'draw', hasSession: false })).toBe('opening');
-    expect(resolveVenueBed({ ...idle, scene: 'draw', photoError: true })).toBeNull();
+    expect(resolveVenueBed({ ...idle, scene: 'draw', photoError: true })).toBe('opening');
   });
 });
 

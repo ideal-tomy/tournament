@@ -6,7 +6,7 @@ import { TOURNAMENT_EFFECTS as FX } from '../lib/tournamentEffects';
 import { drawSeconds } from '../features/presentation/drawAnimationTiming';
 import PresentationBackdrop from '../features/presentation/backdrop/PresentationBackdrop';
 import { appendChampionBackdrop, startBackdropLoops } from '../features/presentation/backdrop/appendPresentationBackdrop';
-import { playPresentationAudio } from '../features/presentation/backdrop/playPresentationAudio';
+import { playPresentationAudio, syncedCueAt } from '../features/presentation/backdrop/playPresentationAudio';
 import type { sampleWinner } from './fixtures';
 
 interface Props {
@@ -51,7 +51,7 @@ const FixtureStage = forwardRef<StageControls, Props>(function FixtureStage({ sc
           .fromTo('.ap-champions', { autoAlpha: 0, scale: .9 }, { autoAlpha: 1, scale: 1, duration: .8 * f }, 1 * f);
         appendChampionBackdrop(tl, root.current!, f);
         tl.call(() => playPresentationAudio('teamConfirm', audioEnabled), [], .05)
-          .call(() => playPresentationAudio('impact', audioEnabled), [], .4 * f);
+          .call(() => playPresentationAudio('impact', audioEnabled), [], syncedCueAt(.4 * f, 'impact'));
         startBackdropLoops(root.current!, mode);
       }
       tl.to({}, { duration: fixtureDuration(scene, mode) }, 0);

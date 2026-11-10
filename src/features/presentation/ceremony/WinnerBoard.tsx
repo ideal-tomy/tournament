@@ -24,8 +24,7 @@ export default function WinnerBoard({ team, opponent, contained = false, title =
       .to('.wb-team', { autoAlpha: 1, y: 0, duration: 0.45 }, 1.4)
       .to('.cer-card-name', { autoAlpha: 1, y: 0, duration: 0.4, stagger: 0.05 }, 1.5)
       .to('.wb-loser', { autoAlpha: 0, duration: 0.8 }, 2.2);
-    cue('teamConfirm', 0.05);
-    cue('impact', 1.05);
+    cue('pairImpact', 1.05);
   }, intro);
 
   const members = people(team);
