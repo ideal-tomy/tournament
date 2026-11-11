@@ -4,6 +4,7 @@ import { generatedTeamName, VENUE_TEAM_NAME_MAX } from '../../../src/features/dr
 import { buildDoubleElimination, buildSingleElimination } from '../../../src/features/bracket/manager';
 import { estimateDrawDurationSec } from '../../../src/features/presentation/drawAnimationTiming';
 import { ClientError, hash, OFFICIAL_FIXED_EVENT_ID, participantDto, readBody, requestId, response, type CheckinEnv } from './domain';
+import { listEntryTeams, preservedNames, replaceEntryStatements, storedTeamName } from './entryTeams';
 import { readiness, rows, state } from './lifecycle';
 import { eventProfile } from './profile';
 
@@ -22,10 +23,11 @@ async function read(env:CheckinEnv){
   const teamRows=await env.DB.prepare('SELECT id,name,seed,rating_total,manager_participant_id FROM teams WHERE event_id=? AND draw_session_id=? ORDER BY seed').bind(env.CHECKIN_EVENT_ID,draw?.id??'').all<{id:string;name:string;seed:number;rating_total:number;manager_participant_id:number}>();
   const memberships=await env.DB.prepare('SELECT m.team_id,m.participant_id,m.position FROM team_members m JOIN teams t ON t.id=m.team_id WHERE t.event_id=? AND t.draw_session_id=? ORDER BY t.seed,m.position').bind(env.CHECKIN_EVENT_ID,draw?.id??'').all<{team_id:string;participant_id:string;position:number}>();
   const participants=(await rows(env)).map(p=>participantDto(p,env.CHECKIN_EVENT_ID));
+  const entryTeams=await listEntryTeams(env);
   const payload=JSON.parse(current.scene_payload) as {durationSec?:number;drawSessionId?:string};
   const profile=await eventProfile(env);
   const elapsed=current.scene_started_at?Math.max(0,(Date.now()-Date.parse(current.scene_started_at))/1000):0;
-  return {official:env.CHECKIN_EVENT_ID===OFFICIAL_FIXED_EVENT_ID,...profile,flow:draw&&current.bracket_snapshot?await flowView(env,{scene:current,snapshot:JSON.parse(current.bracket_snapshot),payload,current:current.bm_current_match_id}):null,eventId:env.CHECKIN_EVENT_ID,title:checkin.title,checkinStatus:checkin.status,checkinRevision:checkin.revision,scene:current.scene,version:current.version,sceneSeq:current.scene_seq,startedAt:current.scene_started_at,elapsedSeconds:elapsed,durationSec:payload.durationSec??0,canComplete:current.scene==='draw'&&elapsed>=(payload.durationSec??Infinity),session:draw?{id:draw.id,revealOrder:JSON.parse(draw.reveal_order) as string[],committedAt:draw.committed_at}:null,participants,teams:teamRows.results.map(t=>({...t,memberIds:memberships.results.filter(m=>m.team_id===t.id).map(m=>m.participant_id)})),bracket:current.bracket_snapshot?JSON.parse(current.bracket_snapshot):null};
+  return {official:env.CHECKIN_EVENT_ID===OFFICIAL_FIXED_EVENT_ID,...profile,flow:draw&&current.bracket_snapshot?await flowView(env,{scene:current,snapshot:JSON.parse(current.bracket_snapshot),payload,current:current.bm_current_match_id}):null,eventId:env.CHECKIN_EVENT_ID,title:checkin.title,checkinStatus:checkin.status,checkinRevision:checkin.revision,scene:current.scene,version:current.version,sceneSeq:current.scene_seq,startedAt:current.scene_started_at,elapsedSeconds:elapsed,durationSec:payload.durationSec??0,canComplete:current.scene==='draw'&&elapsed>=(payload.durationSec??Infinity),session:draw?{id:draw.id,revealOrder:JSON.parse(draw.reveal_order) as string[],committedAt:draw.committed_at}:null,participants,entryTeams,teams:teamRows.results.map(t=>({...t,memberIds:memberships.results.filter(m=>m.team_id===t.id).map(m=>m.participant_id)})),bracket:current.bracket_snapshot?JSON.parse(current.bracket_snapshot):null};
 }
 export const readDrawState=read;
 function manualPairs(value:unknown){
@@ -62,6 +64,7 @@ async function prepare(env:CheckinEnv,body:Record<string,unknown>){
     if(used.length!==report.count||new Set(used).size!==used.length||used.some(pid=>!participantById.has(pid)))throw new ClientError('INVALID_PAIRS',400);
   }
   const pairs=chosen??makeBalancedTeams(rated,'trio');
+  const draftNames=await preservedNames(env,pairs,mode==='manual'?body.names:undefined,new Map(report.participants.map(p=>[p.id,p.name])));
   const drawMode=chosen?'manual':'rating_balanced';
   const revealOrder=buildRevealOrder(pairs),sessionId=crypto.randomUUID();
   const teamIds=pairs.map(()=>crypto.randomUUID());
@@ -82,7 +85,7 @@ async function prepare(env:CheckinEnv,body:Record<string,unknown>){
   // Two JSON-backed INSERTs keep 16 teams within D1's per-invocation query budget.
   const ratingById=new Map(rated.map(p=>[p.id,p.rating]));
   const teamRecords=pairs.map((pair,index)=>({id:teamIds[index],eventId:env.CHECKIN_EVENT_ID,sessionId,
-    name:generatedTeamName(pair.map(pid=>participantById.get(pid)!.name)),seed:index,rating:teamRatingSum(pair,ratingById),
+    name:draftNames[index]||generatedTeamName(pair.map(pid=>participantById.get(pid)!.name)),seed:index,rating:teamRatingSum(pair,ratingById),
     managerId:snapshot.participant.find(p=>p.name===teamIds[index])?.id??null}));
   const memberRecords=pairs.flatMap((pair,index)=>pair.map((pid,position)=>({teamId:teamIds[index],participantId:pid,position:position+1})));
   statements.push(env.DB.prepare(`INSERT INTO teams(id,event_id,draw_session_id,name,seed,rating_total,manager_participant_id)
@@ -91,6 +94,7 @@ async function prepare(env:CheckinEnv,body:Record<string,unknown>){
   statements.push(env.DB.prepare(`INSERT INTO team_members(team_id,participant_id,position)
     SELECT json_extract(value,'$.teamId'),json_extract(value,'$.participantId'),json_extract(value,'$.position') FROM json_each(?) WHERE ${authorized}`)
     .bind(JSON.stringify(memberRecords),env.CHECKIN_EVENT_ID,id));
+  statements.push(...replaceEntryStatements(env,pairs,draftNames,authorized,id));
   statements.push(...matchProjection(env,snapshot,authorized,id));
   statements.push(env.DB.prepare(`UPDATE events SET status='drawn',draw_mode=?,bracket_snapshot=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=? AND ${authorized}`).bind(drawMode,JSON.stringify(snapshot),env.CHECKIN_EVENT_ID,env.CHECKIN_EVENT_ID,id),
     env.DB.prepare(`UPDATE event_state SET scene='idle',scene_payload=?,version=version+1,scene_seq=scene_seq+1,scene_started_at=NULL,awaiting_operator=1,playback='holding',presentation_mode='full',audio_enabled=0,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE event_id=? AND version=? AND ${authorized}`).bind(payload,env.CHECKIN_EVENT_ID,expected,env.CHECKIN_EVENT_ID,id));
@@ -141,9 +145,11 @@ async function renameTeam(env:CheckinEnv,body:Record<string,unknown>){
   const current=await scene(env),draw=await session(env);
   if(current.version!==expected)throw new ClientError('VERSION_CONFLICT',409);
   if(current.scene!=='idle'||!draw)throw new ClientError('TEAM_NAME_LOCKED',409);
-  const members=(await env.DB.prepare(`SELECT p.display_name FROM team_members m JOIN participants p ON p.id=m.participant_id JOIN teams t ON t.id=m.team_id WHERE m.team_id=? AND t.event_id=? AND t.draw_session_id=? ORDER BY m.position`).bind(body.teamId,env.CHECKIN_EVENT_ID,draw.id).all<{display_name:string}>()).results;
+  const members=(await env.DB.prepare(`SELECT m.participant_id,p.display_name FROM team_members m JOIN participants p ON p.id=m.participant_id JOIN teams t ON t.id=m.team_id WHERE m.team_id=? AND t.event_id=? AND t.draw_session_id=? ORDER BY m.position`).bind(body.teamId,env.CHECKIN_EVENT_ID,draw.id).all<{participant_id:string;display_name:string}>()).results;
   if(!members.length)throw new ClientError('INVALID_INPUT',400);
-  const name=custom||generatedTeamName(members.map(member=>member.display_name));
+  const labels=members.map(member=>member.display_name);
+  const name=custom||generatedTeamName(labels);
+  const draftName=storedTeamName(custom,labels);
   const nonce=crypto.randomUUID();
   const authorized=`EXISTS(SELECT 1 FROM command_receipts WHERE event_id=? AND request_id=? AND json_extract(response_json,'$.attempt')='${nonce}')`;
   await env.DB.batch([
@@ -151,6 +157,7 @@ async function renameTeam(env:CheckinEnv,body:Record<string,unknown>){
       SELECT ?,?,'checkin-session','draw.team-name',?,?,?,json_object('attempt','${nonce}') WHERE EXISTS(SELECT 1 FROM event_state WHERE event_id=? AND version=? AND scene='idle')`)
       .bind(env.CHECKIN_EVENT_ID,id,requestHash,expected,Number(expected)+1,env.CHECKIN_EVENT_ID,expected),
     env.DB.prepare(`UPDATE teams SET name=? WHERE id=? AND event_id=? AND draw_session_id=? AND ${authorized}`).bind(name,body.teamId,env.CHECKIN_EVENT_ID,draw.id,env.CHECKIN_EVENT_ID,id),
+    env.DB.prepare(`UPDATE entry_teams SET name=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE event_id=? AND ${authorized} AND id IN (SELECT a.team_id FROM entry_team_members a JOIN entry_team_members b ON b.team_id=a.team_id WHERE a.participant_id=? AND b.participant_id=?)`).bind(draftName,env.CHECKIN_EVENT_ID,env.CHECKIN_EVENT_ID,id,members[0]?.participant_id??'',members[1]?.participant_id??members[0]?.participant_id??''),
     env.DB.prepare(`UPDATE event_state SET version=version+1,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE event_id=? AND version=? AND ${authorized}`).bind(env.CHECKIN_EVENT_ID,expected,env.CHECKIN_EVENT_ID,id),
   ]);
   const committed=await env.DB.prepare('SELECT request_hash FROM command_receipts WHERE event_id=? AND request_id=?').bind(env.CHECKIN_EVENT_ID,id).first<{request_hash:string}>();

@@ -31,18 +31,20 @@ function TeamNameField({ stored, memberNames, busy, onSave, onDraft }: { stored:
   </label>;
 }
 
-function PairRow({ index, members, byId, onRemove, bare = false }: { index: number; members: string[]; byId: Map<string, Participant>; onRemove?(): void; bare?: boolean }) {
+function PairRow({ index, members, byId, onRemove, bare = false, note = '' }: { index: number; members: string[]; byId: Map<string, Participant>; onRemove?(): void; bare?: boolean; note?: string }) {
   const Tag = bare ? 'div' : 'li';
   return <Tag className="op-pair">
     <span className="op-pair-no">{index + 1}</span>
     {members.map(id => <span key={id} className="op-pair-member"><Face person={byId.get(id)} size={36} /><span>{byId.get(id)?.name}</span></span>)}
+    {note && <span className="op-pair-name">{note}</span>}
     {onRemove && <button type="button" className="op-pair-remove" aria-label={`${index + 1}組目を外す`} onClick={onRemove}>×</button>}
   </Tag>;
 }
 
 function Pairing({ state, busy, onConfirm }: { state: DrawState; busy: boolean; onConfirm(mode: 'auto' | 'manual', pairs: string[][]): void }) {
-  const [mode, setMode] = useState<'auto' | 'manual'>('auto');
-  const [pairs, setPairs] = useState<string[][]>([]);
+  const saved = state.entryTeams ?? [];
+  const [mode, setMode] = useState<'auto' | 'manual'>(saved.length ? 'manual' : 'auto');
+  const [pairs, setPairs] = useState<string[][]>(saved.map(team => team.memberIds));
   const [picked, setPicked] = useState<string | null>(null);
   const byId = useMemo(() => new Map(state.participants.map(p => [p.id, p])), [state.participants]);
   const rated = (people: Participant[]) => people.map(p => ({ id: p.id, rating: p.rating ?? 0 }));
@@ -50,6 +52,7 @@ function Pairing({ state, busy, onConfirm }: { state: DrawState; busy: boolean; 
   const used = new Set(pairs.flat());
   const rest = state.participants.filter(p => !used.has(p.id));
   const complete = rest.length === 0 && pairs.length > 0;
+  const noteFor = (members: string[]) => saved.find(team => [...team.memberIds].sort().join() === [...members].sort().join())?.name ?? '';
   function pick(id: string) {
     if (!picked) { setPicked(id); return; }
     if (picked === id) { setPicked(null); return; }
@@ -60,8 +63,9 @@ function Pairing({ state, busy, onConfirm }: { state: DrawState; busy: boolean; 
       <button type="button" role="radio" aria-checked={mode === 'auto'} className={mode === 'auto' ? 'is-on' : undefined} onClick={() => setMode('auto')}>自動で組む</button>
       <button type="button" role="radio" aria-checked={mode === 'manual'} className={mode === 'manual' ? 'is-on' : undefined} onClick={() => setMode('manual')}>自分で組む</button>
     </div>
+    {mode === 'auto' && saved.length > 0 && <p className="op-hint">自動で組むと、保存済みのチームも組み直します。</p>}
     {mode === 'auto' ? <ol className="op-pairs">{automatic.map((members, index) => <PairRow key={members.join()} index={index} members={members} byId={byId} />)}</ol> : <>
-      {pairs.length > 0 && <ol className="op-pairs">{pairs.map((members, index) => <PairRow key={members.join()} index={index} members={members} byId={byId} onRemove={() => setPairs(value => value.filter((_, i) => i !== index))} />)}</ol>}
+      {pairs.length > 0 && <ol className="op-pairs">{pairs.map((members, index) => <PairRow key={members.join()} index={index} members={members} byId={byId} note={noteFor(members)} onRemove={() => setPairs(value => value.filter((_, i) => i !== index))} />)}</ol>}
       {rest.length > 0 && <>
         <p className="op-hint">{picked ? `${byId.get(picked)?.name} の相手をタップ` : '2人タップで1組'}</p>
         <div className="op-pick">{rest.map(person => <button type="button" key={person.id} className={picked === person.id ? 'is-picked' : undefined} aria-pressed={picked === person.id} onClick={() => pick(person.id)}><Face person={person} size={44} /><span>{person.name}</span></button>)}</div>
@@ -208,8 +212,17 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
 
   let body: ReactNode = null, bar: ReactNode = null;
   if (state.checkinStatus === 'open') {
-    body = <div className="op-big"><strong>{state.participants.length}</strong><span>名 受付済み</span></div>;
-    bar = <ActionBar><a className="button primary" href={scopedUrl('/checkin')}>受付を締めて組み合わせへ</a></ActionBar>;
+    const saved = state.entryTeams ?? [];
+    const used = new Set(saved.flatMap(team => team.memberIds));
+    const waiting = state.participants.filter(person => !used.has(person.id)).length;
+    body = <>
+      <div className="op-big"><strong>{state.participants.length}</strong><span>名 受付済み</span></div>
+      {saved.length > 0 && <>
+        <p className="op-hint">保存済み {saved.length}組{waiting ? ` · 未所属 ${waiting}人` : ' · 全員チーム済み'}</p>
+        <ol className="op-pairs">{saved.map((team, index) => <li key={team.id} className="op-pair"><span className="op-pair-no">{index + 1}</span><span className="op-pair-member"><span>{team.memberIds.map(id => byId.get(id)?.name).join(' / ')}</span></span>{team.name && <span className="op-pair-name">{team.name}</span>}</li>)}</ol>
+      </>}
+    </>;
+    bar = <ActionBar><a className="button primary" href={scopedUrl('/checkin')}>{saved.length ? '受付でチームを編集' : '受付を締めて組み合わせへ'}</a></ActionBar>;
   } else if (!state.session) {
     body = <Pairing state={state} busy={busy} onConfirm={(mode, pairs) => void send('/api/draw/pairs', mode === 'manual' ? { mode, pairs } : { mode })} />;
   } else if (state.scene === 'idle') {

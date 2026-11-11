@@ -64,10 +64,10 @@ export default function WinnerBoard({ team, groups, opponent, contained = false,
           {person.face ? <img src={person.face} alt={person.name} /> : <div className="cer-empty">?</div>}
           <p className="cer-card-name"><RatedName text={person.name} /></p>
         </article>)}
-        {grouped && <p className={`wb-group-name ${group === 0 ? 'team-name-blue' : 'team-name-orange'}`} style={{ left: (slots[0] ?? 0) - 12, width: card * members.length + innerGap * Math.max(0, members.length - 1) + 24, top: 276 + height + 18 }}>{item.name}</p>}
+        {grouped && <p className="wb-group-name cer-gold" style={{ left: (slots[0] ?? 0) - 12, width: card * members.length + innerGap * Math.max(0, members.length - 1) + 24, top: 276 + height + 18 }}>{item.name}</p>}
       </div>;
     })}
-    {!grouped && clusters[0] && <p className="cer-text wb-team team-name-blue">{clusters[0].name}</p>}
+    {!grouped && clusters[0] && <p className="cer-text wb-team cer-gold">{clusters[0].name}</p>}
     {opponent && <p className="wb-loser">vs {opponent.name}</p>}
     <div className="cer-white" />
   </CeremonyFrame>;

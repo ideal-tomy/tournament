@@ -104,7 +104,7 @@ export default function PodiumBoard({ first, second, third, ...intro }: Ceremony
                 {person.face ? <img src={person.face} alt={person.name} /> : <div className="cer-empty">?</div>}
                 <p className="cer-card-name"><RatedName text={person.name} /></p>
               </article>)}
-              <p className={`pd-team ${place.rank === 2 || (place.rank === 3 && group.length > 1 && teamIndex === 0) ? 'team-name-blue' : 'team-name-orange'}`} style={{ left: center - teamWidth / 2, top: cardTop + height + 8, width: teamWidth }}>{team.name}</p>
+              <p className="pd-team cer-gold" style={{ left: center - teamWidth / 2, top: cardTop + height + 8, width: teamWidth }}>{team.name}</p>
             </div>;
           })}
         </div>

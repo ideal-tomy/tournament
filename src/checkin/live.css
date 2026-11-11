@@ -70,6 +70,16 @@
 .op-pair-member{display:flex;flex:1;align-items:center;gap:6px;min-width:0}
 .op-pair-member>span:last-child{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:15px}
 .op-pair-remove{width:36px;min-height:36px;padding:0;background:transparent}
+.op-pair-name{flex:none;font-size:13px;font-weight:800;color:#fcd34d;word-break:keep-all}
+.entry-teams{display:grid;gap:12px}
+.entry-teams h2,.entry-teams h3{margin:0}
+.entry-team{display:grid;gap:8px;padding:10px;border:1px solid #2b405a;border-radius:12px;background:#101d2f}
+.entry-team-members{display:flex;gap:8px;margin:0;font-weight:800}
+.entry-team-members span:last-child{min-width:0}
+.entry-name{display:flex;gap:8px;align-items:center}
+.entry-name input{flex:1;min-width:0}
+.entry-pick{display:flex;flex-wrap:wrap;gap:8px}
+.entry-pick button.is-picked{outline:2px solid #67e8f9}
 .op-pairs+.op-hint{margin-top:16px}
 .op-name-note{margin:0 0 10px;color:#94a3b8;font-size:13px;line-height:1.5}
 .op-named{flex-wrap:wrap;align-items:stretch}

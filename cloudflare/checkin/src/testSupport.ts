@@ -5,7 +5,7 @@ import worker, { type CheckinEnv } from './index';
 import type { Statement } from './domain';
 export function setup(){
  const db=new DatabaseSync(':memory:');db.exec('PRAGMA foreign_keys=ON');
- for(const file of ['0001_tournament.sql','0002_command_receipts.sql','0003_checkin_lifecycle.sql'])db.exec(readFileSync(`cloudflare/migrations/${file}`,'utf8'));
+ for(const file of ['0001_tournament.sql','0002_command_receipts.sql','0003_checkin_lifecycle.sql','0004_entry_teams.sql'])db.exec(readFileSync(`cloudflare/migrations/${file}`,'utf8'));
  db.exec("INSERT INTO events(id,title,environment) VALUES('cf-rehearsal-001','test','rehearsal')");
  const photos=new Map<string,{bytes:ArrayBuffer;httpMetadata:{contentType:string}}>();const faults={put:false,delete:false,batch:false,lostReply:false,failAt:-1};
  class Sql implements Statement {values:unknown[]=[];constructor(public sql:string){} bind(...values:unknown[]){this.values=values;return this;} async first<T>(){return (db.prepare(this.sql).get(...this.values as never[])??null) as T|null;} async all<T>(){return {results:db.prepare(this.sql).all(...this.values as never[]) as T[]};} async run(){return {meta:{changes:Number(db.prepare(this.sql).run(...this.values as never[]).changes)}};}}

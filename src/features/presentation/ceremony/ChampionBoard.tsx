@@ -111,7 +111,7 @@ export default function ChampionBoard({ team, ...intro }: CeremonyIntroOptions &
           {person.face ? <img src={person.face} alt={person.name} /> : <div className="cer-empty">?</div>}
           <p className="cer-card-name cb-card-name"><RatedName text={person.name} /></p>
         </article>)}
-        <p className="cer-text cb-team team-name-orange">{team.name}</p>
+        <p className="cer-text cb-team cer-gold">{team.name}</p>
       </div>
       <div className="cb-ball" aria-hidden="true">
         <div className="cb-beams" />

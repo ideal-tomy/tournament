@@ -35,6 +35,7 @@ const messages: Record<string, string> = {
   INVALID_PHOTO: '写真を読み取れませんでした。撮り直してください。',
   PHOTO_TOO_LARGE: '写真が大きすぎます。撮り直してください。',
   CHECKIN_CLOSED: '現在、この大会の受付は停止しています。',
+  ENTRY_TEAMS_LOCKED: 'ペアを確定したあとは、保存済みのチームを変更できません。',
   REQUEST_CONFLICT: 'この送信と異なる内容が保存されています。運営担当者に確認してください。',
   SERVICE_UNAVAILABLE: '保存先に接続できません。入力内容を保持しています。同じ登録を再試行してください。',
 };

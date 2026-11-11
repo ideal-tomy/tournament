@@ -1,4 +1,5 @@
 import { AUTOMATED_CAMERA_TEST_ID, ClientError, decodePortrait, fields, hash, imageTypes, participantDto, readBody, requestId, response, validKey, type CheckinEnv, type Participant } from './domain';
+import { entryTeamRoute, entryTeamsLocked, listEntryTeams } from './entryTeams';
 
 interface State { event_id:string; status:'open'|'closed'; revision:number; closed_at:string|null; closed_roster:string; title:string; team_size:number }
 interface Receipt { action:string; request_hash:string; response_json:string }
@@ -128,7 +129,7 @@ export async function readiness(env:CheckinEnv) {
   }
   const cleanupPending=await pending(env);
   if(cleanupPending)issues.push({code:'CLEANUP_PENDING',message:'写真の保存または後処理が残っています。再試行してください。'});
-  return {eventId:env.CHECKIN_EVENT_ID,title:checkin.title,status:checkin.status,revision:checkin.revision,closedAt:checkin.closed_at,count:participants.length,minimum,cleanupPending,issues,ready:issues.length===0,participants:participants.map(row=>participantDto(row,env.CHECKIN_EVENT_ID))};
+  return {eventId:env.CHECKIN_EVENT_ID,title:checkin.title,status:checkin.status,revision:checkin.revision,closedAt:checkin.closed_at,count:participants.length,minimum,cleanupPending,issues,ready:issues.length===0,participants:participants.map(row=>participantDto(row,env.CHECKIN_EVENT_ID)),entryTeams:await listEntryTeams(env),entryTeamsLocked:await entryTeamsLocked(env)};
 }
 async function close(env:CheckinEnv,body:Record<string,unknown>) {
   const id=requestId(body.requestId), expected=body.expectedRevision;
@@ -151,6 +152,7 @@ async function close(env:CheckinEnv,body:Record<string,unknown>) {
 }
 export async function lifecycleRoute(request:Request,env:CheckinEnv):Promise<Response|null> {
   const url=new URL(request.url);
+  const entry=await entryTeamRoute(request,env);if(entry)return entry;
   if(url.pathname==='/api/checkin/state'&&request.method==='GET')return response(await readiness(env));
   if(url.pathname==='/api/checkin/close'&&request.method==='POST')return close(env,await readBody(request,1024));
   if(url.pathname==='/api/checkin/cleanup'&&request.method==='POST')return response({cleanupPending:await drainCleanup(env)});

@@ -1,0 +1,50 @@
+import { expect, it } from 'vitest';
+import { setup } from './testSupport';
+
+it('keeps saved teams and names until a person or that team changes', async () => {
+  const s = setup();
+  await s.login();
+  const people = [];
+  for (const name of ['山田', '佐藤', '鈴木', '高橋']) people.push((await s.create(name)).participant);
+  const [a, b, c, d] = people;
+  const save = (memberIds: string[], name = '') => s.request('/api/entry-teams', 'POST', { requestId: crypto.randomUUID(), memberIds, name });
+  expect((await save([a.id, b.id], 'ROAD STAR')).status).toBe(200);
+  expect((await save([c.id, d.id])).status).toBe(200);
+  const saved = await s.request('/api/checkin/state').then(r => r.json()) as { entryTeams: { id: string; name: string; memberIds: string[] }[]; entryTeamsLocked: boolean };
+  expect(saved.entryTeamsLocked).toBe(false);
+  expect(saved.entryTeams.map(team => [team.name, team.memberIds])).toEqual([['ROAD STAR', [a.id, b.id]], ['', [c.id, d.id]]]);
+  const renamed = await s.request('/api/entry-teams/rename', 'POST', { requestId: crypto.randomUUID(), teamId: saved.entryTeams[1].id, name: 'EAST' });
+  expect(renamed.status).toBe(200);
+  const edited = await s.request(`/api/participants/${a.id}`, 'PATCH', { requestId: crypto.randomUUID(), expectedVersion: a.version, name: '山田改', rating: 12 });
+  expect(edited.status).toBe(200);
+  const afterEdit = await s.request('/api/checkin/state').then(r => r.json()) as typeof saved;
+  expect(afterEdit.entryTeams.map(team => team.memberIds)).toEqual([[a.id, b.id], [c.id, d.id]]);
+  expect(afterEdit.entryTeams[1].name).toBe('EAST');
+  expect((await s.request(`/api/participants/${a.id}`, 'DELETE', { requestId: crypto.randomUUID(), expectedVersion: a.version + 1 })).status).toBe(200);
+  const afterDelete = await s.request('/api/checkin/state').then(r => r.json()) as typeof saved;
+  expect(afterDelete.entryTeams).toEqual([expect.objectContaining({ name: 'EAST', memberIds: [c.id, d.id] })]);
+  expect((await s.request('/api/entry-teams/release', 'POST', { requestId: crypto.randomUUID(), teamId: afterDelete.entryTeams[0].id })).status).toBe(200);
+  expect((await s.request('/api/checkin/state').then(r => r.json()) as typeof saved).entryTeams).toEqual([]);
+});
+
+it('carries saved names into the bracket and keeps them if the pairs are reset', async () => {
+  const s = setup();
+  await s.login();
+  const people = [];
+  for (const [name, rating] of [['山田', 13], ['佐藤', 9], ['鈴木', 10], ['高橋', 5]] as const) people.push((await s.create(name)).participant.id);
+  await s.request('/api/entry-teams', 'POST', { requestId: crypto.randomUUID(), memberIds: [people[0], people[3]], name: 'ROAD STAR' });
+  await s.request('/api/entry-teams', 'POST', { requestId: crypto.randomUUID(), memberIds: [people[1], people[2]], name: 'EAST' });
+  const report = await s.request('/api/checkin/state').then(r => r.json()) as { revision: number };
+  expect((await s.request('/api/checkin/close', 'POST', { requestId: crypto.randomUUID(), expectedRevision: report.revision })).status).toBe(200);
+  const paired = await s.pair({ mode: 'manual', pairs: [[people[0], people[3]], [people[1], people[2]]] });
+  expect(paired.status).toBe(200);
+  const ready = await paired.json() as { teams: { name: string; memberIds: string[] }[]; entryTeams: { name: string; memberIds: string[] }[]; version: number };
+  expect(ready.teams.map(team => team.name)).toEqual(['ROAD STAR', 'EAST']);
+  expect(ready.entryTeams.map(team => team.name)).toEqual(['ROAD STAR', 'EAST']);
+  expect((await s.request('/api/entry-teams', 'POST', { requestId: crypto.randomUUID(), memberIds: [people[0], people[1]], name: 'LATE' })).status).toBe(409);
+  const reset = await s.request('/api/draw/pairs/reset', 'POST', { requestId: crypto.randomUUID(), expectedVersion: ready.version });
+  expect(reset.status).toBe(200);
+  const again = await reset.json() as { session: null; entryTeams: { name: string }[] };
+  expect(again.session).toBeNull();
+  expect(again.entryTeams.map(team => team.name)).toEqual(['ROAD STAR', 'EAST']);
+});

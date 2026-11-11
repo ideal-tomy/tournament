@@ -257,7 +257,7 @@ export default function DrawStage({
             >
               <img src={FX.frames.teamPlate} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-fill opacity-45" />
               <p className="relative text-xs font-black tracking-widest text-amber-200">TEAM {index + 1}</p>
-              {data.teamLabels?.[index] && <p className={`relative mt-1 truncate text-center text-[32px] font-black leading-tight ${index % 2 === 0 ? 'team-name-blue' : 'team-name-orange'}`}>{data.teamLabels[index]}</p>}
+              {data.teamLabels?.[index] && <p className="cer-gold relative mt-1 truncate text-center text-[32px] font-black leading-tight">{data.teamLabels[index]}</p>}
               <div className="relative mt-3 flex items-center gap-3">
                 {members.map((member) => (
                   <div key={member.id} className="min-w-0 flex-1 text-center">

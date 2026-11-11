@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import CheckinPage from './CheckinPage';
+import EntryTeams, { type EntryTeam } from './EntryTeams';
 import ParticipantPhoto from './ParticipantPhoto';
 import OpeningImageCard from './OpeningImageCard';
 import RunContextBanner from './RunContextBanner';
 import { api, ApiError, scopedUrl, type Participant } from './api';
 
-interface Report { status:'open'|'closed'; revision:number; count:number; ready:boolean; cleanupPending:number; issues:{code:string;message:string}[]; participants:Participant[] }
+interface Report { status:'open'|'closed'; revision:number; count:number; ready:boolean; cleanupPending:number; issues:{code:string;message:string}[]; participants:Participant[]; entryTeams?: EntryTeam[]; entryTeamsLocked?: boolean }
 export default function CheckinWorkspace({onAuthRequired,sessionVersion}:{onAuthRequired():void;sessionVersion:number}) {
   const [report,setReport]=useState<Report|null>(null);
   const [editing,setEditing]=useState<Participant>();
@@ -57,6 +58,7 @@ export default function CheckinWorkspace({onAuthRequired,sessionVersion}:{onAuth
       {report.issues.length>0&&<ul className="checkin-issues">{report.issues.map((issue,index)=><li key={`${issue.code}-${index}`}>{issue.message}</li>)}</ul>}
       {report.cleanupPending>0&&<button disabled={busy} onClick={()=>void execute('/api/checkin/cleanup','POST',{})}>写真の後処理を再試行</button>}
     </section>}
+    {report&&<EntryTeams participants={report.participants} teams={report.entryTeams??[]} locked={!!report.entryTeamsLocked} busy={busy||!!editing||!!command.current} onCommand={(path,body)=>void execute(path,'POST',{requestId:crypto.randomUUID(),...body})}/>}
     {report&&<OpeningImageCard onAuthRequired={onAuthRequired}/>}
     <section className="card checkin-list"><div className="checkin-list-head"><h2>登録済み</h2><button onClick={()=>void refresh()}>更新</button></div>
       {!report&&<p>読み込み中…</p>}

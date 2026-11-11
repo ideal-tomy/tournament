@@ -29,7 +29,7 @@ export interface DrawState {
  eventId:string;title:string;checkinStatus:string;checkinRevision:number;scene:string;version:number;sceneSeq:number;
  elapsedSeconds:number;durationSec:number;canComplete:boolean;
  session:{id:string;revealOrder:string[];committedAt:string}|null;
- participants:Participant[];teams:{id:string;name:string;memberIds:string[];seed:number}[];bracket:BracketSnapshot|null;
+ participants:Participant[];entryTeams?:{id:string;name:string;memberIds:string[]}[];teams:{id:string;name:string;memberIds:string[];seed:number}[];bracket:BracketSnapshot|null;
 }
 export default function DrawControl({administration,onAuthRequired,sessionVersion,onActiveChange,automaticAdvance=false}:{administration:boolean;onAuthRequired():void;sessionVersion:number;onActiveChange?(active:boolean):void;automaticAdvance?:boolean}){
  const {state,error,refresh}=useTournamentState(onAuthRequired,sessionVersion,{automaticAdvance:administration&&automaticAdvance});

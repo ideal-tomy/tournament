@@ -33,7 +33,7 @@ export default function PairConfirmed({ teamNumber, members, teamLabel }: PairCo
         <div className="pc-flare" />
         <p className="cer-text pc-team-no">TEAM {String(teamNumber).padStart(2, '0')}</p>
         <h2 className="cer-text cer-gold pc-title">{isPair ? 'PAIR CONFIRMED' : 'TEAM CONFIRMED'}</h2>
-        {teamLabel && <p className="cer-text pc-venue-name team-name-blue">{teamLabel}</p>}
+        {teamLabel && <p className="cer-text pc-venue-name cer-gold">{teamLabel}</p>}
         {members.map((member, index) => (
           <article
             key={member.id}
