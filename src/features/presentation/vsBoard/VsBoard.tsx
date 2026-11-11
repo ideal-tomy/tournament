@@ -119,7 +119,7 @@ function Side({ side, team, xs }: { side: 'left' | 'right'; team: VsSide; xs: nu
   return <>
     {people.map((person, index) => <article key={`${side}-${person.name}-${index}`} className={`vsb-card vsb-card-${side}`} style={{ left: slots[index] }}>
       {person.face ? <img src={person.face} alt={person.name} /> : <div className="vsb-empty">?</div>}
+      <p className="vsb-name"><RatedName text={person.name} /></p>
     </article>)}
-    {people.map((person, index) => <p key={`${side}-name-${index}`} className="vsb-name" style={{ left: slots[index] }}><RatedName text={person.name} /></p>)}
   </>;
 }

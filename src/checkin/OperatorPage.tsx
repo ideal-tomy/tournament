@@ -3,6 +3,7 @@ import { api, ApiError, scopedUrl, type Participant } from './api';
 import type { CeremonyStep, CourtBoard, DrawState, FlowMatch } from './DrawControl';
 import { useTournamentState } from './useTournamentState';
 import { makeBalancedTeams } from '../features/draw/draw';
+import { generatedTeamName, VENUE_TEAM_NAME_MAX } from '../features/draw/teamName';
 import { formatLabel } from './eventFormat';
 
 type Command = { path: string; body: Record<string, unknown> };
@@ -16,12 +17,27 @@ function Face({ person, size = 48 }: { person?: Participant; size?: number }) {
   </span>;
 }
 
-function PairRow({ index, members, byId, onRemove }: { index: number; members: string[]; byId: Map<string, Participant>; onRemove?(): void }) {
-  return <li className="op-pair">
+function TeamNameField({ stored, memberNames, busy, onSave, onDraft }: { stored: string; memberNames: string[]; busy: boolean; onSave(name: string): void; onDraft(name: string | null): void }) {
+  const saved = stored === generatedTeamName(memberNames) ? '' : stored;
+  const [value, setValue] = useState(saved);
+  useEffect(() => setValue(saved), [saved]);
+  function change(next: string) {
+    setValue(next);
+    onDraft(next.trim() === saved ? null : next);
+  }
+  return <label className="op-venue-field">
+    <input value={value} maxLength={VENUE_TEAM_NAME_MAX} placeholder="店舗名だけ" aria-label="会場に出すチーム名" disabled={busy} onChange={event => change(event.target.value)} />
+    <button type="button" disabled={busy || value.trim() === saved} onClick={() => onSave(value)}>保存</button>
+  </label>;
+}
+
+function PairRow({ index, members, byId, onRemove, bare = false }: { index: number; members: string[]; byId: Map<string, Participant>; onRemove?(): void; bare?: boolean }) {
+  const Tag = bare ? 'div' : 'li';
+  return <Tag className="op-pair">
     <span className="op-pair-no">{index + 1}</span>
     {members.map(id => <span key={id} className="op-pair-member"><Face person={byId.get(id)} size={36} /><span>{byId.get(id)?.name}</span></span>)}
     {onRemove && <button type="button" className="op-pair-remove" aria-label={`${index + 1}組目を外す`} onClick={onRemove}>×</button>}
-  </li>;
+  </Tag>;
 }
 
 function Pairing({ state, busy, onConfirm }: { state: DrawState; busy: boolean; onConfirm(mode: 'auto' | 'manual', pairs: string[][]): void }) {
@@ -134,6 +150,7 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
   const [winner, setWinner] = useState<0 | 1 | null>(null);
   const [picks, setPicks] = useState<Partial<Record<number, 0 | 1>>>({});
   const pending = useRef<Command | null>(null);
+  const nameDrafts = useRef(new Map<string, string>());
   const [, setPendingVersion] = useState(0);
   const matchId = state?.flow?.currentMatch?.id;
   useEffect(() => setWinner(null), [matchId, state?.scene]);
@@ -158,8 +175,32 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
   const flow = (action: 'advance' | 'game-start' | 'start' | 'winner' | 'courts-open' | 'court-start' | 'court-winner' | 'court-next' | 'courts-view', extra: Record<string, unknown> = {}) => send(`/api/tournament/${action}`, extra);
 
   if (!state) return <section className="op"><p className="op-loading" role="status">{error || '大会を読み込んでいます…'}</p></section>;
-  const byId = new Map(state.participants.map(p => [p.id, p]));
-  const teamName = (id: string | null | undefined) => state.teams.find(team => team.id === id)?.name ?? '';
+  const current = state;
+  const byId = new Map(current.participants.map(p => [p.id, p]));
+  const teamName = (id: string | null | undefined) => current.teams.find(team => team.id === id)?.name ?? '';
+  async function publishPairs() {
+    if (busy) return;
+    setBusy(true); setFailure('');
+    try {
+      let version = current.version;
+      let latest: DrawState = current;
+      for (const [teamId, name] of nameDrafts.current) {
+        if (!current.teams.some(team => team.id === teamId)) continue;
+        latest = await api<DrawState>('/api/draw/team-name', { method: 'POST', body: JSON.stringify({ requestId: crypto.randomUUID(), expectedVersion: version, teamId, name }) });
+        version = latest.version;
+      }
+      latest = await api<DrawState>('/api/draw/start', { method: 'POST', body: JSON.stringify({ requestId: crypto.randomUUID(), expectedVersion: version }) });
+      nameDrafts.current.clear();
+      setState(latest);
+      refresh();
+    } catch (reason) {
+      setFailure(reason instanceof Error ? reason.message : '処理できませんでした。');
+      if (reason instanceof ApiError) {
+        if (reason.status === 401) onAuthRequired();
+        else if (reason.status < 500) refresh();
+      }
+    } finally { setBusy(false); }
+  }
   const f = state.flow;
   const gate = (allowed: boolean | undefined, label: string, wait: string, action: () => void) => allowed
     ? <ActionBar><button className="primary" disabled={busy} onClick={action}>{label}</button></ActionBar>
@@ -172,9 +213,15 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
   } else if (!state.session) {
     body = <Pairing state={state} busy={busy} onConfirm={(mode, pairs) => void send('/api/draw/pairs', mode === 'manual' ? { mode, pairs } : { mode })} />;
   } else if (state.scene === 'idle') {
-    body = <ol className="op-pairs">{state.teams.map((team, index) => <PairRow key={team.id} index={index} members={team.memberIds} byId={byId} />)}</ol>;
+    body = <>
+      <p className="op-name-note">会場に出す名前は店舗名だけにしてください。空欄のままなら、今までどおり個人名が並びます。</p>
+      <ol className="op-pairs">{state.teams.map((team, index) => <li key={team.id} className="op-pair op-named">
+        <PairRow bare index={index} members={team.memberIds} byId={byId} />
+        <TeamNameField stored={team.name} memberNames={team.memberIds.map(id => byId.get(id)?.name ?? '')} busy={busy} onDraft={name => { if (name == null) nameDrafts.current.delete(team.id); else nameDrafts.current.set(team.id, name); }} onSave={name => void send('/api/draw/team-name', { teamId: team.id, name })} />
+      </li>)}</ol>
+    </>;
     bar = <ActionBar>
-      <ArmedButton label="ペア発表開始" armedLabel="もう一度押すと会場で発表" disabled={busy} onFire={() => void send('/api/draw/start', {})} />
+      <ArmedButton label="ペア発表開始" armedLabel="もう一度押すと会場で発表" disabled={busy} onFire={() => void publishPairs()} />
       <ArmedButton className="op-secondary" label="組み直す" armedLabel="もう一度押すと組み直す" disabled={busy} onFire={() => void send('/api/draw/pairs/reset', {})} />
     </ActionBar>;
   } else if (state.scene === 'draw') {

@@ -7,12 +7,13 @@ import RatedName from '../ceremony/RatedName';
 interface PairConfirmedProps {
   teamNumber: number;
   members: DrawRevealParticipant[];
+  teamLabel?: string | null;
 }
 
 const RING_CENTER_Y = 506;
 
 /** Pair reveal over the gold rings. Motion is added by appendPairCelebration on the draw timeline. */
-export default function PairConfirmed({ teamNumber, members }: PairConfirmedProps) {
+export default function PairConfirmed({ teamNumber, members, teamLabel }: PairConfirmedProps) {
   const stageRef = useRef<HTMLDivElement>(null);
   const isPair = members.length === 2;
   const width = members.length >= 3 ? 240 : 300;
@@ -32,6 +33,7 @@ export default function PairConfirmed({ teamNumber, members }: PairConfirmedProp
         <div className="pc-flare" />
         <p className="cer-text pc-team-no">TEAM {String(teamNumber).padStart(2, '0')}</p>
         <h2 className="cer-text cer-gold pc-title">{isPair ? 'PAIR CONFIRMED' : 'TEAM CONFIRMED'}</h2>
+        {teamLabel && <p className="cer-text pc-venue-name team-name-blue">{teamLabel}</p>}
         {members.map((member, index) => (
           <article
             key={member.id}

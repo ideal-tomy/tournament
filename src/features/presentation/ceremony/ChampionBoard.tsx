@@ -33,7 +33,6 @@ function glowScale(t: number) {
 }
 const PODIUM_CENTERS = [702, 1206];
 const CARD = { width: 420, height: 600, top: 176 };
-const NAME_WIDTH = 500;
 
 function cardCenters(count: number) {
   if (count === 2) return PODIUM_CENTERS;
@@ -110,9 +109,9 @@ export default function ChampionBoard({ team, ...intro }: CeremonyIntroOptions &
         <h2 className="cer-text cer-gold cb-title">CHAMPION</h2>
         {members.map((person, index) => <article key={`${person.name}-${index}`} className="cer-card cb-card" style={{ left: centers[index] - CARD.width / 2, top: CARD.top, width: CARD.width, height: CARD.height }}>
           {person.face ? <img src={person.face} alt={person.name} /> : <div className="cer-empty">?</div>}
+          <p className="cer-card-name cb-card-name"><RatedName text={person.name} /></p>
         </article>)}
-        {members.map((person, index) => <p key={`name-${index}`} className="cb-name" style={{ left: centers[index] - NAME_WIDTH / 2, width: NAME_WIDTH }}><RatedName text={person.name} /></p>)}
-        <p className="cer-text cb-team">{team.name}</p>
+        <p className="cer-text cb-team team-name-orange">{team.name}</p>
       </div>
       <div className="cb-ball" aria-hidden="true">
         <div className="cb-beams" />

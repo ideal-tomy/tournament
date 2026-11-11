@@ -39,6 +39,14 @@ describe('ceremony boards', () => {
     expect(markup).toContain('山田</span><br/><span class="rated-name-line">（Rt.12）');
   });
 
+  it('keeps two placed teams in separate groups', () => {
+    const markup = renderToStaticMarkup(<WinnerBoard groups={[blue, red]} title="3RD PLACE" />);
+    expect(markup).toContain('TEAM BLUE');
+    expect(markup).toContain('TEAM RED');
+    expect(markup).not.toContain('TEAM BLUE ／ TEAM RED');
+    expect(markup.match(/wb-group-name/g)).toHaveLength(2);
+  });
+
   it('introduces 3rd, 2nd and 1st on the podium, skipping an absent place', () => {
     const full = renderToStaticMarkup(<PodiumBoard first={blue} second={red} third={{ ...red, name: 'TEAM GREEN' }} />);
     expect(full.indexOf('pd-place-3')).toBeLessThan(full.indexOf('pd-place-2'));

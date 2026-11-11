@@ -34,11 +34,8 @@ function CourtSpotlightView({state,spot}:{state:DrawState;spot:CourtSpotlight}){
  const advance:DrawState={...state,scene:'bracket',elapsedSeconds:spot.elapsed-spot.winnerSec,flow:{...state.flow!,phase:'bracket_update',resultPresentation:spot.resultPresentation,winnerTeamId:spot.winnerTeamId,loserTeamId:spot.loserTeamId}};
  return <AnimatedBracketAdvance key={`${spot.id}-bracket`} state={advance} winnerOverlay={<WinnerBoard contained settled team={team} opponent={opponent}/>}/>;
 }
-/** Single elimination ranks both semi-final losers 3rd; they are introduced together. */
-function placeTeam(state:DrawState,ids:string[]|undefined){
- const teams=(ids??[]).map(id=>existingTeam(state,id));
- if(teams.length<2)return teams[0];
- return {name:teams.map(t=>t.name).join(' ／ '),members:teams.flatMap(t=>t.members),faces:teams.flatMap(t=>t.faces),participantIds:teams.flatMap(t=>t.participantIds)};
+function placeTeams(state:DrawState,ids:string[]|undefined){
+ return (ids??[]).map(id=>existingTeam(state,id));
 }
 export default function FlowPresentation({state,controlledTime}:{state:DrawState;controlledTime?:number}){
  try{
@@ -56,10 +53,10 @@ export default function FlowPresentation({state,controlledTime}:{state:DrawState
    const step=state.flow?.ceremony??'champion',placements=state.flow?.placements;
    const timing={startAt:state.elapsedSeconds,controlledTime,audioEnabled:controlledTime==null};
    if(step==='third'||step==='second'){
-    const team=placeTeam(state,placements?.[step]);if(!team)throw new Error('順位のチームが見つかりません。');
-    return <WinnerBoard key={state.sceneSeq} team={team} title={step==='third'?'3RD PLACE':'2ND PLACE'} label={`${step==='third'?'3位':'2位'} ${team.name}`} {...timing}/>;
+    const teams=placeTeams(state,placements?.[step]);if(!teams.length)throw new Error('順位のチームが見つかりません。');
+    return <WinnerBoard key={state.sceneSeq} groups={teams} title={step==='third'?'3RD PLACE':'2ND PLACE'} label={`${step==='third'?'3位':'2位'} ${teams.map(team=>team.name).join('、')}`} {...timing}/>;
    }
-   if(step==='podium')return <PodiumBoard key={state.sceneSeq} first={existingTeam(state,placements?.first??state.flow?.championTeamId)} second={placeTeam(state,placements?.second)} third={placeTeam(state,placements?.third)} {...timing}/>;
+   if(step==='podium')return <PodiumBoard key={state.sceneSeq} first={existingTeam(state,placements?.first??state.flow?.championTeamId)} second={placeTeams(state,placements?.second)} third={placeTeams(state,placements?.third)} {...timing}/>;
    return <ChampionBoard key={state.sceneSeq} team={existingTeam(state,state.flow?.championTeamId)} {...timing}/>;
   }
   if(state.scene==='vs_card'||state.scene==='match_live'){

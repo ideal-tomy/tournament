@@ -92,7 +92,7 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
  let snapshot=loaded.snapshot,payload:Payload={...loaded.payload,flow:1},nextScene=currentScene.scene;
  let current=loaded.current,status:string|null=null;
  const timing=rehearsalTiming((await eventProfile(env)).timingPreset);
- const stepDuration=(step:CeremonyStep)=>step==='champion'?timing.award:timing.winner;
+ const stepDuration=(step:CeremonyStep)=>step==='podium'?timing.podium:step==='champion'?timing.award:timing.winner;
  async function award(champion:string){
   const placements=await getFinalPlacements(createManagerFromSnapshot(snapshot))??{first:champion,second:[],third:[]};
   const step=ceremonySteps(placements)[0];

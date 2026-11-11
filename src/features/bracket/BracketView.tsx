@@ -55,19 +55,24 @@ export default function BracketView({
     ms.length ? Math.max(...ms.map((m) => m.box.y + m.box.h)) : 0;
   const topY = (ms: typeof L.matches) =>
     ms.length ? Math.min(...ms.map((m) => m.box.y)) : 0;
+  const midX = (ms: typeof L.matches) => {
+    const left = Math.min(...ms.map((m) => m.box.x));
+    const right = Math.max(...ms.map((m) => m.box.x + m.box.w));
+    return (left + right) / 2;
+  };
 
   const sectionLabels = [
     wbMatches.length > 0 && {
       kind: 'winner' as BracketKind,
-      x: wbMatches[0].box.x,
-      y: bottomY(wbMatches) + 20,
-      anchor: 'start' as const,
+      x: midX(wbMatches),
+      y: bottomY(wbMatches) + 22,
+      anchor: 'middle' as const,
     },
     lbMatches.length > 0 && {
       kind: 'loser' as BracketKind,
-      x: lbMatches[0].box.x,
-      y: bottomY(lbMatches) + 20,
-      anchor: 'start' as const,
+      x: midX(lbMatches),
+      y: bottomY(lbMatches) + 22,
+      anchor: 'middle' as const,
     },
     gfMatches.length > 0 && {
       kind: 'grand_final' as BracketKind,
@@ -116,9 +121,9 @@ export default function BracketView({
             y={s.y}
             textAnchor={s.anchor}
             fill={t.labelColor}
-            fontSize={14}
-            fontWeight="800"
-            letterSpacing="0.12em"
+            fontSize={18}
+            fontWeight="900"
+            letterSpacing="0.08em"
           >
             {t.label}
           </text>

@@ -242,6 +242,7 @@ export default function DrawStage({
         <PairConfirmed
           key={`pair-${members.map((member) => member.id).join('-')}`}
           teamNumber={index + 1}
+          teamLabel={data.teamLabels?.[index]}
           members={members}
         />
       ))}
@@ -256,6 +257,7 @@ export default function DrawStage({
             >
               <img src={FX.frames.teamPlate} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-fill opacity-45" />
               <p className="relative text-xs font-black tracking-widest text-amber-200">TEAM {index + 1}</p>
+              {data.teamLabels?.[index] && <p className={`relative mt-1 truncate text-center text-[32px] font-black leading-tight ${index % 2 === 0 ? 'team-name-blue' : 'team-name-orange'}`}>{data.teamLabels[index]}</p>}
               <div className="relative mt-3 flex items-center gap-3">
                 {members.map((member) => (
                   <div key={member.id} className="min-w-0 flex-1 text-center">
@@ -291,12 +293,9 @@ function RevealCard({
         </div>
         <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
           <img src={FX.cards.front} alt="" className="draw-card-front absolute inset-0 h-full w-full object-contain" />
-          <div className="draw-player-reveal absolute inset-[14%_13%_22%] flex items-center justify-center">
-            <ParticipantFace participant={participant} className="h-full w-full rounded-xl" />
-          </div>
-          <div className="draw-player-reveal absolute bottom-[8%] left-[14%] right-[14%]">
-            <img src={FX.frames.nameplate} alt="" className="absolute inset-0 h-full w-full object-fill opacity-80" />
-            <p className="relative px-4 py-3 text-center text-xl font-black leading-tight text-white drop-shadow-lg">
+          <div className="draw-player-reveal absolute inset-[14%_13%_22%] overflow-hidden rounded-xl">
+            <ParticipantFace participant={participant} className="h-full w-full" />
+            <p className="absolute inset-x-3 bottom-3 z-[1] m-0 text-center text-lg font-black leading-tight text-white [text-shadow:0_2px_0_#000,0_0_12px_#000]">
               <RatedName text={participant.displayName} />
             </p>
           </div>

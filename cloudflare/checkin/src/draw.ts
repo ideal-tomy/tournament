@@ -1,5 +1,6 @@
 import { flowCommand, flowView, matchProjection, type FlowAction } from './flow';
 import { makeBalancedTeams, buildRevealOrder, teamRatingSum } from '../../../src/features/draw/draw';
+import { generatedTeamName, VENUE_TEAM_NAME_MAX } from '../../../src/features/draw/teamName';
 import { buildDoubleElimination, buildSingleElimination } from '../../../src/features/bracket/manager';
 import { estimateDrawDurationSec } from '../../../src/features/presentation/drawAnimationTiming';
 import { ClientError, hash, OFFICIAL_FIXED_EVENT_ID, participantDto, readBody, requestId, response, type CheckinEnv } from './domain';
@@ -81,7 +82,7 @@ async function prepare(env:CheckinEnv,body:Record<string,unknown>){
   // Two JSON-backed INSERTs keep 16 teams within D1's per-invocation query budget.
   const ratingById=new Map(rated.map(p=>[p.id,p.rating]));
   const teamRecords=pairs.map((pair,index)=>({id:teamIds[index],eventId:env.CHECKIN_EVENT_ID,sessionId,
-    name:pair.map(pid=>participantById.get(pid)!.name).join(' & '),seed:index,rating:teamRatingSum(pair,ratingById),
+    name:generatedTeamName(pair.map(pid=>participantById.get(pid)!.name)),seed:index,rating:teamRatingSum(pair,ratingById),
     managerId:snapshot.participant.find(p=>p.name===teamIds[index])?.id??null}));
   const memberRecords=pairs.flatMap((pair,index)=>pair.map((pid,position)=>({teamId:teamIds[index],participantId:pid,position:position+1})));
   statements.push(env.DB.prepare(`INSERT INTO teams(id,event_id,draw_session_id,name,seed,rating_total,manager_participant_id)
@@ -120,6 +121,37 @@ async function resetPairs(env:CheckinEnv,body:Record<string,unknown>){
     env.DB.prepare(`DELETE FROM teams WHERE event_id=? AND ${authorized}`).bind(env.CHECKIN_EVENT_ID,...gate),
     env.DB.prepare(`DELETE FROM draw_sessions WHERE event_id=? AND ${authorized}`).bind(env.CHECKIN_EVENT_ID,...gate),
     env.DB.prepare(`UPDATE events SET status='draft',draw_mode='full_random',bracket_snapshot=NULL,bm_current_match_id=NULL,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=? AND ${authorized}`).bind(env.CHECKIN_EVENT_ID,...gate),
+  ]);
+  const committed=await env.DB.prepare('SELECT request_hash FROM command_receipts WHERE event_id=? AND request_id=?').bind(env.CHECKIN_EVENT_ID,id).first<{request_hash:string}>();
+  if(committed?.request_hash!==requestHash)throw new ClientError('VERSION_CONFLICT',409);
+  return response(await read(env));
+}
+/** A short venue label, set only before the announcement. Blank restores the member names. */
+async function renameTeam(env:CheckinEnv,body:Record<string,unknown>){
+  const id=requestId(body.requestId),expected=body.expectedVersion;
+  if(!Number.isSafeInteger(expected)||Number(expected)<0)throw new ClientError('INVALID_VERSION',400);
+  if(typeof body.teamId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.teamId))throw new ClientError('INVALID_INPUT',400);
+  if(typeof body.name!=='string')throw new ClientError('INVALID_INPUT',400);
+  const custom=body.name.trim().normalize('NFKC').replace(/\s+/g,' ');
+  if([...custom].length>VENUE_TEAM_NAME_MAX)throw new ClientError('TEAM_NAME_TOO_LONG',400);
+  await initialize(env);
+  const requestHash=await hash(JSON.stringify(['draw.team-name',expected,body.teamId,custom]));
+  const receipt=await env.DB.prepare('SELECT action,request_hash FROM command_receipts WHERE event_id=? AND request_id=?').bind(env.CHECKIN_EVENT_ID,id).first<{action:string;request_hash:string}>();
+  if(receipt){if(receipt.action!=='draw.team-name'||receipt.request_hash!==requestHash)throw new ClientError('REQUEST_CONFLICT',409);return response(await read(env));}
+  const current=await scene(env),draw=await session(env);
+  if(current.version!==expected)throw new ClientError('VERSION_CONFLICT',409);
+  if(current.scene!=='idle'||!draw)throw new ClientError('TEAM_NAME_LOCKED',409);
+  const members=(await env.DB.prepare(`SELECT p.display_name FROM team_members m JOIN participants p ON p.id=m.participant_id JOIN teams t ON t.id=m.team_id WHERE m.team_id=? AND t.event_id=? AND t.draw_session_id=? ORDER BY m.position`).bind(body.teamId,env.CHECKIN_EVENT_ID,draw.id).all<{display_name:string}>()).results;
+  if(!members.length)throw new ClientError('INVALID_INPUT',400);
+  const name=custom||generatedTeamName(members.map(member=>member.display_name));
+  const nonce=crypto.randomUUID();
+  const authorized=`EXISTS(SELECT 1 FROM command_receipts WHERE event_id=? AND request_id=? AND json_extract(response_json,'$.attempt')='${nonce}')`;
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO command_receipts(event_id,request_id,actor_id,action,request_hash,expected_version,committed_version,response_json)
+      SELECT ?,?,'checkin-session','draw.team-name',?,?,?,json_object('attempt','${nonce}') WHERE EXISTS(SELECT 1 FROM event_state WHERE event_id=? AND version=? AND scene='idle')`)
+      .bind(env.CHECKIN_EVENT_ID,id,requestHash,expected,Number(expected)+1,env.CHECKIN_EVENT_ID,expected),
+    env.DB.prepare(`UPDATE teams SET name=? WHERE id=? AND event_id=? AND draw_session_id=? AND ${authorized}`).bind(name,body.teamId,env.CHECKIN_EVENT_ID,draw.id,env.CHECKIN_EVENT_ID,id),
+    env.DB.prepare(`UPDATE event_state SET version=version+1,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE event_id=? AND version=? AND ${authorized}`).bind(env.CHECKIN_EVENT_ID,expected,env.CHECKIN_EVENT_ID,id),
   ]);
   const committed=await env.DB.prepare('SELECT request_hash FROM command_receipts WHERE event_id=? AND request_id=?').bind(env.CHECKIN_EVENT_ID,id).first<{request_hash:string}>();
   if(committed?.request_hash!==requestHash)throw new ClientError('VERSION_CONFLICT',409);
@@ -218,6 +250,7 @@ export async function drawRoute(request:Request,env:CheckinEnv):Promise<Response
   if(url.pathname==='/api/draw/state'&&request.method==='GET')return response(await read(env));
   if(url.pathname==='/api/draw/pairs'&&request.method==='POST')return prepare(env,await readBody(request,16384));
   if(url.pathname==='/api/draw/pairs/reset'&&request.method==='POST')return resetPairs(env,await readBody(request,1024));
+  if(url.pathname==='/api/draw/team-name'&&request.method==='POST')return renameTeam(env,await readBody(request,2048));
   if(url.pathname==='/api/tournament/replay'&&request.method==='POST')return replay(env,await readBody(request,1024));
   if(url.pathname==='/api/tournament/reopen'&&request.method==='POST')return reopen(env,await readBody(request,1024));
   if(url.pathname==='/api/draw/start'&&request.method==='POST')return announce(env,await readBody(request,1024));
