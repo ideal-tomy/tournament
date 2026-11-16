@@ -3,6 +3,7 @@ import {
   computeBracketLayout,
   isConnectorHighlighted,
   resolveTeamId,
+  type BracketBoardSide,
   type BracketKind,
   type StageData,
 } from './layout';
@@ -23,6 +24,8 @@ interface BracketViewProps {
   layoutData?: StageData;
   /** 表示範囲をこの試合群の段へ寄せ、終わった試合を暗くする */
   focusMatchIds?: number[];
+  /** 章に合わせて片方だけ大きく出す */
+  boardSide?: BracketBoardSide;
 }
 
 export default function BracketView({
@@ -35,16 +38,25 @@ export default function BracketView({
   suppressConnectorHighlight = false,
   layoutData,
   focusMatchIds,
+  boardSide = 'all',
 }: BracketViewProps) {
-  const L = computeBracketLayout(layoutData??data);
+  const L = computeBracketLayout(layoutData??data, undefined, boardSide);
   const focus = (focusMatchIds ?? []).map((id) => L.byId[id]).filter((m) => m != null);
   let viewBox = `0 0 ${L.width} ${L.height}`;
   if (focus.length) {
-    const top = Math.min(...focus.map((m) => m.box.y));
-    const bottom = Math.max(...focus.map((m) => m.box.y + m.box.h));
-    const height = Math.min(L.height, Math.max(L.height * 0.55, bottom - top + 240));
+    const related = L.matches.filter((m) =>
+      focus.some((f) => f.matchId === m.matchId || Math.abs(f.box.y - m.box.y) < f.box.h * 2.2),
+    );
+    const region = related.length ? related : focus;
+    const top = Math.min(...region.map((m) => m.box.y));
+    const bottom = Math.max(...region.map((m) => m.box.y + m.box.h));
+    const left = Math.min(...region.map((m) => m.box.x));
+    const right = Math.max(...region.map((m) => m.box.x + m.box.w));
+    const height = Math.min(L.height, Math.max(L.height * 0.42, bottom - top + 220));
+    const width = Math.min(L.width, Math.max(L.width * 0.42, right - left + 220));
     const y = Math.max(0, Math.min(L.height - height, (top + bottom) / 2 - height / 2));
-    viewBox = `0 ${y} ${L.width} ${height}`;
+    const x = Math.max(0, Math.min(L.width - width, (left + right) / 2 - width / 2));
+    viewBox = `${x} ${y} ${width} ${height}`;
   }
 
   const wbMatches = L.matches.filter((m) => m.bracket === 'winner');
@@ -288,35 +300,28 @@ function VerticalSlotContent({
   const pad = compact || facesOnly ? 2 : 3;
   const cx = x + w / 2;
   const fontSize = compact ? 7 : 8;
-  const faceGap = facesOnly ? 2 : 2;
-  const faceSize = Math.min(
-    w - pad * 2,
-    facesOnly
-      ? Math.floor((h - pad * 2 - faceGap) / 2)
-      : compact
-        ? 16
-        : 20,
-  );
+  const faceGap = 2;
 
   if (isEmpty) {
     if (facesOnly) return null;
+    const byeSize = Math.min(w - pad * 2, compact ? 16 : 20);
     return (
       <g>
         <image
           href={placeholderFace}
-          x={cx - faceSize / 2}
+          x={cx - byeSize / 2}
           y={y + pad + 4}
-          width={faceSize}
-          height={faceSize}
+          width={byeSize}
+          height={byeSize}
           opacity={0.35}
         />
         <VerticalText
           x={cx}
-          y={y + pad + faceSize + 12}
+          y={y + pad + byeSize + 12}
           text="BYE"
           fontSize={fontSize}
           fill="#64748b"
-          maxHeight={h - faceSize - pad * 2 - 14}
+          maxHeight={h - byeSize - pad * 2 - 14}
         />
       </g>
     );
@@ -331,29 +336,30 @@ function VerticalSlotContent({
 
   const faceUrls =
     faces.length > 0 ? faces : names.map(() => placeholderFace);
-  const count = Math.max(faceUrls.length, names.length);
+  const count = Math.min(2, Math.max(faceUrls.length, names.length, 1));
   const displayFaces = Array.from(
     { length: count },
     (_, i) => faceUrls[i] ?? placeholderFace,
   );
   const nameColumn = names.join('・');
-
-  let faceBottom = y + pad + (facesOnly ? 1 : 2);
-  const faceNodes = displayFaces.map((faceUrl, i) => {
-    const faceY = faceBottom + i * (faceSize + faceGap);
-    return (
-      <image
-        key={`face-${i}-${faceUrl}`}
-        href={faceUrl}
-        x={cx - faceSize / 2}
-        y={faceY}
-        width={faceSize}
-        height={faceSize}
-        preserveAspectRatio="xMidYMid slice"
-      />
-    );
-  });
-  faceBottom += count * faceSize + Math.max(0, count - 1) * faceGap;
+  const faceSize =
+    count > 1
+      ? Math.min(Math.floor((w - pad * 2 - faceGap) / 2), Math.floor(h - pad * 2 - (facesOnly ? 0 : 14)))
+      : Math.min(w - pad * 2, facesOnly ? h - pad * 2 : compact ? 16 : 20);
+  const rowWidth = count * faceSize + Math.max(0, count - 1) * faceGap;
+  const faceLeft = x + (w - rowWidth) / 2;
+  const faceTop = y + pad + (facesOnly ? Math.max(0, (h - pad * 2 - faceSize) / 2) : 2);
+  const faceNodes = displayFaces.map((faceUrl, i) => (
+    <image
+      key={`face-${i}-${faceUrl}`}
+      href={faceUrl}
+      x={faceLeft + i * (faceSize + faceGap)}
+      y={faceTop}
+      width={faceSize}
+      height={faceSize}
+      preserveAspectRatio="xMidYMid slice"
+    />
+  ));
 
   if (facesOnly) {
     return (
@@ -364,7 +370,7 @@ function VerticalSlotContent({
     );
   }
 
-  const nameY = faceBottom + (compact ? 4 : 6);
+  const nameY = faceTop + faceSize + (compact ? 4 : 6);
   const nameMaxH = y + h - pad - nameY;
 
   return (

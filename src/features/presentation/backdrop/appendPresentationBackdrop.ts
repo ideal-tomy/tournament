@@ -73,9 +73,9 @@ export function appendPairCelebration(tl: Timeline, root: Element, pairStage: El
   const scrim = layer(root, 'pair', 'scrim');
   const rings = pairStage.querySelector('.pc-rings'), flare = pairStage.querySelector('.pc-flare');
   const cards = [...pairStage.querySelectorAll<HTMLElement>('.pc-card')];
-  const teamNo = pairStage.querySelector('.pc-team-no'), title = pairStage.querySelector('.pc-title'), next = pairStage.querySelector('.pc-next');
+  const teamNo = pairStage.querySelector('.pc-team-no'), title = pairStage.querySelector('.pc-title');
   const venue = pairStage.querySelector('.pc-venue-name');
-  const entering = [rings, ...cards, teamNo, title, venue, next].filter((element): element is Element => element != null);
+  const entering = [rings, ...cards, teamNo, title, venue].filter((element): element is Element => element != null);
   if (entering.length) tl.set(entering, { autoAlpha: 0 }, at);
   if (scrim) {
     tl.fromTo(scrim, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.3, ease: 'power2.out', immediateRender: false }, at)
@@ -93,7 +93,6 @@ export function appendPairCelebration(tl: Timeline, root: Element, pairStage: El
   if (title) tl.fromTo(title, { autoAlpha: 0, scale: 1.4 }, { autoAlpha: 1, scale: 1, duration: 0.5, ease: 'expo.out', immediateRender: false }, at + 0.55);
   if (venue) tl.fromTo(venue, { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, duration: 0.45, ease: 'power2.out', immediateRender: false }, at + 0.72);
   if (teamNo) tl.fromTo(teamNo, { autoAlpha: 0, y: -16 }, { autoAlpha: 1, y: 0, duration: 0.4, immediateRender: false }, at + 0.75);
-  if (next) tl.fromTo(next, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5, immediateRender: false }, at + 1.4);
 }
 
 /** WIN celebration → build-up → VS impact, aligned with postMatchTiming. */

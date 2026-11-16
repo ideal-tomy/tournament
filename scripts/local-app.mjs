@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
@@ -57,7 +57,23 @@ try {
     mkdirSync(resolve(root, 'cloudflare/local'), { recursive: true });
     const secretFile = resolve(root, 'cloudflare/local/.dev.vars');
     if (!existsSync(secretFile)) {
-      writeFileSync(secretFile, `REHEARSAL_ACCESS_CODE=${randomBytes(18).toString('base64url')}\nSESSION_SECRET=${randomBytes(32).toString('hex')}\n`, { flag: 'wx', mode: 0o600 });
+      // Prefer the deployed access code so local and production share one confirmation code.
+      let access = null;
+      const accessNote = resolve(root, '.checkin-access.local');
+      if (existsSync(accessNote)) {
+        const match = readFileSync(accessNote, 'utf8').match(/確認コード:\s*(\S+)/);
+        if (match) access = match[1];
+      }
+      const checkinVars = resolve(root, 'cloudflare/checkin/.dev.vars');
+      if (!access && existsSync(checkinVars)) {
+        const match = readFileSync(checkinVars, 'utf8').match(/^REHEARSAL_ACCESS_CODE=(.+)$/m);
+        if (match) access = match[1].trim();
+      }
+      writeFileSync(
+        secretFile,
+        `REHEARSAL_ACCESS_CODE=${access || randomBytes(18).toString('base64url')}\nSESSION_SECRET=${randomBytes(32).toString('hex')}\n`,
+        { flag: 'wx', mode: 0o600 },
+      );
     }
     if (mode === 'dev' || !existsSync(resolve(root, 'dist-checkin/index.html'))) {
       await run(resolve(root, 'node_modules/typescript/bin/tsc'), ['-b']);
@@ -67,7 +83,7 @@ try {
     await run(wrangler, ['d1', 'migrations', 'apply', 'DB', '--config', config, '--local', '--persist-to', storage]);
     await run(wrangler, ['d1', 'execute', 'DB', '--config', config, '--local', '--persist-to', storage, '--file', 'cloudflare/local/seed.sql']);
     if (mode !== 'setup') {
-      console.log(`\nCloudflare app: http://localhost:${port}/rehearsal\nAccess code: REHEARSAL_ACCESS_CODE in cloudflare/local/.dev.vars (local only).\nCreate a rehearsal first; open Admin/Display using the links with ?run=...\n`);
+      console.log(`\nCloudflare app: http://localhost:${port}/rehearsal\nAccess code: same as deploy (.checkin-access.local / cloudflare/local/.dev.vars).\nCreate a rehearsal first; open Admin/Display using the links with ?run=...\n`);
       if (mode === 'dev') {
         const watcher = start(resolve(root, 'node_modules/vite/bin/vite.js'), ['build', '--config', 'vite.checkin.config.ts', '--watch', '--emptyOutDir', 'false']);
         watcher.once('exit', code => { if (!stopping) stop(code || 1); });

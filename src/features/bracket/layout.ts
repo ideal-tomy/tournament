@@ -228,9 +228,9 @@ function isSlotFilled(op: BMOpponent | null | undefined): boolean {
   return op?.id != null;
 }
 
-/** Losers / GF は参加者が入った試合のみ表示（WB は全ラウンド表示） */
+/** ウィナーズとルーザーズは空枠も含めて全ラウンド表示。GF は参加者が入った試合のみ。 */
 export function isMatchVisibleForDisplay(meta: MatchMeta): boolean {
-  if (meta.bracket === 'winner') return true;
+  if (meta.bracket === 'winner' || meta.bracket === 'loser') return true;
   return isSlotFilled(meta.match.opponent1) || isSlotFilled(meta.match.opponent2);
 }
 
@@ -398,18 +398,24 @@ function placeTreeSection(
   return layouts;
 }
 
+export type BracketBoardSide = 'winners' | 'losers' | 'grand_final' | 'all';
+
 export function computeBracketLayout(
   data: StageData,
   cfg: LayoutConfig = DEFAULT_LAYOUT,
+  boardSide: BracketBoardSide = 'all',
 ): BracketLayout {
   const allMetas = buildMatchMetas(data);
   const visibleIds = new Set(filterVisibleMetas(allMetas).map((m) => m.match.id));
   const metas = allMetas;
-  const wbMetas = metas.filter((m) => m.bracket === 'winner');
-  const lbMetas = metas.filter((m) => m.bracket === 'loser' && visibleIds.has(m.match.id));
-  const gfMetas = metas.filter(
-    (m) => m.bracket === 'grand_final' && visibleIds.has(m.match.id),
-  );
+  const showWb = boardSide === 'all' || boardSide === 'winners';
+  const showLb = boardSide === 'all' || boardSide === 'losers';
+  const showGf = boardSide === 'all' || boardSide === 'grand_final';
+  const wbMetas = showWb ? metas.filter((m) => m.bracket === 'winner') : [];
+  const lbMetas = showLb ? metas.filter((m) => m.bracket === 'loser' && visibleIds.has(m.match.id)) : [];
+  const gfMetas = showGf
+    ? metas.filter((m) => m.bracket === 'grand_final' && visibleIds.has(m.match.id))
+    : [];
 
   const wbMaxRound = wbMetas.reduce((mx, m) => Math.max(mx, m.round), 0);
   const lbMaxRound = lbMetas.reduce((mx, m) => Math.max(mx, m.round), 0);
@@ -456,6 +462,8 @@ export function computeBracketLayout(
   }
   for (const link of buildDropConnectors(metas)) {
     if (!visibleIds.has(link.from) || !visibleIds.has(link.to)) continue;
+    const source = data.match.find((m) => m.id === link.from);
+    if (!source || source.status < Status.Completed) continue;
     const from = byId[link.from];
     const to = byId[link.to];
     if (!from || !to) continue;

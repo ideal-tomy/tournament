@@ -16,9 +16,9 @@ const RING_CENTER_Y = 506;
 export default function PairConfirmed({ teamNumber, members, teamLabel }: PairConfirmedProps) {
   const stageRef = useRef<HTMLDivElement>(null);
   const isPair = members.length === 2;
-  const width = members.length >= 3 ? 240 : 300;
+  const width = members.length >= 3 ? 280 : 380;
   const height = width * 1.5;
-  const slots = cardSlots(members.length, width, members.length >= 3 ? 24 : 36);
+  const slots = cardSlots(members.length, width, members.length >= 3 ? 24 : 40);
 
   return (
     <section className="draw-pair-stage invisible pointer-events-none absolute inset-0 z-40">
@@ -33,7 +33,11 @@ export default function PairConfirmed({ teamNumber, members, teamLabel }: PairCo
         <div className="pc-flare" />
         <p className="cer-text pc-team-no">TEAM {String(teamNumber).padStart(2, '0')}</p>
         <h2 className="cer-text cer-gold pc-title">{isPair ? 'PAIR CONFIRMED' : 'TEAM CONFIRMED'}</h2>
-        {teamLabel && <p className="cer-text pc-venue-name cer-gold">{teamLabel}</p>}
+        {teamLabel && (
+          <div className="pc-name-bar">
+            <p className="pc-venue-name">{teamLabel}</p>
+          </div>
+        )}
         {members.map((member, index) => (
           <article
             key={member.id}
@@ -44,7 +48,6 @@ export default function PairConfirmed({ teamNumber, members, teamLabel }: PairCo
             <p className="cer-card-name"><RatedName text={member.displayName} /></p>
           </article>
         ))}
-        <p className="cer-text pc-next">NEXT DRAW COMING UP</p>
       </CeremonyFrame>
     </section>
   );

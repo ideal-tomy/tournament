@@ -19,8 +19,12 @@ describe('ceremony boards', () => {
     const markup = renderToStaticMarkup(<WinnerBoard team={blue} opponent={red} />);
     expect(markup).toContain('WINNER');
     expect(markup).toContain('NAME 01');
-    expect(markup).toContain('vs TEAM RED');
-    expect(markup).not.toContain('NAME 03');
+    expect(markup).toContain('left:600px;top:276px;width:320px;height:480px');
+    expect(markup).toContain('TEAM RED');
+    expect(markup).toContain('敗退');
+    expect(markup).toContain('wb-drop-arrow');
+    expect(markup).toContain('wb-drop-faces');
+    expect(markup).not.toContain('wb-morph');
     expect(markup).toContain('winner-shaft.webp');
   });
 
@@ -52,6 +56,7 @@ describe('ceremony boards', () => {
     expect(full.indexOf('pd-place-3')).toBeLessThan(full.indexOf('pd-place-2'));
     expect(full.indexOf('pd-place-2')).toBeLessThan(full.indexOf('pd-place-1'));
     expect(full).toContain('TEAM GREEN');
+    expect(full).not.toContain('PODIUM');
     const two = renderToStaticMarkup(<PodiumBoard first={blue} second={red} />);
     expect(two).not.toContain('pd-place-3');
   });

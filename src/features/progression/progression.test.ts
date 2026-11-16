@@ -10,12 +10,16 @@ import {
 import type { StageData } from '../bracket/layout';
 import {
   applyResult,
-  getBottomTierMatches,
+  getChapterMatches,
+  COURT_WAIT,
+  explainCourtFillWait,
+  getCourtFillMatches,
   getChampionTeamId,
   getFinalPlacements,
   getMatchBracketKind,
-  getMatchTier,
+  getMatchRoundLabel,
   getNextMatch,
+  getSlotTeamUuid,
   isTournamentFinished,
 } from './progression';
 
@@ -159,41 +163,162 @@ describe('progression — grand final reset', () => {
   });
 });
 
-describe('progression — bottom tier first', () => {
-  it('8 チーム DE: ウィナーズ1回戦とルーザーズ1回戦を2回戦より先に返す', async () => {
+describe('progression — chapter schedule', () => {
+  it('8 チーム DE: 無敗4チームになったあとルーザーへ入り、ウィナー2回戦の前に戻さない', async () => {
     let snapshot = await buildSnapshotForTeamCount(8);
     let data = toStageData(snapshot);
-    const first = getBottomTierMatches(data);
+    const first = getChapterMatches(data);
     expect(first).toHaveLength(4);
-    expect(first.every((m) => getMatchBracketKind(data, m) === 'winner' && getMatchTier(data, m) === 1)).toBe(true);
+    expect(first.every((m) => getMatchBracketKind(data, m) === 'winner' && getMatchRoundLabel(data, m) === 1)).toBe(true);
     for (const match of first) {
       const manager = createManagerFromSnapshot(snapshot);
       await applyResult(manager, toStageData(snapshot), match.id, 0, match.id);
       snapshot = await exportSnapshot(manager);
     }
     data = toStageData(snapshot);
-    const second = getBottomTierMatches(data);
-    expect(second.map((m) => getMatchBracketKind(data, m))).toEqual(['loser', 'loser']);
-    expect(second.every((m) => getMatchTier(data, m) === 1)).toBe(true);
-    expect(getBottomTierMatches(data, new Set(second.map((m) => m.id)))).toEqual([]);
+    const second = getChapterMatches(data);
+    expect(second.length).toBeGreaterThan(0);
+    expect(second.every((m) => getMatchBracketKind(data, m) === 'loser')).toBe(true);
+    for (let guard = 0; guard < 20; guard += 1) {
+      const chapter = getChapterMatches(toStageData(snapshot));
+      if (!chapter.length || getMatchBracketKind(toStageData(snapshot), chapter[0]) !== 'loser') break;
+      for (const match of chapter) {
+        const manager = createManagerFromSnapshot(snapshot);
+        await applyResult(manager, toStageData(snapshot), match.id, 0, match.id);
+        snapshot = await exportSnapshot(manager);
+      }
+    }
+    data = toStageData(snapshot);
+    const back = getChapterMatches(data);
+    expect(back.length).toBeGreaterThan(0);
+    expect(back.every((m) => getMatchBracketKind(data, m) === 'winner' && getMatchRoundLabel(data, m) >= 2)).toBe(true);
   });
 
-  it.each([8, 18])('%i チーム DE: 下の段を終えてから上の段へ進み、優勝まで届く', async (count) => {
+  it.each([8, 20])('%i チーム DE: 無敗が4チームになるまでルーザーを出さず、優勝まで届く', async (count) => {
     let snapshot = await buildSnapshotForTeamCount(count);
-    let tier = 0;
-    for (let guard = 0; guard < 200; guard++) {
+    let sawLoser = false;
+    for (let guard = 0; guard < 400; guard++) {
       const data = toStageData(snapshot);
-      const [match] = getBottomTierMatches(data);
+      const [match] = getChapterMatches(data);
       if (!match) break;
-      const at = getMatchTier(data, match);
-      expect(at).toBeGreaterThanOrEqual(tier);
-      tier = at;
+      const kind = getMatchBracketKind(data, match);
+      const round = getMatchRoundLabel(data, match);
+      if (kind === 'loser') {
+        sawLoser = true;
+        const field = count <= 4 ? 0 : Math.round(Math.log2(2 ** Math.ceil(Math.log2(count)) / 4));
+        const fieldOpen = data.match.some(
+          (m) =>
+            getMatchBracketKind(data, m) === 'winner' &&
+            getMatchRoundLabel(data, m) <= field &&
+            m.status < Status.Completed &&
+            m.opponent1 !== null &&
+            m.opponent2 !== null,
+        );
+        expect(fieldOpen).toBe(false);
+      } else if (kind === 'winner' && round <= (count <= 4 ? 0 : Math.round(Math.log2(2 ** Math.ceil(Math.log2(count)) / 4)))) {
+        expect(sawLoser).toBe(false);
+      }
       const manager = createManagerFromSnapshot(snapshot);
       await applyResult(manager, data, match.id, 0, match.id);
       snapshot = await exportSnapshot(manager);
       if (await isTournamentFinished(createManagerFromSnapshot(snapshot))) break;
     }
+    expect(sawLoser).toBe(true);
     expect(await getChampionTeamId(createManagerFromSnapshot(snapshot))).toMatch(/^team-\d+$/);
+  });
+});
+
+describe('progression — court fill', () => {
+  it('8チームは1回戦のあと、進行中のルーザー回戦だけを返す', async () => {
+    let snapshot = await buildSnapshotForTeamCount(8);
+    for (const match of getChapterMatches(toStageData(snapshot))) {
+      const manager = createManagerFromSnapshot(snapshot);
+      await applyResult(manager, toStageData(snapshot), match.id, 0, match.id);
+      snapshot = await exportSnapshot(manager);
+    }
+    const data = toStageData(snapshot);
+    const chapter = getChapterMatches(data);
+    expect(chapter.every((m) => getMatchBracketKind(data, m) === 'loser')).toBe(true);
+    const [running] = chapter;
+    const manager = createManagerFromSnapshot(snapshot);
+    await manager.update.match({ id: running.id, status: Status.Running });
+    snapshot = await exportSnapshot(manager);
+    const after = toStageData(snapshot);
+    const fill = getCourtFillMatches(after, new Set([running.id]));
+    expect(fill.matches.length).toBeGreaterThan(0);
+    expect(fill.matches.every((m) => m.id !== running.id && getMatchBracketKind(after, m) === 'loser')).toBe(true);
+  });
+
+  it('20チームは未出場を先に入れ、ウィナー2回戦が終わるまでルーザーを出さない', async () => {
+    let snapshot = await buildSnapshotForTeamCount(20);
+    const playChapter = async () => {
+      for (const match of getChapterMatches(toStageData(snapshot))) {
+        const manager = createManagerFromSnapshot(snapshot);
+        await applyResult(manager, toStageData(snapshot), match.id, 0, match.id);
+        snapshot = await exportSnapshot(manager);
+      }
+    };
+    await playChapter();
+    const afterR1 = toStageData(snapshot);
+    const fill = getCourtFillMatches(afterR1).matches;
+    const played = new Set<string>();
+    for (const match of afterR1.match) {
+      if (match.status < Status.Completed || match.opponent1?.id == null || match.opponent2?.id == null) continue;
+      for (const slot of [0, 1] as const) {
+        const id = getSlotTeamUuid(afterR1, match, slot);
+        if (id) played.add(id);
+      }
+    }
+    const load = (match: (typeof fill)[number]) =>
+      [0, 1].reduce((sum, slot) => sum + (played.has(getSlotTeamUuid(afterR1, match, slot as 0 | 1) ?? '') ? 1 : 0), 0);
+    expect(fill.length).toBeGreaterThan(1);
+    expect(fill.every((m) => getMatchBracketKind(afterR1, m) === 'winner' && getMatchRoundLabel(afterR1, m) === 2)).toBe(true);
+    expect(load(fill[0])).toBe(0);
+    expect(Math.min(...fill.map(load))).toBe(load(fill[0]));
+    const rested = new Set(
+      [getSlotTeamUuid(afterR1, fill.find((m) => load(m) > 0) ?? fill[0], 0), getSlotTeamUuid(afterR1, fill.find((m) => load(m) > 0) ?? fill[0], 1)].filter(
+        (id): id is string => !!id,
+      ),
+    );
+    const deferred = getCourtFillMatches(afterR1, new Set(), rested);
+    expect(deferred.matches[0] && load(deferred.matches[0])).toBe(0);
+    await playChapter();
+    const afterR2 = toStageData(snapshot);
+    expect(getCourtFillMatches(afterR2).matches.every((m) => getMatchBracketKind(afterR2, m) === 'winner' && getMatchRoundLabel(afterR2, m) === 3)).toBe(true);
+    await playChapter();
+    const afterR3 = toStageData(snapshot);
+    expect(getCourtFillMatches(afterR3).matches.every((m) => getMatchBracketKind(afterR3, m) === 'loser')).toBe(true);
+  });
+
+  it('直前のチームを含む試合は、他に候補があるとき後回しにする', async () => {
+    const snapshot = await buildSnapshotForTeamCount(8);
+    const data = toStageData(snapshot);
+    const ready = getCourtFillMatches(data).matches;
+    expect(ready.length).toBeGreaterThan(1);
+    const first = ready[0];
+    const rest = new Set(
+      [getSlotTeamUuid(data, first, 0), getSlotTeamUuid(data, first, 1)].filter((id): id is string => !!id),
+    );
+    const deferred = getCourtFillMatches(data, new Set(), rest);
+    expect(deferred.deferredRest).toBe(true);
+    expect(explainCourtFillWait(data, new Set(), rest)).toBe(COURT_WAIT.rest);
+    expect(deferred.matches[0]?.id).not.toBe(first.id);
+    const only = getCourtFillMatches(data, new Set(ready.slice(1).map((m) => m.id)), rest);
+    expect(only.matches.map((m) => m.id)).toContain(first.id);
+  });
+
+  it('同じ回戦がまだ終わっていない空欄は、次の回戦を待たせる', async () => {
+    const snapshot = await buildSnapshotForTeamCount(8);
+    const data = toStageData(snapshot);
+    const ready = getCourtFillMatches(data).matches;
+    expect(explainCourtFillWait(data)).toBeNull();
+    const running = ready[0];
+    const manager = createManagerFromSnapshot(snapshot);
+    await manager.update.match({ id: running.id, status: Status.Running });
+    const after = toStageData(await exportSnapshot(manager));
+    const exclude = new Set([...getCourtFillMatches(after).matches.map((m) => m.id), running.id]);
+    expect(getCourtFillMatches(after, exclude).matches).toEqual([]);
+    expect(explainCourtFillWait(after, exclude)).toBe(COURT_WAIT.round);
   });
 });
 

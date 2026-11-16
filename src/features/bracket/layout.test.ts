@@ -97,11 +97,12 @@ describe('computeBracketLayout', () => {
     assertLayout(data);
   });
 
-  it('初期状態では Losers / GF を非表示（参加者が入るまで）', async () => {
+  it('初期状態でも Losers の枠と進線を出し、GF は参加者確定まで隠す', async () => {
     const data = await buildSnapshotForTeamCount(16);
     const L = computeBracketLayout(toStageData(data));
     expect(L.matches.filter((m) => m.bracket === 'winner').length).toBeGreaterThan(0);
-    expect(L.matches.filter((m) => m.bracket === 'loser').length).toBe(0);
+    expect(L.matches.filter((m) => m.bracket === 'loser').length).toBeGreaterThan(0);
+    expect(L.connectors.some((c) => c.kind === 'advance')).toBe(true);
     expect(L.matches.filter((m) => m.bracket === 'grand_final').length).toBe(0);
     expect(L.connectors.filter((c) => c.kind === 'drop').length).toBe(0);
   });

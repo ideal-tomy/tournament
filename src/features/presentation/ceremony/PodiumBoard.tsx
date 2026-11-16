@@ -9,18 +9,24 @@ const COLUMN = 440;
 const GAP = 18;
 /** Introduced in this order: 3rd, then 2nd, then the champion. */
 const PLACES = [
-  { rank: 3, label: '3位', center: 1440, height: 150, card: 150 },
-  { rank: 2, label: '2位', center: 480, height: 220, card: 168 },
-  { rank: 1, label: '優勝', center: 960, height: 300, card: 190 },
+  { rank: 3, label: '3位', center: 1440, height: 150, card: 132 },
+  { rank: 2, label: '2位', center: 480, height: 220, card: 150 },
+  { rank: 1, label: '優勝', center: 960, height: 360, card: 340 },
 ] as const;
+const SECOND_PHOTO_TOP =
+  FLOOR - PLACES[1].height - 46 - Math.round(PLACES[1].card * 1.35);
 const APPEAR = 0.28;
-const HOLD = 2;
+const HOLD_OTHER = 2;
+const HOLD_CHAMPION = 3.2;
 const MOVE = 1.05;
-const STEP = APPEAR + HOLD + MOVE + 0.4;
 
 function listed(value?: CeremonyTeam | CeremonyTeam[]) {
   if (!value) return [];
   return Array.isArray(value) ? value : [value];
+}
+
+function holdFor(rank: number) {
+  return rank === 1 ? HOLD_CHAMPION : HOLD_OTHER;
 }
 
 /** Scale the resting cards until they fill the stage, then hold that size. */
@@ -63,20 +69,28 @@ export default function PodiumBoard({ first, second, third, ...intro }: Ceremony
   const stageRef = useRef<HTMLDivElement>(null);
   const teams: Record<1 | 2 | 3, CeremonyTeam[]> = { 1: [first], 2: listed(second), 3: listed(third) };
   const shown = PLACES.filter(place => teams[place.rank].length);
-  const introEnd = 0.4 + Math.max(0, shown.length - 1) * STEP + APPEAR + HOLD + MOVE;
+  let cursor = 0.4;
+  const timings = shown.map((place) => {
+    const appearAt = cursor;
+    const hit = appearAt + APPEAR;
+    const hold = holdFor(place.rank);
+    const settleAt = hit + hold;
+    cursor = settleAt + MOVE + 0.4;
+    return { place, appearAt, hit, hold, settleAt };
+  });
+  const introEnd = cursor;
   useCeremonyIntro(stageRef, introEnd, (tl, cue) => {
     tl.set('.pd-block', { scaleY: 0, transformOrigin: '50% 100%' })
-      .set('.pd-flight', { autoAlpha: 0 })
-      .fromTo('.pd-title', { autoAlpha: 0, y: -30 }, { autoAlpha: 1, y: 0, duration: 0.5, ease: 'power2.out' }, 0);
-    shown.forEach((place, index) => {
-      const hit = 0.4 + index * STEP + APPEAR;
+      .set('.pd-flight', { autoAlpha: 0 });
+    timings.forEach(({ place, appearAt, hit, settleAt }) => {
       const flight = `.pd-flight-${place.rank}`;
       const zoom = closeUp(place, teams[place.rank]);
+      const restScale = place.rank === 1 ? 1.08 : 1;
       tl.set(flight, { x: zoom.x, y: zoom.y, scale: zoom.scale, autoAlpha: 0, zIndex: 4, transformOrigin: zoom.origin }, 0)
-        .to(flight, { autoAlpha: 1, duration: APPEAR, ease: 'power2.out' }, hit - APPEAR)
+        .to(flight, { autoAlpha: 1, duration: APPEAR, ease: 'power2.out' }, appearAt)
         .fromTo('.pd-flash', { autoAlpha: 0 }, { autoAlpha: 0.82, duration: 0.05, yoyo: true, repeat: 1 }, hit)
-        .to(flight, { x: 0, y: 0, scale: 1, zIndex: 1, duration: MOVE, ease: 'power2.inOut' }, hit + HOLD)
-        .to(`.pd-place-${place.rank} .pd-block`, { scaleY: 1, duration: 0.55, ease: 'power3.out' }, hit + HOLD);
+        .to(flight, { x: 0, y: 0, scale: restScale, zIndex: place.rank === 1 ? 3 : 1, duration: MOVE, ease: 'power2.inOut' }, settleAt)
+        .to(`.pd-place-${place.rank} .pd-block`, { scaleY: 1, duration: 0.55, ease: 'power3.out' }, settleAt);
       cue('pairImpact', hit);
     });
   }, intro);
@@ -85,7 +99,6 @@ export default function PodiumBoard({ first, second, third, ...intro }: Ceremony
     <div className="cer-img pd-bg" style={{ backgroundImage: `url(${FX.backgrounds.championCorona})` }} />
     <div className="cer-vignette" />
     <div className="pd-flash" />
-    <h2 className="cer-text cer-gold pd-title">PODIUM</h2>
     {shown.map(place => {
       const group = teams[place.rank];
       const teamWidth = (COLUMN - GAP * (group.length - 1)) / group.length;
@@ -97,14 +110,16 @@ export default function PodiumBoard({ first, second, third, ...intro }: Ceremony
             const center = place.center - COLUMN / 2 + teamWidth / 2 + teamIndex * (teamWidth + GAP);
             const width = Math.min(place.card, (teamWidth - 8 * Math.max(0, members.length - 1)) / members.length);
             const height = Math.round(width * 1.35);
-            const cardTop = blockTop - 46 - height;
+            const nameTop = place.rank === 1 ? SECOND_PHOTO_TOP - 72 : blockTop - 46 - height + height + 8;
+            const cardTop = place.rank === 1 ? Math.max(48, nameTop - height - 18) : blockTop - 46 - height;
+            const teamTop = place.rank === 1 ? nameTop : cardTop + height + 8;
             const slots = cardSlots(members.length, width, 8, center);
             return <div key={`${team.name}-${teamIndex}`}>
               {members.map((person, index) => <article key={`${person.name}-${index}`} className="cer-card pd-card" style={{ left: slots[index], top: cardTop, width, height }}>
                 {person.face ? <img src={person.face} alt={person.name} /> : <div className="cer-empty">?</div>}
                 <p className="cer-card-name"><RatedName text={person.name} /></p>
               </article>)}
-              <p className="pd-team cer-gold" style={{ left: center - teamWidth / 2, top: cardTop + height + 8, width: teamWidth }}>{team.name}</p>
+              <p className={`pd-team cer-gold${place.rank === 1 ? ' pd-team-champ' : ''}`} style={{ left: center - teamWidth / 2, top: teamTop, width: teamWidth }}>{team.name}</p>
             </div>;
           })}
         </div>

@@ -16,6 +16,7 @@ describe('PairConfirmed', () => {
 
     expect(markup).toContain('TEAM 01');
     expect(markup).toContain('PAIR CONFIRMED');
+    expect(markup).not.toContain('NEXT DRAW');
     expect(markup).toContain('RYOJI');
     expect(markup).toContain('TAKUMA');
     expect(markup).not.toContain('impact-mark');

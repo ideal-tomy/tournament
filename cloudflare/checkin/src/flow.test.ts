@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { setup } from './testSupport';
 import {toStageData,type BracketSnapshot} from '../../../src/features/bracket/manager';
-import {getMatchTier,getOpenTierMatches} from '../../../src/features/progression/progression';
-interface View {scene:string;version:number;sceneSeq:number;participants:{id:string;rating:number|null}[];session:{id:string}|null;flow:{ceremony:string|null;placements:{first:string;second:string[];third:string[]}|null;phase:string;nextMatch:unknown|null;currentMatch:{id:number;teamA:string;teamB:string;kind:string}|null;championTeamId:string|null;canStart:boolean;canAdvance:boolean;canGameStart:boolean;completedMatches:number};bracket:unknown;teams:{id:string}[]}
+import {getChapterMatches,getCourtFillMatches,getMatchBracketKind,getMatchRoundLabel} from '../../../src/features/progression/progression';
+interface View {scene:string;version:number;sceneSeq:number;participants:{id:string;rating:number|null}[];session:{id:string}|null;flow:{ceremony:string|null;placements:{first:string;second:string[];third:string[]}|null;phase:string;nextMatch:unknown|null;currentMatch:{id:number;teamA:string;teamB:string;kind:string;round:number}|null;championTeamId:string|null;canStart:boolean;canAdvance:boolean;canGameStart:boolean;completedMatches:number};bracket:unknown;teams:{id:string}[]}
 async function prepared(count=8){const s=setup();await s.login();for(let i=0;i<count;i++)await s.create(`player ${i}`);const reception=await s.request('/api/checkin/state').then(r=>r.json()) as {revision:number};await s.request('/api/checkin/close','POST',{requestId:crypto.randomUUID(),expectedRevision:reception.revision});expect((await s.pair()).status).toBe(200);expect((await s.request('/api/draw/start','POST',{requestId:crypto.randomUUID(),expectedVersion:1})).status).toBe(200);
  const view=()=>s.request('/api/draw/state').then(r=>r.json()) as Promise<View>;
  const age=()=>s.db.exec("UPDATE event_state SET scene_started_at=strftime('%Y-%m-%dT%H:%M:%fZ','now','-5 minutes')");
@@ -81,7 +81,7 @@ describe('one continuous tournament with automatic scheduling',()=>{
   expect((await s.command('courts-open',{count:4})).response.status).toBe(400);
   expect((await s.command('court-start',{board:1})).response.status).toBe(409);
   expect((await s.command('courts-open',{count:2})).response.status).toBe(200);
-  type Courts={count:number;spotlight:{kind:string;board:number;elapsed:number;winnerSec:number;resultPresentation:{match:{id:number}}|null}|null;boards:{board:number;matchId:number|null;stage:string;showing:boolean;match:{id:number;kind:string;roundName:string}|null}[]};
+  type Courts={count:number;spotlight:{kind:string;board:number;elapsed:number;winnerSec:number;resultPresentation:{match:{id:number}}|null}|null;boards:{board:number;matchId:number|null;stage:string;showing:boolean;match:{id:number;kind:string;round:number;roundName:string}|null}[]};
   const courts=async()=>{const v=await s.view();return {v,c:(v.flow as typeof v.flow&{courts:Courts|null}).courts};};
   let {v,c}=await courts();expect(v.scene).toBe('interval');expect(c!.boards.map(b=>b.stage)).toEqual(['call','call']);
   expect(c!.boards.every(b=>b.match?.roundName==='ウィナーズ 1回戦')).toBe(true);expect(new Set(c!.boards.map(b=>b.matchId)).size).toBe(2);
@@ -96,21 +96,36 @@ describe('one continuous tournament with automatic scheduling',()=>{
   const scored=await s.command('court-winner',{board:1,winnerSlot:0});expect(scored.response.status).toBe(200);
   ({v,c}=await courts());expect(c!.boards.map(b=>b.stage)).toEqual(['result','live']);expect(c!.boards[1].matchId).toBe(other);
   expect(c!.spotlight).toMatchObject({kind:'vs',board:2});expect((await s.command('court-next',{board:1})).response.status).toBe(409);
-  later(9);({v,c}=await courts());expect(c!.spotlight).toMatchObject({kind:'winner',board:1,winnerSec:6});expect(c!.spotlight!.resultPresentation!.match.id).toBe(c!.boards[0].matchId);
-  later(13);({v,c}=await courts());expect(c!.spotlight).toBeNull();
+  later(9);({v,c}=await courts());expect(c!.spotlight).toMatchObject({kind:'winner',board:1,winnerSec:9});expect(c!.spotlight!.resultPresentation!.match.id).toBe(c!.boards[0].matchId);
+  later(15);({v,c}=await courts());expect(c!.spotlight).toBeNull();
   expect(s.db.prepare("SELECT COUNT(*) n FROM matches WHERE status='in_progress'").get()!.n).toBe(1);
   expect((await s.request('/api/tournament/court-winner','POST',scored.body)).status).toBe(200);expect((await s.view()).version).toBe(v.version);
-  const tierOf=(view:View,id:number)=>{const data=toStageData(view.bracket as BracketSnapshot);return getMatchTier(data,data.match.find(m=>m.id===id)!);};
-  const lowestOpen=(view:View)=>{const data=toStageData(view.bracket as BracketSnapshot);return getMatchTier(data,getOpenTierMatches(data)[0]);};
+  const fillIds=(view:View,courtsState:Courts,exceptBoard?:number)=>{
+   const data=toStageData(view.bracket as BracketSnapshot);
+   const taken=new Set(courtsState.boards.flatMap(b=>b.board===exceptBoard||b.matchId==null?[]:[b.matchId]));
+   return new Set([
+    ...getChapterMatches(data,taken).map(m=>m.id),
+    ...getCourtFillMatches(data,taken).matches.map(m=>m.id),
+   ]);
+  };
+  const wbFieldOpen=(view:View)=>{const data=toStageData(view.bracket as BracketSnapshot);return data.match.some(m=>getMatchBracketKind(data,m)==='winner'&&getMatchRoundLabel(data,m)<=1&&m.status<4&&m.opponent1!==null&&m.opponent2!==null);};
   let guard=0,sawLoser=false;
-  while(v.scene==='interval'&&guard++<120){
-   for(const board of c!.boards){
-    later(30);
-    if(board.stage==='call'){expect(tierOf(v,board.matchId!)).toBe(lowestOpen(v));sawLoser||=board.match!.kind==='loser';expect((await s.command('court-start',{board:board.board})).response.status).toBe(200);}
-    else if(board.stage==='live')expect((await s.command('court-winner',{board:board.board,winnerSlot:0})).response.status).toBe(200);
-    else expect((await s.command('court-next',{board:board.board})).response.status).toBe(200);
-    ({v,c}=await courts());if(v.scene!=='interval')break;
-   }
+  while(v.scene==='interval'&&guard++<160){
+   later(30);
+   ({v,c}=await courts());if(v.scene!=='interval'||!c)break;
+   if(c.spotlight?.kind==='losers-intro')continue;
+   const board=c.boards.find(b=>b.stage==='call')??c.boards.find(b=>b.stage==='live')??c.boards.find(b=>b.stage==='result')??c.boards.find(b=>b.stage==='idle'&&b.matchId==null);
+   if(!board)break;
+   if(board.stage==='idle'){
+    expect((await s.command('court-next',{board:board.board})).response.status).toBe(200);
+   }else if(board.stage==='call'){
+    expect(fillIds(v,c,board.board).has(board.matchId!)).toBe(true);
+    if(board.match!.kind==='loser'){sawLoser=true;expect(wbFieldOpen(v)).toBe(false);}
+    else if(board.match!.kind==='winner'&&board.match!.round<=1)expect(sawLoser).toBe(false);
+    expect((await s.command('court-start',{board:board.board})).response.status).toBe(200);
+   }else if(board.stage==='live')expect((await s.command('court-winner',{board:board.board,winnerSlot:0})).response.status).toBe(200);
+   else expect((await s.command('court-next',{board:board.board})).response.status).toBe(200);
+   ({v,c}=await courts());
   }
   expect(sawLoser).toBe(true);expect(v.scene).toBe('bracket');
   }finally{vi.useRealTimers();}

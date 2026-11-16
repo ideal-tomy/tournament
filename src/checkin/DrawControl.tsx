@@ -16,16 +16,16 @@ import VenueOpening from './VenueOpening';
 
 const reviewDone = () => {};
 
-export interface FlowMatch {id:number;teamA:string;teamB:string;round:number;roundName?:string;kind:string;final:boolean}
+export interface FlowMatch {id:number;teamA:string;teamB:string;round:number;roundName?:string;kind:string;final:boolean;callout?:'semifinal'|'losers-semifinal'|'final'|'final-again'|null}
 export interface CourtBoard {board:number;matchId:number|null;stage:'idle'|'call'|'live'|'result';startedAt:string|null;winnerTeamId?:string|null;loserTeamId?:string|null;showing:boolean;match:FlowMatch|null}
 export type ResultPresentation={beforeBracket:BracketSnapshot;match:{id:number;teamA:string;teamB:string;round:number;kind:string;final:boolean};winnerTeamId:string};
-export interface CourtSpotlight {id:string;kind:'vs'|'winner';board:number;match:FlowMatch;elapsed:number;winnerSec:number;winnerTeamId:string|null;loserTeamId:string|null;resultPresentation:ResultPresentation|null}
+export interface CourtSpotlight {id:string;kind:'vs'|'winner'|'losers-intro';board:number;match:FlowMatch;elapsed:number;winnerSec:number;winnerTeamId:string|null;loserTeamId:string|null;resultPresentation:ResultPresentation|null}
 export type CeremonyStep='third'|'second'|'champion'|'podium';
 export interface Placements {first:string;second:string[];third:string[]}
 export interface DrawState {
  official?:boolean;
  format?:string; timingPreset?:'show'|'fast'; openingVersion?:string|null;
- flow: {ceremony?:CeremonyStep|null;placements?:Placements|null;resultPresentation?:ResultPresentation|null;phase:string;currentMatch:FlowMatch|null;courts?:{count:number;showBracket:boolean;spotlight:CourtSpotlight|null;boards:CourtBoard[]}|null;winnerTeamId:string|null;loserTeamId:string|null;championTeamId:string|null;lastMatchId:number|null;canGameStart:boolean;canAnnounce:boolean;canStart:boolean;canScore:boolean;canAdvance:boolean;completedMatches:number}|null;
+ flow: {ceremony?:CeremonyStep|null;placements?:Placements|null;resultPresentation?:ResultPresentation|null;phase:string;currentMatch:FlowMatch|null;boardSide?:'winners'|'losers'|'grand_final';losersIntroPlayed?:boolean;losersIntroPending?:boolean;losersIntroRemainingSec?:number;courts?:{count:number;showBracket:boolean;spotlight:CourtSpotlight|null;boards:CourtBoard[]}|null;nextMatch?:{id:number;teamA:string|null;teamB:string|null}|null;nextWaitReason?:string|null;winnerTeamId:string|null;loserTeamId:string|null;championTeamId:string|null;lastMatchId:number|null;canGameStart:boolean;canAnnounce:boolean;canStart:boolean;canScore:boolean;canAdvance:boolean;completedMatches:number}|null;
  eventId:string;title:string;checkinStatus:string;checkinRevision:number;scene:string;version:number;sceneSeq:number;
  elapsedSeconds:number;durationSec:number;canComplete:boolean;
  session:{id:string;revealOrder:string[];committedAt:string}|null;

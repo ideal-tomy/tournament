@@ -1,7 +1,9 @@
 import { Status } from 'brackets-model';
 import { createManagerFromSnapshot, exportSnapshot, toStageData, type BracketSnapshot } from '../../../src/features/bracket/manager';
-import { applyResult, getBottomTierMatches, getChampionTeamId, getFinalPlacements, getNextMatch, getSlotTeamUuid, getMatchBracketKind, getMatchRoundLabel, type FinalPlacements } from '../../../src/features/progression/progression';
+import { applyResult, explainCourtFillWait, getBoardSide, getChapterMatches, getCourtFillMatches, getChampionTeamId, getFinalPlacements, getNextMatch, getSlotTeamUuid, getMatchBracketKind, getMatchRoundLabel, type BoardSide, type FinalPlacements } from '../../../src/features/progression/progression';
 import type { BMMatch } from '../../../src/features/bracket/layout';
+import { openingTourDurationSec } from '../../../src/features/presentation/openingTourTiming';
+import { LOSERS_INTRO_TOTAL_SEC } from '../../../src/features/presentation/losersIntroTiming';
 import { rehearsalTiming } from '../../../src/lib/rehearsalTiming';
 import { eventProfile } from './profile';
 import { ClientError, hash, requestId, type CheckinEnv, type Statement } from './domain';
@@ -11,7 +13,7 @@ export type BoardStage='idle'|'call'|'live'|'result';
 export interface Board {board:number;matchId:number|null;stage:BoardStage;startedAt:string|null;winnerTeamId?:string|null;loserTeamId?:string|null}
 type ResultPresentation={beforeBracket:BracketSnapshot;match:{id:number;teamA:string|null;teamB:string|null;round:number;kind:string;final:boolean};winnerTeamId:string|null};
 /** One full-screen beat for a board. Beats queue: each starts when the previous one ends. */
-export interface Spotlight {id:string;board:number;kind:'vs'|'winner';matchId:number;at:string;durationSec:number;winnerSec?:number;winnerTeamId?:string|null;loserTeamId?:string|null;resultPresentation?:ResultPresentation}
+export interface Spotlight {id:string;board:number;kind:'vs'|'winner'|'losers-intro';matchId:number;at:string;durationSec:number;winnerSec?:number;winnerTeamId?:string|null;loserTeamId?:string|null;resultPresentation?:ResultPresentation}
 export interface Courts {count:number;boards:Board[];showBracket?:boolean;spotlights?:Spotlight[]}
 const spotlightEnd=(s:Spotlight)=>Date.parse(s.at)+s.durationSec*1000;
 const boardShowing=(courts:Courts,board:number,now:number)=>(courts.spotlights??[]).some(s=>s.board===board&&spotlightEnd(s)>now);
@@ -27,7 +29,12 @@ export type CeremonyStep='third'|'second'|'champion'|'podium';
 export function ceremonySteps(placements:FinalPlacements):CeremonyStep[]{
  return [...(placements.third.length?['third' as const]:[]),...(placements.second.length?['second' as const]:[]),'champion','podium'];
 }
-interface Payload {courts?:Courts;flow?:number;durationSec?:number;ceremony?:CeremonyStep;placements?:FinalPlacements;matchId?:number;teamA?:string|null;teamB?:string|null;winnerTeamId?:string|null;loserTeamId?:string|null;championTeamId?:string|null;lastMatchId?:number;drawSessionId?:string;resultPresentation?:ResultPresentation}
+interface Payload {courts?:Courts;flow?:number;durationSec?:number;ceremony?:CeremonyStep;placements?:FinalPlacements;matchId?:number;teamA?:string|null;teamB?:string|null;winnerTeamId?:string|null;loserTeamId?:string|null;championTeamId?:string|null;lastMatchId?:number;drawSessionId?:string;resultPresentation?:ResultPresentation;losersIntroPlayed?:boolean;losersIntroPending?:boolean;losersIntroUntil?:string|null}
+const losersGateRemaining=(payload:Payload,now=Date.now())=>{
+ if(!payload.losersIntroUntil)return 0;
+ return Math.max(0,(Date.parse(payload.losersIntroUntil)-now)/1000);
+};
+const losersGateActive=(payload:Payload,now=Date.now())=>losersGateRemaining(payload,now)>0;
 async function load(env:CheckinEnv){
  const row=await env.DB.prepare("SELECT s.*,e.bracket_snapshot,e.bm_current_match_id FROM event_state s JOIN events e ON e.id=s.event_id WHERE s.event_id=? AND e.environment='rehearsal'").bind(env.CHECKIN_EVENT_ID).first<Scene&{bracket_snapshot:string|null;bm_current_match_id:number|null}>();
  if(!row?.bracket_snapshot)throw new ClientError('DRAW_REQUIRED',409);
@@ -45,19 +52,43 @@ export async function flowView(env:CheckinEnv,projection?:Awaited<ReturnType<typ
  if(!value){try{value=await load(env);}catch(error){if(error instanceof ClientError&&error.code==='DRAW_REQUIRED')return null;throw error;}}
  const {scene,snapshot,payload,current}=value,data=toStageData(snapshot);
  const selected=current==null?null:data.match.find(m=>m.id===current);
- const upcoming=payload.championTeamId?null:getNextMatch({...data,match:data.match.filter(m=>m.id!==current)});
+ const takenForPreview=new Set((payload.courts?.boards??[]).flatMap(b=>b.matchId==null?[]:[b.matchId]));
+ if(current!=null)takenForPreview.add(current);
+ const restingPreview=new Set<string>();
+ for(const board of payload.courts?.boards??[]){
+  const live=board.matchId==null?null:data.match.find(m=>m.id===board.matchId);
+  if(live){
+   const a=getSlotTeamUuid(data,live,0),b=getSlotTeamUuid(data,live,1);
+   if(a)restingPreview.add(a);if(b)restingPreview.add(b);
+  }
+ }
+ const courtQueue=payload.courts?getCourtFillMatches(data,takenForPreview,restingPreview):null;
+ const upcoming=payload.championTeamId?null:(courtQueue?courtQueue.matches[0]:getChapterMatches(data,takenForPreview)[0])??null;
+ const nextWaitReason=payload.championTeamId||!payload.courts?null:explainCourtFillWait(data,takenForPreview,restingPreview);
  const single=snapshot.stage[0]?.type==='single_elimination';
  const finalRound=Math.max(...data.round.map(r=>r.number));
  const roundName=(round:number,kind:string)=>!single?kind==='winner'?`ウィナーズ ${round}回戦`:kind==='loser'?`ルーザーズ ${round}回戦`:round===1?'グランドファイナル':'グランドファイナル リセット':round===finalRound?'Final':round===finalRound-1?'Semi Final':round===finalRound-2?'Quarter Final':`Round of ${data.participant.length/2**(round-1)}`;
- const describe=(m:typeof data.match[number])=>{const round=getMatchRoundLabel(data,m),kind=getMatchBracketKind(data,m);return {id:m.id,teamA:getSlotTeamUuid(data,m,0),teamB:getSlotTeamUuid(data,m,1),round,roundName:roundName(round,kind),kind,final:isFinalMatch(snapshot,m)};};
+ const calloutFor=(kind:string,round:number):'semifinal'|'losers-semifinal'|'final'|'final-again'|null=>{
+  if(kind==='grand_final')return round===1?'final':'final-again';
+  if(single)return round===finalRound?'final':round===finalRound-1?'semifinal':null;
+  const maxRound=Math.max(0,...data.match.filter(m=>getMatchBracketKind(data,m)===kind).map(m=>getMatchRoundLabel(data,m)));
+  if(round===maxRound)return kind==='winner'?'final':kind==='loser'?'losers-semifinal':null;
+  if(round===maxRound-1)return 'semifinal';
+  return null;
+ };
+ const describe=(m:typeof data.match[number])=>{const round=getMatchRoundLabel(data,m),kind=getMatchBracketKind(data,m);return {id:m.id,teamA:getSlotTeamUuid(data,m,0),teamB:getSlotTeamUuid(data,m,1),round,roundName:roundName(round,kind),kind,final:isFinalMatch(snapshot,m),callout:calloutFor(kind,round)};};
  const currentMatch=selected?describe(selected):null;
+ const boardSide:BoardSide=getBoardSide(data,current);
  const now=Date.now(),court=scene.scene==='interval'?payload.courts:undefined;
  const lit=court?.spotlights?.find(s=>Date.parse(s.at)<=now&&now<spotlightEnd(s));
  const litMatch=lit?data.match.find(m=>m.id===lit.matchId):undefined;
  const spotlight=lit&&litMatch?{id:lit.id,kind:lit.kind,board:lit.board,match:describe(litMatch),elapsed:(now-Date.parse(lit.at))/1000,winnerSec:lit.winnerSec??0,winnerTeamId:lit.winnerTeamId??null,loserTeamId:lit.loserTeamId??null,resultPresentation:lit.resultPresentation??null}:null;
  const courts=court?{count:court.count,showBracket:!!court.showBracket,spotlight,boards:court.boards.map(b=>{const m=b.matchId==null?null:data.match.find(x=>x.id===b.matchId);return {...b,showing:boardShowing(court,b.board,now),match:m?describe(m):null};})}:null;
  const updatingBracket=scene.scene==='bracket'&&payload.lastMatchId!=null;
- return {phase:updatingBracket?'bracket_update':scene.scene,currentMatch,courts,resultPresentation:payload.resultPresentation??null,nextMatch:upcoming?{id:upcoming.id,teamA:getSlotTeamUuid(data,upcoming,0),teamB:getSlotTeamUuid(data,upcoming,1)}:null,winnerTeamId:payload.winnerTeamId??null,loserTeamId:payload.loserTeamId??null,championTeamId:payload.championTeamId??null,lastMatchId:payload.lastMatchId??null,
+ const losersIntroRemainingSec=scene.scene==='vs_card'&&payload.losersIntroPending
+  ?Math.max(0,LOSERS_INTRO_TOTAL_SEC-elapsed(scene))
+  :losersGateRemaining(payload,now);
+ return {phase:updatingBracket?'bracket_update':scene.scene,currentMatch,boardSide,losersIntroPlayed:!!payload.losersIntroPlayed,losersIntroPending:!!payload.losersIntroPending,losersIntroRemainingSec,courts,resultPresentation:payload.resultPresentation??null,nextMatch:upcoming?{id:upcoming.id,teamA:getSlotTeamUuid(data,upcoming,0),teamB:getSlotTeamUuid(data,upcoming,1)}:null,nextWaitReason,winnerTeamId:payload.winnerTeamId??null,loserTeamId:payload.loserTeamId??null,championTeamId:payload.championTeamId??null,lastMatchId:payload.lastMatchId??null,
   ceremony:scene.scene==='award'?payload.ceremony??'champion':null,placements:payload.placements??(payload.championTeamId?{first:payload.championTeamId,second:[],third:[]}:null),
   canStart:scene.scene==='vs_card'&&elapsed(scene)>=(payload.durationSec??0)&&!!currentMatch?.teamA&&!!currentMatch?.teamB,
   canGameStart:scene.scene==='bracket'&&!updatingBracket&&elapsed(scene)>=(payload.durationSec??2),
@@ -98,7 +129,15 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
   const step=ceremonySteps(placements)[0];
   payload={...payload,championTeamId:champion,placements,ceremony:step,durationSec:stepDuration(step)};nextScene='award';
  }
- function nextMatch(){const data=toStageData(snapshot),next=getNextMatch(data);if(!next||next.opponent1?.id==null||next.opponent2?.id==null)throw new ClientError('NO_PLAYABLE_MATCH',409);current=next.id;payload={...payload,matchId:next.id,teamA:getSlotTeamUuid(data,next,0),teamB:getSlotTeamUuid(data,next,1),durationSec:timing.vsLead};nextScene='vs_card';}
+ function nextMatch(){
+  const data=toStageData(snapshot),next=getChapterMatches(data)[0]??getNextMatch(data);
+  if(!next||next.opponent1?.id==null||next.opponent2?.id==null)throw new ClientError('NO_PLAYABLE_MATCH',409);
+  current=next.id;
+  const losersIntro=getMatchBracketKind(data,next)==='loser'&&!payload.losersIntroPlayed;
+  if(losersIntro)payload={...payload,losersIntroPlayed:true,losersIntroPending:true};
+  else payload={...payload,losersIntroPending:false};
+  payload={...payload,matchId:next.id,teamA:getSlotTeamUuid(data,next,0),teamB:getSlotTeamUuid(data,next,1),durationSec:timing.vsLead+(losersIntro?LOSERS_INTRO_TOTAL_SEC:0)};nextScene='vs_card';
+}
  if(action==='announce'){
   if(!view?.canAnnounce)throw new ClientError('INVALID_FLOW_PHASE',409);
   nextScene='draw';
@@ -122,6 +161,7 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
  }else if(court){
   const nowMs=Date.now(),now=new Date(nowMs).toISOString();
   let courts:Courts;
+  const restingTeamIds=new Set<string>();
   if(action==='courts-open'){
    if(!view?.canGameStart||current!=null)throw new ClientError('GAME_NOT_READY',409);
    if(body.count!==2&&body.count!==3)throw new ClientError('INVALID_COURTS',400);
@@ -133,6 +173,7 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
     if(typeof body.show!=='boolean')throw new ClientError('INVALID_INPUT',400);
     courts.showBracket=body.show;
    }else{
+    if(losersGateActive(payload,nowMs))throw new ClientError('LOSERS_INTRO_PLAYING',409);
     const board=courts.boards.find(b=>b.board===body.board);
     if(!board)throw new ClientError('INVALID_BOARD',400);
     const data=toStageData(snapshot),match=board.matchId==null?null:data.match.find(m=>m.id===board.matchId);
@@ -155,20 +196,39 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
     }else{
      if(board.stage!=='result'&&board.stage!=='idle')throw new ClientError('SCENE_NOT_FINISHED',409);
      if(boardShowing(courts,board.board,nowMs))throw new ClientError('SPOTLIGHT_PLAYING',409);
+     if(board.winnerTeamId)restingTeamIds.add(board.winnerTeamId);
+     if(board.loserTeamId)restingTeamIds.add(board.loserTeamId);
      Object.assign(board,{matchId:null,stage:'idle',startedAt:null,winnerTeamId:null,loserTeamId:null});
     }
    }
   }
   const data=toStageData(snapshot),taken=new Set(courts.boards.flatMap(b=>b.matchId==null?[]:[b.matchId]));
-  const waiting=getBottomTierMatches(data,taken).filter(m=>!isFinalMatch(snapshot,m));
-  for(const b of courts.boards)if(b.matchId==null){const m=waiting.shift();if(m)Object.assign(b,{matchId:m.id,stage:'call',startedAt:now});}
+  for(const board of courts.boards){
+   const live=board.matchId==null?null:data.match.find(m=>m.id===board.matchId);
+   if(live){
+    const a=getSlotTeamUuid(data,live,0),b=getSlotTeamUuid(data,live,1);
+    if(a)restingTeamIds.add(a);if(b)restingTeamIds.add(b);
+   }
+   if(board.winnerTeamId)restingTeamIds.add(board.winnerTeamId);
+   if(board.loserTeamId)restingTeamIds.add(board.loserTeamId);
+  }
+  const fill=getCourtFillMatches(data,taken,restingTeamIds);
+  const waiting=fill.matches.filter(m=>!isFinalMatch(snapshot,m));
+  const wouldAssignLoser=!payload.losersIntroPlayed&&waiting.some(m=>getMatchBracketKind(data,m)==='loser');
+  if(wouldAssignLoser){
+   const firstLoser=waiting.find(m=>getMatchBracketKind(data,m)==='loser')!;
+   payload={...payload,losersIntroPlayed:true,losersIntroUntil:new Date(nowMs+LOSERS_INTRO_TOTAL_SEC*1000).toISOString()};
+   enqueueSpotlight(courts,{id:`${commandId}-losers-intro`,board:0,kind:'losers-intro',matchId:firstLoser.id,durationSec:LOSERS_INTRO_TOTAL_SEC},nowMs);
+  }else if(!losersGateActive(payload,nowMs)){
+   for(const b of courts.boards)if(b.matchId==null){const m=waiting.shift();if(m)Object.assign(b,{matchId:m.id,stage:'call',startedAt:now});}
+  }
   courts.spotlights=(courts.spotlights??[]).filter(s=>spotlightEnd(s)>nowMs);
-  if(courts.boards.some(b=>b.matchId!=null)){payload={...payload,courts,durationSec:0};nextScene='interval';}
+  if(courts.boards.some(b=>b.matchId!=null)||losersGateActive(payload,nowMs)){payload={...payload,courts,durationSec:0};nextScene='interval';}
   else if(action==='courts-open')throw new ClientError('NO_PLAYABLE_MATCH',409);
   else{payload={...payload,durationSec:timing.bracket};delete payload.courts;delete payload.lastMatchId;nextScene='bracket';}
- }else{
+}else{
   if(!view?.canAdvance)throw new ClientError('SCENE_NOT_FINISHED',409);
-  if(currentScene.scene==='draw'){nextScene='bracket';payload.durationSec=timing.bracketInitial;}
+  if(currentScene.scene==='draw'){nextScene='bracket';payload.durationSec=timing.bracketInitial+openingTourDurationSec(toStageData(snapshot));}
   else if(currentScene.scene==='result'){
    const champion=payload.championTeamId??await getChampionTeamId(createManagerFromSnapshot(snapshot));
    if(champion)await award(champion);

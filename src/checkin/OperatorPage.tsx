@@ -5,9 +5,57 @@ import { useTournamentState } from './useTournamentState';
 import { makeBalancedTeams } from '../features/draw/draw';
 import { generatedTeamName, VENUE_TEAM_NAME_MAX } from '../features/draw/teamName';
 import { formatLabel } from './eventFormat';
+import { bracketSize, mountainCount } from '../features/bracket/slotPlacement';
 
 type Command = { path: string; body: Record<string, unknown> };
 type Team = DrawState['teams'][number];
+
+function BracketPlacement({ state, busy, onSave }: { state: DrawState; busy: boolean; onSave(fixed: Array<{ teamId: string; mountain: number }>): void }) {
+  const mountains = mountainCount(Math.min(8, state.teams.length));
+  const [fixed, setFixed] = useState<Array<{ teamId: string; mountain: number }>>([]);
+  const used = new Set(fixed.map((item) => item.teamId));
+  const rest = state.teams.filter((team) => !used.has(team.id));
+  function assign(teamId: string, mountain: number) {
+    setFixed((value) => [...value.filter((item) => item.teamId !== teamId), { teamId, mountain }]);
+  }
+  return (
+    <section className="op-placement">
+      <h3>トーナメント枠</h3>
+      <p className="op-hint">
+        本線では、山が合流するまで当たらないように分けられます。ダブルイリミネーションでは両方落ちるとルーザーで先に当たることがあります。枠数 {bracketSize(state.teams.length)} · 山 {mountains}
+      </p>
+      <div className="op-mountains">
+        {Array.from({ length: mountains }, (_, mountain) => (
+          <div key={mountain} className="op-mountain">
+            <p>山 {mountain + 1}</p>
+            <ul>
+              {fixed.filter((item) => item.mountain === mountain).map((item) => {
+                const team = state.teams.find((row) => row.id === item.teamId);
+                return (
+                  <li key={item.teamId}>
+                    <span>{team?.name ?? item.teamId}</span>
+                    <button type="button" disabled={busy} onClick={() => setFixed((value) => value.filter((row) => row.teamId !== item.teamId))}>外す</button>
+                  </li>
+                );
+              })}
+            </ul>
+            <label>
+              チームを置く
+              <select disabled={busy || rest.length === 0} defaultValue="" onChange={(event) => { if (event.target.value) assign(event.target.value, mountain); event.target.value = ''; }}>
+                <option value="">選ぶ</option>
+                {rest.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+              </select>
+            </label>
+          </div>
+        ))}
+      </div>
+      <div className="actions">
+        <button type="button" className="primary" disabled={busy} onClick={() => onSave(fixed)}>この配置で保存（残りはランダム）</button>
+        <button type="button" disabled={busy || fixed.length === 0} onClick={() => setFixed([])}>固定をクリア</button>
+      </div>
+    </section>
+  );
+}
 
 function Face({ person, size = 48 }: { person?: Participant; size?: number }) {
   const [failed, setFailed] = useState(false);
@@ -116,8 +164,8 @@ function MatchCard({ state, match = state.flow!.currentMatch!, choose, chosen }:
 
 const boardStage: Record<CourtBoard['stage'], string> = { idle: '空き', call: '呼び出し中', live: '試合中', result: '勝者確定' };
 
-function BoardCard({ state, board, busy, pick, onPick, onCommand }: {
-  state: DrawState; board: CourtBoard; busy: boolean; pick?: 0 | 1;
+function BoardCard({ state, board, busy, pick, fillable, blockedLabel, onPick, onCommand }: {
+  state: DrawState; board: CourtBoard; busy: boolean; pick?: 0 | 1; fillable: boolean; blockedLabel: string | null;
   onPick(slot: 0 | 1): void; onCommand(action: 'court-start' | 'court-winner' | 'court-next', extra?: Record<string, unknown>): void;
 }) {
   const match = board.match;
@@ -127,7 +175,10 @@ function BoardCard({ state, board, busy, pick, onPick, onCommand }: {
     <header className="op-board-head"><strong>台 {board.board}</strong><span>{boardStage[board.stage]}</span></header>
     {match
       ? <MatchCard state={state} match={match} chosen={board.stage === 'live' ? pick ?? null : settled} choose={board.stage === 'live' ? onPick : undefined} />
-      : <p className="op-note">下の段の試合が終わると、次の試合が入ります</p>}
+      : <p className="op-note">組める試合が決まると、ここに入ります</p>}
+    {board.stage === 'idle' && !match && (fillable
+      ? <button className="primary" disabled={busy} onClick={() => onCommand('court-next')}>次の試合を入れる</button>
+      : <button className="primary op-wait" disabled>{blockedLabel ?? 'まだ組める対戦がありません'}</button>)}
     {board.stage === 'call' && <button className="primary" disabled={busy} onClick={() => onCommand('court-start')}>試合開始</button>}
     {board.stage === 'live' && match && (board.showing
       ? <button className="primary" disabled>会場でVS演出中…</button>
@@ -232,6 +283,7 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
         <PairRow bare index={index} members={team.memberIds} byId={byId} />
         <TeamNameField stored={team.name} memberNames={team.memberIds.map(id => byId.get(id)?.name ?? '')} busy={busy} onDraft={name => { if (name == null) nameDrafts.current.delete(team.id); else nameDrafts.current.set(team.id, name); }} onSave={name => void send('/api/draw/team-name', { teamId: team.id, name })} />
       </li>)}</ol>
+      <BracketPlacement state={state} busy={busy} onSave={(fixed) => void send('/api/draw/place', { fixed })} />
     </>;
     bar = <ActionBar>
       <ArmedButton label="ペア発表開始" armedLabel="もう一度押すと会場で発表" disabled={busy} onFire={() => void publishPairs()} />
@@ -248,9 +300,27 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
     </ActionBar>;
   } else if (state.scene === 'interval' && f?.courts) {
     const courts = f.courts;
+    const losersLeft = Math.ceil(f.losersIntroRemainingSec ?? 0);
+    const next = f.nextMatch;
+    const nextSides = next
+      ? [state.teams.find(team => team.id === next.teamA), state.teams.find(team => team.id === next.teamB)]
+      : null;
     body = <div className="op-boards">
-      <button className="op-link-button" disabled={busy} onClick={() => void flow('courts-view', { show: !courts.showBracket })}>{courts.showBracket ? '会場を台の表示に戻す' : '会場にトーナメント表を出す'}</button>
-      {courts.boards.map(board => <BoardCard key={board.board} state={state} board={board} busy={busy}
+      {losersLeft > 0 && <p className="op-hint" role="status">ルーザーズ開始の確認中 · 残り {losersLeft}秒。このあいだは試合開始と台の割当を止めます。</p>}
+      <section className="op-match" aria-label="次の試合">
+        <p className="op-match-round">次の試合</p>
+        {nextSides
+          ? <div className="op-match-sides">
+              <div className="op-side"><span className="op-side-names">{nextSides[0]?.name ?? '未定'}</span></div>
+              <span className="op-vs">VS</span>
+              <div className="op-side"><span className="op-side-names">{nextSides[1]?.name ?? '未定'}</span></div>
+            </div>
+          : <p className="op-note">まだ組める対戦がありません</p>}
+        {f.nextWaitReason && <p className="op-hint">{f.nextWaitReason}</p>}
+      </section>
+      <button className="op-link-button" disabled={busy || losersLeft > 0} onClick={() => void flow('courts-view', { show: !courts.showBracket })}>{courts.showBracket ? '会場を台の表示に戻す' : '会場にトーナメント表を出す'}</button>
+      {courts.boards.map(board => <BoardCard key={board.board} state={state} board={board} busy={busy || losersLeft > 0}
+        fillable={Boolean(next)} blockedLabel={f.nextWaitReason ?? null}
         pick={board.match ? picks[board.match.id] : undefined}
         onPick={slot => board.match && setPicks(value => ({ ...value, [board.match!.id]: value[board.match!.id] === slot ? undefined : slot }))}
         onCommand={(action, extra) => void flow(action, { board: board.board, ...extra })} />)}
@@ -259,8 +329,12 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
     body = <p className="op-note">勝ち上がりを表示しています</p>;
     bar = gate(f.canAdvance, '次の試合へ', '勝ち上がり表示中…', () => void flow('advance'));
   } else if (state.scene === 'vs_card' && f?.currentMatch) {
-    body = <MatchCard state={state} />;
-    bar = gate(f.canStart, '試合開始', 'VS演出中 · まもなく押せます', () => void flow('start'));
+    const losersLeft = Math.ceil(f.losersIntroRemainingSec ?? 0);
+    body = <>
+      {losersLeft > 0 && <p className="op-hint" role="status">ルーザーズ開始の確認中 · 残り {losersLeft}秒</p>}
+      <MatchCard state={state} />
+    </>;
+    bar = gate(f.canStart, '試合開始', losersLeft > 0 ? `ルーザーズ確認中 · 残り ${losersLeft}秒` : 'VS演出中 · まもなく押せます', () => void flow('start'));
   } else if (state.scene === 'match_live' && f?.currentMatch) {
     body = <><p className="op-hint">勝ったチームをタップ</p><MatchCard state={state} chosen={winner} choose={slot => setWinner(value => value === slot ? null : slot)} /></>;
     const chosenId = winner == null ? null : winner === 0 ? f.currentMatch.teamA : f.currentMatch.teamB;

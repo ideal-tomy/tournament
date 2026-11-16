@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from 'react';
 import gsap from 'gsap';
 import { TOURNAMENT_EFFECTS as FX } from '../../../lib/tournamentEffects';
-import { cueCatchUpOffset, playPresentationAudio, syncedCueAt } from '../backdrop/playPresentationAudio';
+import { cueCatchUpOffset, playPresentationAudio, syncedCueAt, type PresentationCue } from '../backdrop/playPresentationAudio';
 import RatedName from '../ceremony/RatedName';
 import './vsBoard.css';
 
@@ -11,20 +11,50 @@ export interface VsSide {
   faces: string[];
 }
 
+export type VsCallout = 'semifinal' | 'losers-semifinal' | 'final' | 'final-again';
+
 const INTRO_END = 2;
 const LEFT_X = [120, 440];
 const RIGHT_X = [1180, 1500];
 
+const CALLOUT_LABEL: Record<VsCallout, string> = {
+  semifinal: 'セミファイナル',
+  'losers-semifinal': '準決勝',
+  final: 'ファイナルバトル',
+  'final-again': 'ファイナルバトルアゲイン',
+};
+
+const CALLOUT_CUE: Record<VsCallout, PresentationCue> = {
+  semifinal: 'semifinal',
+  'losers-semifinal': 'semifinal',
+  final: 'finalBattle',
+  'final-again': 'finalBattleAgain',
+};
+
 /** Venue VS card. Pixel positions are a 1920×1080 stage, scaled to the monitor. */
-export default function VsBoard({ left, right, roundLabel, settled = false, startAt = 0, audioEnabled = false, contained = false }: {
-  left: VsSide; right: VsSide; roundLabel?: string; settled?: boolean; startAt?: number; audioEnabled?: boolean;
-  /** Fit inside the parent box instead of the whole window. */
+export default function VsBoard({
+  left,
+  right,
+  roundLabel,
+  callout = null,
+  settled = false,
+  startAt = 0,
+  audioEnabled = false,
+  contained = false,
+}: {
+  left: VsSide;
+  right: VsSide;
+  roundLabel?: string;
+  callout?: VsCallout | null;
+  settled?: boolean;
+  startAt?: number;
+  audioEnabled?: boolean;
   contained?: boolean;
 }) {
   const fitRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
-  const introRef = useRef({ startAt, settled, audioEnabled });
-  introRef.current = { startAt, settled, audioEnabled };
+  const introRef = useRef({ startAt, settled, audioEnabled, callout });
+  introRef.current = { startAt, settled, audioEnabled, callout };
 
   useLayoutEffect(() => {
     const fit = fitRef.current;
@@ -43,19 +73,19 @@ export default function VsBoard({ left, right, roundLabel, settled = false, star
   useLayoutEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
-    const { startAt, settled, audioEnabled } = introRef.current;
+    const { startAt, settled, audioEnabled, callout } = introRef.current;
     const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     const ctx = gsap.context(() => {
       const tl = gsap.timeline({ paused: true });
       let restoring = false;
-      const cue = (name: 'dartFly' | 'impact' | 'cardFlip' | 'pairImpact', at: number) => {
+      const cue = (name: PresentationCue, at: number) => {
         tl.call(() => { if (!restoring) playPresentationAudio(name, audioEnabled); }, [], syncedCueAt(at, name));
       };
       tl.set('.vsb-card-left', { x: -520 })
         .set('.vsb-card-right', { x: 520 })
         .set('.vsb-name', { autoAlpha: 0 })
         .set('.vsb-logo', { autoAlpha: 0, scale: 0.35 })
-        .set('.vsb-spot, .vsb-streak, .vsb-flash', { autoAlpha: 0 })
+        .set('.vsb-spot, .vsb-streak, .vsb-flash, .vsb-callout', { autoAlpha: 0 })
         .fromTo('.vsb-spot-l', { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5, ease: 'power2.out' }, 0)
         .fromTo('.vsb-spot-r', { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5, ease: 'power2.out' }, 0.08)
         .fromTo('.vsb-streak-l', { autoAlpha: 0, x: -240 }, { autoAlpha: 1, x: 0, duration: 0.45, ease: 'power4.in' }, 0.5)
@@ -71,10 +101,11 @@ export default function VsBoard({ left, right, roundLabel, settled = false, star
         .to('.vsb-name', { autoAlpha: 1, duration: 0.35, stagger: 0.04 }, 1.35)
         .call(() => stage.classList.add('vsb-hold'), [], INTRO_END)
         .to({}, { duration: INTRO_END }, 0);
+      if (callout) {
+        tl.fromTo('.vsb-callout', { autoAlpha: 0, scale: 1.35 }, { autoAlpha: 1, scale: 1, duration: 0.55, ease: 'expo.out' }, 0.15);
+        cue(CALLOUT_CUE[callout], 0.35);
+      }
       cue('pairImpact', 1.2);
-      // Live cards always fly in from the start. The venue screen usually renders
-      // after the server clock has already passed this 2s intro, which used to skip
-      // every match after the first. Replay pages still scrub with startAt.
       const at = reduced || settled ? INTRO_END : audioEnabled ? 0 : Math.min(INTRO_END, Math.max(0, startAt));
       if (at > 0.02) {
         restoring = true;
@@ -86,40 +117,46 @@ export default function VsBoard({ left, right, roundLabel, settled = false, star
       if (!reduced && !settled && at < INTRO_END) tl.play();
     }, stage);
     return () => ctx.revert();
-    // One intro per mount. A later poll creates new player objects and must not replay the collision.
   }, []);
 
-  return <div ref={fitRef} className={`vsb-fit${contained ? ' is-contained' : ''}`}>
-    <div ref={stageRef} className="vsb-stage" aria-label={`${left.name} 対 ${right.name}`}>
-     <div className="vsb-hole" aria-hidden="true">
-      <img src={FX.backgrounds.vsBlackHole} alt="" />
-     </div>
-     <div className="vsb-shake">
-      <div className="vsb-spot vsb-spot-l" />
-      <div className="vsb-spot vsb-spot-r" />
-      <div className="vsb-streak vsb-streak-l"><img src={FX.darts.motionStreak} alt="" /></div>
-      <div className="vsb-streak vsb-streak-r"><img src={FX.darts.motionStreak} alt="" /></div>
-      <div className="vsb-mask" />
-      {roundLabel && <p className="vsb-round">{roundLabel}</p>}
-      <p className="vsb-team vsb-team-l">{left.name}</p>
-      <p className="vsb-team vsb-team-r">{right.name}</p>
-      <Side side="left" team={left} xs={LEFT_X} />
-      <Side side="right" team={right} xs={RIGHT_X} />
-      <img className="vsb-logo" src={FX.effects.vsMark} alt="VS" />
-      <img className="vsb-flash" src={FX.effects.impactFlash} alt="" />
-      <div className="vsb-white" />
-     </div>
+  return (
+    <div ref={fitRef} className={`vsb-fit${contained ? ' is-contained' : ''}`}>
+      <div ref={stageRef} className="vsb-stage" aria-label={`${left.name} 対 ${right.name}`}>
+        <div className="vsb-hole" aria-hidden="true">
+          <img src={FX.backgrounds.vsBlackHole} alt="" />
+        </div>
+        <div className="vsb-shake">
+          <div className="vsb-spot vsb-spot-l" />
+          <div className="vsb-spot vsb-spot-r" />
+          <div className="vsb-streak vsb-streak-l"><img src={FX.darts.motionStreak} alt="" /></div>
+          <div className="vsb-streak vsb-streak-r"><img src={FX.darts.motionStreak} alt="" /></div>
+          <div className="vsb-mask" />
+          {callout && <p className="vsb-callout">{CALLOUT_LABEL[callout]}</p>}
+          {roundLabel && <p className="vsb-round">{roundLabel}</p>}
+          <p className="vsb-team vsb-team-l">{left.name}</p>
+          <p className="vsb-team vsb-team-r">{right.name}</p>
+          <Side side="left" team={left} xs={LEFT_X} />
+          <Side side="right" team={right} xs={RIGHT_X} />
+          <img className="vsb-logo" src={FX.effects.vsMark} alt="VS" />
+          <img className="vsb-flash" src={FX.effects.impactFlash} alt="" />
+          <div className="vsb-white" />
+        </div>
+      </div>
     </div>
-  </div>;
+  );
 }
 
 function Side({ side, team, xs }: { side: 'left' | 'right'; team: VsSide; xs: number[] }) {
   const people = team.members.slice(0, 2).map((name, index) => ({ name, face: team.faces[index] ?? '' }));
   const slots = people.length <= 1 ? [xs[1]] : xs.slice(0, people.length);
-  return <>
-    {people.map((person, index) => <article key={`${side}-${person.name}-${index}`} className={`vsb-card vsb-card-${side}`} style={{ left: slots[index] }}>
-      {person.face ? <img src={person.face} alt={person.name} /> : <div className="vsb-empty">?</div>}
-      <p className="vsb-name"><RatedName text={person.name} /></p>
-    </article>)}
-  </>;
+  return (
+    <>
+      {people.map((person, index) => (
+        <article key={`${side}-${person.name}-${index}`} className={`vsb-card vsb-card-${side}`} style={{ left: slots[index] }}>
+          {person.face ? <img src={person.face} alt={person.name} /> : <div className="vsb-empty">?</div>}
+          <p className="vsb-name"><RatedName text={person.name} /></p>
+        </article>
+      ))}
+    </>
+  );
 }

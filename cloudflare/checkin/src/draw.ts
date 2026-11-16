@@ -2,6 +2,7 @@ import { flowCommand, flowView, matchProjection, type FlowAction } from './flow'
 import { makeBalancedTeams, buildRevealOrder, teamRatingSum } from '../../../src/features/draw/draw';
 import { generatedTeamName, VENUE_TEAM_NAME_MAX } from '../../../src/features/draw/teamName';
 import { buildDoubleElimination, buildSingleElimination } from '../../../src/features/bracket/manager';
+import { placeTeamsInSlots, shuffleTeamIds } from '../../../src/features/bracket/slotPlacement';
 import { estimateDrawDurationSec } from '../../../src/features/presentation/drawAnimationTiming';
 import { ClientError, hash, OFFICIAL_FIXED_EVENT_ID, participantDto, readBody, requestId, response, type CheckinEnv } from './domain';
 import { listEntryTeams, preservedNames, replaceEntryStatements, storedTeamName } from './entryTeams';
@@ -233,6 +234,57 @@ async function reopen(env:CheckinEnv,body:Record<string,unknown>){
   if(committed?.request_hash!==requestHash)throw new ClientError('VERSION_CONFLICT',409);
   return response(await read(env));
 }
+/** 発表前だけ枠順を作り直し、スナップショットと matches を更新する。 */
+async function place(env:CheckinEnv,body:Record<string,unknown>){
+  const id=requestId(body.requestId),expected=body.expectedVersion;
+  if(!Number.isSafeInteger(expected)||Number(expected)<0)throw new ClientError('INVALID_VERSION',400);
+  await initialize(env);
+  const fixed=Array.isArray(body.fixed)?body.fixed.map((row)=>{
+    if(!row||typeof row!=='object')throw new ClientError('INVALID_PLACEMENT',400);
+    const teamId=String((row as {teamId?:unknown}).teamId??'');
+    const mountain=Number((row as {mountain?:unknown}).mountain);
+    if(!teamId||!Number.isInteger(mountain)||mountain<0)throw new ClientError('INVALID_PLACEMENT',400);
+    return {teamId,mountain};
+  }):[];
+  const requestHash=await hash(JSON.stringify(['draw.place',expected,fixed,body.randomOrder??null]));
+  const receipt=await env.DB.prepare('SELECT action,request_hash FROM command_receipts WHERE event_id=? AND request_id=?').bind(env.CHECKIN_EVENT_ID,id).first<{action:string;request_hash:string}>();
+  if(receipt){if(receipt.action!=='draw.place'||receipt.request_hash!==requestHash)throw new ClientError('REQUEST_CONFLICT',409);return response(await read(env));}
+  const current=await scene(env),draw=await session(env);
+  if(current.version!==expected)throw new ClientError('VERSION_CONFLICT',409);
+  if(current.scene!=='idle'||!draw)throw new ClientError('PAIRS_LOCKED',409);
+  const teamRows=(await env.DB.prepare('SELECT id FROM teams WHERE event_id=? AND draw_session_id=? ORDER BY seed').bind(env.CHECKIN_EVENT_ID,draw.id).all<{id:string}>()).results;
+  const teamIds=teamRows.map(t=>t.id);
+  if(fixed.some(item=>!teamIds.includes(item.teamId)))throw new ClientError('INVALID_PLACEMENT',400);
+  const randomOrder=Array.isArray(body.randomOrder)
+    ? (body.randomOrder as unknown[]).map(String).filter(id=>teamIds.includes(id))
+    : shuffleTeamIds(teamIds.filter(id=>!fixed.some(item=>item.teamId===id)));
+  const seeding=placeTeamsInSlots(teamIds,fixed,randomOrder);
+  const ordered=seeding.filter((id):id is string=>id!=null);
+  const profile=await eventProfile(env);
+  const snapshot=await (profile.format==='single_elimination'?buildSingleElimination:buildDoubleElimination)(seeding,{balanceByes:false});
+  const nonce=crypto.randomUUID();
+  const authorized=`EXISTS(SELECT 1 FROM command_receipts WHERE event_id=? AND request_id=? AND json_extract(response_json,'$.attempt')='${nonce}')`;
+  const gate=[env.CHECKIN_EVENT_ID,id] as const;
+  const managerByName=new Map(snapshot.participant.map(p=>[String(p.name),p.id]));
+  const seedStatements=seeding.flatMap((teamId,index)=>teamId?[env.DB.prepare(`UPDATE teams SET seed=?,manager_participant_id=? WHERE id=? AND event_id=? AND ${authorized}`)
+    .bind(index,managerByName.get(teamId)??null,teamId,env.CHECKIN_EVENT_ID,...gate)]:[]);
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO command_receipts(event_id,request_id,actor_id,action,request_hash,expected_version,committed_version,response_json)
+      SELECT ?,?,'checkin-session','draw.place',?,?,?,json_object('attempt','${nonce}') WHERE EXISTS(SELECT 1 FROM event_state WHERE event_id=? AND version=? AND scene='idle')`)
+      .bind(env.CHECKIN_EVENT_ID,id,requestHash,expected,Number(expected)+1,env.CHECKIN_EVENT_ID,expected),
+    ...seedStatements,
+    env.DB.prepare(`DELETE FROM matches WHERE event_id=? AND ${authorized}`).bind(env.CHECKIN_EVENT_ID,...gate),
+    ...matchProjection(env,snapshot,authorized,id),
+    env.DB.prepare(`UPDATE events SET bracket_snapshot=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=? AND ${authorized}`).bind(JSON.stringify(snapshot),env.CHECKIN_EVENT_ID,...gate),
+    env.DB.prepare(`UPDATE event_state SET version=version+1,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE event_id=? AND version=? AND ${authorized}`).bind(env.CHECKIN_EVENT_ID,expected,...gate),
+    env.DB.prepare(`INSERT INTO operation_log(event_id,actor_id,request_id,version,action,target_table,target_id,before_data,after_data)
+      SELECT ?,'checkin-session',?,?,'draw.place','events',?,?,? WHERE ${authorized}`)
+      .bind(env.CHECKIN_EVENT_ID,id,Number(expected)+1,env.CHECKIN_EVENT_ID,JSON.stringify({seeds:teamIds}),JSON.stringify({seeds:ordered}),...gate),
+  ]);
+  const committed=await env.DB.prepare('SELECT request_hash FROM command_receipts WHERE event_id=? AND request_id=?').bind(env.CHECKIN_EVENT_ID,id).first<{request_hash:string}>();
+  if(committed?.request_hash!==requestHash)throw new ClientError('VERSION_CONFLICT',409);
+  return response(await read(env));
+}
 async function announce(env:CheckinEnv,body:Record<string,unknown>){
   await initialize(env);
   if(!await session(env))throw new ClientError('PAIRS_NOT_PREPARED',409);
@@ -258,6 +310,7 @@ export async function drawRoute(request:Request,env:CheckinEnv):Promise<Response
   if(url.pathname==='/api/draw/pairs'&&request.method==='POST')return prepare(env,await readBody(request,16384));
   if(url.pathname==='/api/draw/pairs/reset'&&request.method==='POST')return resetPairs(env,await readBody(request,1024));
   if(url.pathname==='/api/draw/team-name'&&request.method==='POST')return renameTeam(env,await readBody(request,2048));
+  if(url.pathname==='/api/draw/place'&&request.method==='POST')return place(env,await readBody(request,16384));
   if(url.pathname==='/api/tournament/replay'&&request.method==='POST')return replay(env,await readBody(request,1024));
   if(url.pathname==='/api/tournament/reopen'&&request.method==='POST')return reopen(env,await readBody(request,1024));
   if(url.pathname==='/api/draw/start'&&request.method==='POST')return announce(env,await readBody(request,1024));

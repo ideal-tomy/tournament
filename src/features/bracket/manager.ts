@@ -17,11 +17,15 @@ export function isFullSnapshot(snapshot: unknown): snapshot is BracketSnapshot {
   );
 }
 
-export async function buildDoubleElimination(teamIds: string[]): Promise<BracketSnapshot> {
+export async function buildDoubleElimination(
+  teamIds: Array<string | null>,
+  options: { balanceByes?: boolean } = {},
+): Promise<BracketSnapshot> {
   const storage = new InMemoryDatabase();
   const manager = new BracketsManager(storage);
 
-  const size = 1 << Math.ceil(Math.log2(Math.max(2, teamIds.length)));
+  const filled = teamIds.filter((id): id is string => id != null);
+  const size = 1 << Math.ceil(Math.log2(Math.max(2, Math.max(filled.length, teamIds.length))));
   const seeding: (string | null)[] = [...teamIds];
   while (seeding.length < size) seeding.push(null);
 
@@ -30,20 +34,24 @@ export async function buildDoubleElimination(teamIds: string[]): Promise<Bracket
     name: 'Double Elimination',
     type: 'double_elimination',
     seeding,
-    settings: { grandFinal: 'double', seedOrdering: ['natural'], balanceByes: true },
+    settings: { grandFinal: 'double', seedOrdering: ['natural'], balanceByes: options.balanceByes ?? true },
   });
 
   return manager.get.stageData(0);
 }
 
-export async function buildSingleElimination(teamIds: string[]): Promise<BracketSnapshot> {
+export async function buildSingleElimination(
+  teamIds: Array<string | null>,
+  options: { balanceByes?: boolean } = {},
+): Promise<BracketSnapshot> {
   const storage = new InMemoryDatabase();
   const manager = new BracketsManager(storage);
-  const size = 1 << Math.ceil(Math.log2(Math.max(2, teamIds.length)));
+  const filled = teamIds.filter((id): id is string => id != null);
+  const size = 1 << Math.ceil(Math.log2(Math.max(2, Math.max(filled.length, teamIds.length))));
   const seeding: (string | null)[] = [...teamIds];
   while (seeding.length < size) seeding.push(null);
   await manager.create.stage({ tournamentId: 0, name: 'Single Elimination', type: 'single_elimination', seeding,
-    settings: { seedOrdering: ['natural'], balanceByes: true, consolationFinal: false } });
+    settings: { seedOrdering: ['natural'], balanceByes: options.balanceByes ?? true, consolationFinal: false } });
   return manager.get.stageData(0);
 }
 

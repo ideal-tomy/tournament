@@ -6,6 +6,7 @@ describe('VsBoard', () => {
   it('places both teams and four players on the venue card', () => {
     const markup = renderToStaticMarkup(<VsBoard
       roundLabel="FINAL"
+      callout="final-again"
       left={{ name: 'TEAM BLUE', members: ['NAME 01', 'NAME 02'], faces: ['/a.jpg', '/b.jpg'] }}
       right={{ name: 'TEAM RED', members: ['NAME 03', 'NAME 04'], faces: ['/c.jpg', '/d.jpg'] }}
     />);
@@ -16,5 +17,7 @@ describe('VsBoard', () => {
     expect(markup).toContain('left:120');
     expect(markup).toContain('left:1500');
     expect(markup).toContain('alt="VS"');
+    expect(markup).toContain('ファイナルバトルアゲイン');
+    expect(markup).toContain('vsb-callout');
   });
 });

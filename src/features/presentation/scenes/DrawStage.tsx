@@ -5,7 +5,7 @@ import type { DrawPresentationData } from '../../draw/presentationTypes';
 import { TOURNAMENT_EFFECTS as FX } from '../../../lib/tournamentEffects';
 import { groupDrawParticipants, shouldShowBackOnlyEffect } from '../drawVisualState';
 import type { RehearsalTimingPreset } from '../../../lib/rehearsalTiming';
-import { drawSeconds, type DrawAnimationTimingKey } from '../drawAnimationTiming';
+import { drawSeconds, estimateTeamSummaryMs, type DrawAnimationTimingKey } from '../drawAnimationTiming';
 import RatedName from '../ceremony/RatedName';
 import PairConfirmed from './PairConfirmed';
 import PresentationBackdrop from '../backdrop/PresentationBackdrop';
@@ -149,14 +149,30 @@ export default function DrawStage({
         });
 
         const summaryAt = tl.duration();
+        const track = summary?.querySelector<HTMLElement>('.draw-team-marquee-track');
+        const pageCount = Math.max(1, Math.ceil(teams.length / 4));
+        const gateSec = estimateTeamSummaryMs(teams.length, timingPreset) / 1000 - seconds('summaryEnter');
         tl.call(cue('cardOpen'), [], schedule('cardOpen', summaryAt))
           .to(summary, {
             autoAlpha: 1,
             scale: 1,
             duration: seconds('summaryEnter'),
             ease: 'back.out(1.4)',
-          }, summaryAt)
-          .to({}, { duration: seconds('summaryHold') });
+          }, summaryAt);
+        if (track && pageCount > 0) {
+          const pageWidth = () => track.querySelector<HTMLElement>('.draw-team-page')?.offsetWidth || summary?.clientWidth || window.innerWidth || 1920;
+          gsap.set(track, { x: 0 });
+          const loopTween = gsap.to(track, {
+            x: () => -pageCount * pageWidth(),
+            duration: Math.max(seconds('summaryPageTravel') * pageCount, 0.1),
+            ease: 'none',
+            repeat: -1,
+          });
+          tl.add(loopTween, summaryAt + seconds('summaryEnter'));
+          tl.to({}, { duration: Math.max(0, gateSec) }, summaryAt + seconds('summaryEnter'));
+        } else {
+          tl.to({}, { duration: Math.max(0, gateSec) });
+        }
       } else if (presentationMode === 'short') {
         tl.set(intro, { autoAlpha: 0 })
           .fromTo(
@@ -168,7 +184,7 @@ export default function DrawStage({
           .to(shortGrid, { autoAlpha: 0, duration: seconds('shortGridExit') })
           .call(cue('cardOpen'), [], schedule('cardOpen', tl.duration()))
           .to(summary, { autoAlpha: 1, scale: 1, duration: seconds('summaryEnter') })
-          .to({}, { duration: seconds('summaryHold') });
+          .to({}, { duration: estimateTeamSummaryMs(teams.length, timingPreset) / 1000 - seconds('summaryEnter') });
       } else {
         tl.set([intro, cards, shortGrid], { autoAlpha: 0 })
           .set(summary, { autoAlpha: 1, scale: 1 })
@@ -247,27 +263,45 @@ export default function DrawStage({
         />
       ))}
 
-      <div className="draw-team-summary invisible absolute inset-0 z-30 flex flex-col items-center justify-center px-8">
-        <p className="mb-5 text-sm font-black tracking-[0.45em] text-amber-300">TEAMS CONFIRMED</p>
-        <div className="grid w-full max-w-6xl grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-          {teams.map((members, index) => (
-            <div
-              key={members.map((member) => member.id).join('-')}
-              className="relative overflow-hidden rounded-xl border border-amber-300/50 bg-black/70 p-4 shadow-[0_0_28px_rgba(251,191,36,0.22)]"
-            >
-              <img src={FX.frames.teamPlate} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-fill opacity-45" />
-              <p className="relative text-xs font-black tracking-widest text-amber-200">TEAM {index + 1}</p>
-              {data.teamLabels?.[index] && <p className="cer-gold relative mt-1 truncate text-center text-[32px] font-black leading-tight">{data.teamLabels[index]}</p>}
-              <div className="relative mt-3 flex items-center gap-3">
-                {members.map((member) => (
-                  <div key={member.id} className="min-w-0 flex-1 text-center">
-                    <ParticipantFace participant={member} className="mx-auto h-16 w-16" />
-                    <p className="mt-2 text-sm font-bold leading-tight text-white"><RatedName text={member.displayName} /></p>
+      <div className="draw-team-summary invisible absolute inset-0 z-30">
+        <p className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 text-sm font-black tracking-[0.45em] text-amber-300">TEAMS CONFIRMED</p>
+        <div className="draw-team-marquee">
+          <div className="draw-team-marquee-track">
+            {[0, 1].flatMap((copy) =>
+              Array.from({ length: Math.max(1, Math.ceil(teams.length / 4)) }, (_, page) => {
+                const slice = teams.slice(page * 4, page * 4 + 4);
+                const rows = slice.length === 2 ? [[slice[0]], [slice[1]]] : [slice.slice(0, 2), slice.slice(2)].filter((row) => row.length);
+                return (
+                  <div className="draw-team-page" key={`page-${copy}-${page}`}>
+                    {rows.map((row, rowIndex) => (
+                      <div className="draw-team-row" key={rowIndex}>
+                        {row.map((members) => {
+                          const teamIndex = page * 4 + slice.indexOf(members);
+                          return (
+                            <div key={`${copy}-${members.map((member) => member.id).join('-')}`} className="draw-team-card">
+                              <img src={FX.frames.teamPlate} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-fill opacity-45" />
+                              <p className="relative text-xs font-black tracking-widest text-amber-200">TEAM {teamIndex + 1}</p>
+                              {data.teamLabels?.[teamIndex] && (
+                                <p className="cer-gold relative mt-1 text-center text-[clamp(22px,2.4vw,40px)] font-black leading-tight">{data.teamLabels[teamIndex]}</p>
+                              )}
+                              <div className="names relative">
+                                {members.map((member) => (
+                                  <div key={member.id} className="min-w-0 text-center">
+                                    <ParticipantFace participant={member} className="face mx-auto" />
+                                    <p className="mt-2 text-[clamp(14px,1.4vw,22px)] font-bold leading-tight text-white"><RatedName text={member.displayName} /></p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
-          ))}
+                );
+              }),
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -291,11 +325,10 @@ function RevealCard({
             <img src={FX.darts.main} alt="" />
           </div>
         </div>
-        <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
-          <img src={FX.cards.front} alt="" className="draw-card-front absolute inset-0 h-full w-full object-contain" />
-          <div className="draw-player-reveal absolute inset-[14%_13%_22%] overflow-hidden rounded-xl">
+        <div className="absolute inset-0 overflow-hidden rounded-2xl border border-amber-200/40 bg-slate-950 shadow-[0_18px_40px_rgba(0,0,0,.65)] [backface-visibility:hidden] [transform:rotateY(180deg)]">
+          <div className="draw-player-reveal absolute inset-0">
             <ParticipantFace participant={participant} className="h-full w-full" />
-            <p className="absolute inset-x-3 bottom-3 z-[1] m-0 text-center text-lg font-black leading-tight text-white [text-shadow:0_2px_0_#000,0_0_12px_#000]">
+            <p className="absolute inset-x-3 bottom-4 z-[1] m-0 text-center text-[clamp(18px,2vw,28px)] font-black leading-tight text-white [text-shadow:0_2px_0_#000,0_0_12px_#000]">
               <RatedName text={participant.displayName} />
             </p>
           </div>

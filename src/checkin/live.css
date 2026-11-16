@@ -77,7 +77,8 @@
 .entry-team-members{display:flex;gap:8px;margin:0;font-weight:800}
 .entry-team-members span:last-child{min-width:0}
 .entry-name{display:flex;gap:8px;align-items:center}
-.entry-name input{flex:1;min-width:0}
+.entry-name input{flex:1;min-width:0;min-height:36px;padding:0 10px;border:1px solid #2b405a;border-radius:8px;background:#0a1626;color:#e9f0f8}
+.entry-name input::placeholder{color:#94a3b8}
 .entry-pick{display:flex;flex-wrap:wrap;gap:8px}
 .entry-pick button.is-picked{outline:2px solid #67e8f9}
 .op-pairs+.op-hint{margin-top:16px}
@@ -114,6 +115,7 @@ button.op-side{justify-content:flex-start;min-height:150px}
 .op-board-head span{font-size:14px;font-weight:700;color:#a6b9cd}
 .op-board>button{width:100%;min-height:52px;font-size:17px}
 .op-board .op-note{padding:16px 0}
+.op-wait{white-space:normal;word-break:keep-all;line-height:1.4}
 .op-error{display:flex;flex-direction:column;gap:8px;margin:12px 0;padding:12px;border-radius:12px;background:#4b1827;border:1px solid #8c3c50;color:#fecaca;font-size:14px}
 .op-more{margin-top:24px;color:#94a3b8}
 .op-more summary{padding:10px 0;cursor:pointer}

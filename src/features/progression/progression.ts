@@ -2,7 +2,20 @@ import type { BracketsManager } from 'brackets-manager';
 import { Status } from 'brackets-model';
 import type { BMMatch, StageData } from '../bracket/layout';
 import { toStageData } from '../bracket/manager';
-export { getBottomTierMatches, getMatchBracketKind, getMatchRoundLabel, getMatchTier, getOpenTierMatches } from './tiers';
+import { getChapterMatches } from './tiers';
+export {
+  getBoardSide,
+  getBottomTierMatches,
+  getChapterMatches,
+  getCourtFillMatches,
+  explainCourtFillWait,
+  COURT_WAIT,
+  getMatchBracketKind,
+  getMatchRoundLabel,
+  getMatchTier,
+  getOpenTierMatches,
+  type BoardSide,
+} from './tiers';
 
 export class ProgressionError extends Error {
   constructor(message: string) {
@@ -30,14 +43,13 @@ export function getSlotTeamUuid(
   return participantIdToTeamUuid(data, opp.id as number);
 }
 
-/** 両者確定済み・未確定の先頭 match（id 昇順） */
+/** 会場の章に沿った次の試合。Running があればそれを優先。 */
 export function getNextMatch(data: StageData): BMMatch | null {
-  const sorted = [...data.match].sort((a, b) => a.id - b.id);
-  for (const m of sorted) {
-    if (m.status !== Status.Ready && m.status !== Status.Running) continue;
-    if (m.opponent1?.id != null || m.opponent2?.id != null) return m;
-  }
-  return null;
+  const running = [...data.match]
+    .filter((m) => m.status === Status.Running && (m.opponent1?.id != null || m.opponent2?.id != null))
+    .sort((a, b) => a.id - b.id);
+  if (running[0]) return running[0];
+  return getChapterMatches(data)[0] ?? null;
 }
 
 export function countPlayableMatches(data: StageData): number {
@@ -133,7 +145,7 @@ export function validateMatchApply(
     throw new ProgressionError('この試合はまだ開始できません');
   }
 
-  const next = getNextMatch(data);
+  const next = getChapterMatches(data)[0] ?? getNextMatch(data);
   const allowed =
     currentMatchId == null
       ? next?.id === matchId

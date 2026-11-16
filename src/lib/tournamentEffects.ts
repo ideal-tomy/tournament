@@ -48,6 +48,10 @@ export const TOURNAMENT_EFFECTS = {
     pairImpact: audioFile('audiopapkin-sound-design-elements-impact-sfx-ps-130-420088.mp3'),
     opening: audioFile('オープニング.mp3'),
     pair: audioFile('ペア.mp3'),
+    losersOpen: audioFile('losers-open.mp3'),
+    semifinal: audioFile('semifinal.mp3'),
+    finalBattle: audioFile('final-battle.mp3'),
+    finalBattleAgain: audioFile('final-battle-again.mp3'),
   },
 } as const;
 
