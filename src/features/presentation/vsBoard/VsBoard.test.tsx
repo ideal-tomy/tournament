@@ -17,7 +17,20 @@ describe('VsBoard', () => {
     expect(markup).toContain('left:120');
     expect(markup).toContain('left:1500');
     expect(markup).toContain('alt="VS"');
-    expect(markup).toContain('ファイナルバトルアゲイン');
-    expect(markup).toContain('vsb-callout');
+    expect(markup).toContain('ファイナル');
+    expect(markup).toContain('アゲイン');
+    expect(markup).toContain('vsb-callout-again');
+    expect(markup).not.toContain('バトル');
+  });
+
+  it('labels losers semifinal as セミファイナル with a ルーザーズ cue', () => {
+    const markup = renderToStaticMarkup(<VsBoard
+      callout="losers-semifinal"
+      left={{ name: 'A', members: ['1'], faces: [] }}
+      right={{ name: 'B', members: ['2'], faces: [] }}
+    />);
+    expect(markup).toContain('セミファイナル');
+    expect(markup).toContain('ルーザーズ');
+    expect(markup).not.toContain('準決勝');
   });
 });

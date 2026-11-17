@@ -27,9 +27,10 @@
 .pc-flare{position:absolute;left:510px;top:56px;width:900px;height:900px;border-radius:50%;background:radial-gradient(circle,rgba(255,244,200,.95),rgba(251,191,36,.45) 30%,transparent 62%);mix-blend-mode:screen;opacity:0;visibility:hidden;pointer-events:none}
 .pc-team-no{top:40px;font-size:28px;letter-spacing:.5em;padding-left:.5em;color:#fcd34d;text-shadow:0 2px 6px #000}
 .pc-title{top:76px;font-size:78px;letter-spacing:.18em;padding-left:.18em}
-.pc-name-bar{position:absolute;top:702px;left:0;right:0;z-index:6;height:394px;pointer-events:none}
-.pc-nameplate{position:absolute;left:50%;top:0;z-index:0;width:1180px;height:394px;transform:translateX(-50%);object-fit:fill;pointer-events:none}
-.pc-venue-name{position:absolute;top:170px;left:180px;right:180px;z-index:1;height:72px;margin:0;overflow:hidden;text-align:center;font-size:72px;font-weight:900;line-height:1;letter-spacing:.04em;color:#fff;text-shadow:0 2px 0 #000,0 0 12px rgba(0,0,0,.85);text-overflow:ellipsis;white-space:nowrap;word-break:keep-all}
+.pc-name-bar{position:absolute;top:702px;left:50%;z-index:6;transform:translateX(-50%);pointer-events:none}
+.cer-venue-plate{position:relative;display:block;pointer-events:none}
+.cer-venue-plate-img{position:absolute;inset:0;z-index:0;width:100%;height:100%;object-fit:fill;pointer-events:none}
+.cer-venue-plate-name{position:absolute;z-index:1;margin:0;overflow:hidden;text-align:center;font-weight:900;line-height:1;letter-spacing:.04em;color:#fff;text-shadow:0 2px 0 #000,0 0 12px rgba(0,0,0,.85);text-overflow:ellipsis;white-space:nowrap;word-break:keep-all}
 
 /* Winner: the light shaft runs through x=962, its floor reflection at y=794. */
 .wb-board{background:#020306}
@@ -38,9 +39,11 @@
 .wb-dust{position:absolute;left:842px;top:0;width:240px;height:820px;mix-blend-mode:screen;opacity:.85;background:radial-gradient(circle,rgba(255,236,170,.95) 0 1.6px,transparent 2.6px) 0 0/38px 46px,radial-gradient(circle,rgba(253,224,138,.7) 0 1.1px,transparent 2px) 19px 23px/52px 64px;-webkit-mask-image:radial-gradient(ellipse 50% 52% at 50% 46%,#000 35%,transparent 100%);mask-image:radial-gradient(ellipse 50% 52% at 50% 46%,#000 35%,transparent 100%);animation:wb-rise 8s linear infinite}
 @keyframes wb-rise{to{background-position:0 -460px,19px -425px}}
 .wb-title{top:56px;font-size:156px;letter-spacing:.2em;padding-left:.2em}
-.wb-team{top:790px;left:120px;right:120px;font-size:72px;letter-spacing:.06em;overflow:hidden;text-overflow:ellipsis}
-.wb-group-name{position:absolute;margin:0;overflow:hidden;text-align:center;font-size:48px;font-weight:900;letter-spacing:.04em;white-space:nowrap;text-overflow:ellipsis}
-.cb-team{top:900px;left:120px;right:120px;font-size:72px;letter-spacing:.06em;overflow:hidden;text-overflow:ellipsis}
+.wb-venue-plate{position:absolute;top:786px;left:50%;z-index:3;transform:translateX(-50%)}
+.wb-group-plate{position:absolute;z-index:3}
+.cb-venue-plate{position:absolute;top:900px;left:50%;z-index:3;transform:translateX(-50%)}
+.pd-venue-plate{position:absolute;z-index:3}
+.pd-venue-plate-champ .cer-venue-plate-name{animation:pd-name-flash 1.4s ease-in-out infinite}
 .wb-loser{position:absolute;right:56px;bottom:44px;margin:0;font-size:26px;font-weight:800;letter-spacing:.1em;color:#94a3b8;text-shadow:0 2px 6px #000}
 .wb-drop{position:absolute;right:48px;bottom:36px;z-index:4;display:flex;flex-direction:column;align-items:center;gap:8px;width:220px}
 .wb-drop-mark{position:relative;margin:0;display:flex;justify-content:center;align-items:center;gap:4px;font-size:22px;font-weight:900;letter-spacing:.08em;color:#fb923c;text-shadow:0 2px 0 #000;pointer-events:none;word-break:keep-all}
@@ -81,8 +84,6 @@
 .pd-place-1 .pd-card{border-color:rgba(253,224,138,.95);box-shadow:0 0 0 1px rgba(0,0,0,.55),0 24px 60px rgba(0,0,0,.55),0 0 48px rgba(251,191,36,.45)}
 .pd-place-2 .pd-card,.pd-place-3 .pd-card{opacity:.92;filter:saturate(.9)}
 .pd-flash{position:absolute;inset:0;z-index:5;background:#fff;opacity:0;visibility:hidden;pointer-events:none}
-.pd-team{position:absolute;margin:0;overflow:hidden;text-align:center;font-size:28px;font-weight:900;line-height:1.2;white-space:nowrap;text-overflow:ellipsis}
-.pd-team-champ{font-size:56px;letter-spacing:.04em;animation:pd-name-flash 1.4s ease-in-out infinite}
 @keyframes pd-name-flash{0%,100%{filter:drop-shadow(0 0 8px rgba(251,191,36,.35))}50%{filter:drop-shadow(0 0 28px rgba(253,224,138,.95)) brightness(1.18)}}
 .pd-block{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:14px;box-sizing:border-box;border:2px solid rgba(253,224,138,.75);border-bottom:0;background:linear-gradient(180deg,rgba(120,83,20,.92),rgba(30,20,6,.95));box-shadow:0 0 40px rgba(251,191,36,.25)}
 .pd-place-1 .pd-block{background:linear-gradient(180deg,rgba(202,138,4,.95),rgba(66,40,4,.96))}

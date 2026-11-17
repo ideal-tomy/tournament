@@ -249,6 +249,31 @@ describe('progression — court fill', () => {
     expect(fill.matches.every((m) => m.id !== running.id && getMatchBracketKind(after, m) === 'loser')).toBe(true);
   });
 
+  it('ルーザー1回戦が残っているあいだは2回戦を出さない', async () => {
+    let snapshot = await buildSnapshotForTeamCount(8);
+    for (const match of getChapterMatches(toStageData(snapshot))) {
+      const manager = createManagerFromSnapshot(snapshot);
+      await applyResult(manager, toStageData(snapshot), match.id, 0, match.id);
+      snapshot = await exportSnapshot(manager);
+    }
+    const firstLoser = getChapterMatches(toStageData(snapshot))[0];
+    expect(firstLoser).toBeTruthy();
+    expect(getMatchBracketKind(toStageData(snapshot), firstLoser!)).toBe('loser');
+    expect(getMatchRoundLabel(toStageData(snapshot), firstLoser!)).toBe(1);
+    const manager = createManagerFromSnapshot(snapshot);
+    await applyResult(manager, toStageData(snapshot), firstLoser!.id, 0, firstLoser!.id);
+    snapshot = await exportSnapshot(manager);
+    const after = toStageData(snapshot);
+    const chapter = getChapterMatches(after);
+    expect(chapter.length).toBeGreaterThan(0);
+    expect(chapter.every((m) => getMatchBracketKind(after, m) === 'loser' && getMatchRoundLabel(after, m) === 1)).toBe(true);
+    const rested = new Set(
+      [getSlotTeamUuid(after, firstLoser!, 0), getSlotTeamUuid(after, firstLoser!, 1)].filter((id): id is string => !!id),
+    );
+    const fill = getCourtFillMatches(after, new Set(), rested);
+    expect(fill.matches.every((m) => getMatchRoundLabel(after, m) === 1)).toBe(true);
+  });
+
   it('20チームは未出場を先に入れ、ウィナー2回戦が終わるまでルーザーを出さない', async () => {
     let snapshot = await buildSnapshotForTeamCount(20);
     const playChapter = async () => {

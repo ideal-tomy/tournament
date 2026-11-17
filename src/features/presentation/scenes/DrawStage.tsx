@@ -7,6 +7,7 @@ import { groupDrawParticipants, shouldShowBackOnlyEffect } from '../drawVisualSt
 import type { RehearsalTimingPreset } from '../../../lib/rehearsalTiming';
 import { drawSeconds, estimateTeamSummaryMs, type DrawAnimationTimingKey } from '../drawAnimationTiming';
 import RatedName from '../ceremony/RatedName';
+import VenueTeamNameplate from '../ceremony/VenueTeamNameplate';
 import PairConfirmed from './PairConfirmed';
 import PresentationBackdrop from '../backdrop/PresentationBackdrop';
 import { appendPairCelebration, pairCardsMeetOffset, startBackdropLoops } from '../backdrop/appendPresentationBackdrop';
@@ -287,9 +288,11 @@ export default function DrawStage({
                                   </div>
                                 ))}
                               </div>
-                              <p className="draw-team-label">
-                                {data.teamLabels?.[teamIndex]?.trim() || members.map((m) => m.displayName.replace(/（Rt\.[^）]*）$/u, '').trim()).join(' & ')}
-                              </p>
+                              <VenueTeamNameplate
+                                className="draw-team-nameplate"
+                                width={360}
+                                name={data.teamLabels?.[teamIndex]?.trim() || members.map((m) => m.displayName.replace(/（Rt\.[^）]*）$/u, '').trim()).join(' & ')}
+                              />
                             </div>
                           );
                         })}

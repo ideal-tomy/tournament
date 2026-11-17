@@ -170,6 +170,16 @@ export function getChapterMatches(data: StageData, exclude: ReadonlySet<number> 
       m.status >= Status.Running,
   );
   if (losersBegun && winnersReturnBegun && winnerReady.length) return pickLowest(winnerReady, 'winner');
+  // Loser rounds: do not jump to a higher Ready round while a lower unfinished round still exists.
+  const loserOpen = data.match.filter(
+    (m) => getMatchBracketKind(data, m) === 'loser' && isRealMatch(m) && m.status < Status.Completed,
+  );
+  if (loserOpen.length) {
+    const round = Math.min(...loserOpen.map((m) => getMatchRoundLabel(data, m)));
+    const chapter = filterChapter(data, ready, { kind: 'loser', round });
+    if (chapter.length) return chapter;
+    if (loserReady.some((m) => getMatchRoundLabel(data, m) > round)) return [];
+  }
   if (loserReady.length) return pickLowest(loserReady, 'loser');
   if (winnerReady.length) return pickLowest(winnerReady, 'winner');
   if (gfReady.length) {

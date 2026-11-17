@@ -17,18 +17,11 @@ const INTRO_END = 2;
 const LEFT_X = [120, 440];
 const RIGHT_X = [1180, 1500];
 
-const CALLOUT_LABEL: Record<VsCallout, string> = {
+const CALLOUT_MAIN: Record<VsCallout, string> = {
   semifinal: 'セミファイナル',
-  'losers-semifinal': '準決勝',
-  final: 'ファイナルバトル',
-  'final-again': 'ファイナルバトルアゲイン',
-};
-
-const CALLOUT_CUE: Record<VsCallout, PresentationCue> = {
-  semifinal: 'semifinal',
-  'losers-semifinal': 'semifinal',
-  final: 'finalBattle',
-  'final-again': 'finalBattleAgain',
+  'losers-semifinal': 'セミファイナル',
+  final: 'ファイナル',
+  'final-again': 'ファイナル',
 };
 
 /** Venue VS card. Pixel positions are a 1920×1080 stage, scaled to the monitor. */
@@ -75,6 +68,7 @@ export default function VsBoard({
     if (!stage) return;
     const { startAt, settled, audioEnabled, callout } = introRef.current;
     const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const again = callout === 'final-again';
     const ctx = gsap.context(() => {
       const tl = gsap.timeline({ paused: true });
       let restoring = false;
@@ -85,7 +79,7 @@ export default function VsBoard({
         .set('.vsb-card-right', { x: 520 })
         .set('.vsb-name', { autoAlpha: 0 })
         .set('.vsb-logo', { autoAlpha: 0, scale: 0.35 })
-        .set('.vsb-spot, .vsb-streak, .vsb-flash, .vsb-callout', { autoAlpha: 0 })
+        .set('.vsb-spot, .vsb-streak, .vsb-flash, .vsb-callout-block, .vsb-callout-main, .vsb-callout-again, .vsb-callout-side', { autoAlpha: 0 })
         .fromTo('.vsb-spot-l', { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5, ease: 'power2.out' }, 0)
         .fromTo('.vsb-spot-r', { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5, ease: 'power2.out' }, 0.08)
         .fromTo('.vsb-streak-l', { autoAlpha: 0, x: -240 }, { autoAlpha: 1, x: 0, duration: 0.45, ease: 'power4.in' }, 0.5)
@@ -102,8 +96,30 @@ export default function VsBoard({
         .call(() => stage.classList.add('vsb-hold'), [], INTRO_END)
         .to({}, { duration: INTRO_END }, 0);
       if (callout) {
-        tl.fromTo('.vsb-callout', { autoAlpha: 0, scale: 1.35 }, { autoAlpha: 1, scale: 1, duration: 0.55, ease: 'expo.out' }, 0.15);
-        cue(CALLOUT_CUE[callout], 0.35);
+        tl.to('.vsb-callout-block', { autoAlpha: 1, duration: 0.2 }, 0.12);
+        if (callout === 'losers-semifinal') {
+          tl.fromTo('.vsb-callout-side', { autoAlpha: 0, y: -12 }, { autoAlpha: 1, y: 0, duration: 0.35, ease: 'power2.out' }, 0.12);
+        }
+        if (again) {
+          if (reduced) {
+            tl.set('.vsb-callout-main, .vsb-callout-again', { autoAlpha: 1, x: 0, scale: 1 }, 0.15);
+          } else {
+            tl.fromTo('.vsb-callout-main', { autoAlpha: 0, scale: 1.28 }, { autoAlpha: 1, scale: 1, duration: 0.5, ease: 'expo.out' }, 0.15);
+            cue('finalBattle', 0.32);
+            tl.fromTo(
+              '.vsb-callout-again',
+              { autoAlpha: 0, x: 360, scale: 1.2 },
+              { autoAlpha: 1, x: 0, scale: 1, duration: 0.38, ease: 'power4.out' },
+              0.72,
+            );
+            cue('finalBattleAgain', 0.88);
+            tl.fromTo('.vsb-flash', { autoAlpha: 0, scale: 0.55 }, { autoAlpha: 0.85, scale: 1.05, duration: 0.1, ease: 'expo.out' }, 0.88)
+              .to('.vsb-flash', { autoAlpha: 0, scale: 1.45, duration: 0.35 }, 0.98);
+          }
+        } else {
+          tl.fromTo('.vsb-callout-main', { autoAlpha: 0, scale: 1.28 }, { autoAlpha: 1, scale: 1, duration: 0.55, ease: 'expo.out' }, 0.15);
+          cue(callout === 'final' ? 'finalBattle' : 'semifinal', 0.35);
+        }
       }
       cue('pairImpact', 1.2);
       const at = reduced || settled ? INTRO_END : audioEnabled ? 0 : Math.min(INTRO_END, Math.max(0, startAt));
@@ -131,7 +147,13 @@ export default function VsBoard({
           <div className="vsb-streak vsb-streak-l"><img src={FX.darts.motionStreak} alt="" /></div>
           <div className="vsb-streak vsb-streak-r"><img src={FX.darts.motionStreak} alt="" /></div>
           <div className="vsb-mask" />
-          {callout && <p className="vsb-callout">{CALLOUT_LABEL[callout]}</p>}
+          {callout && (
+            <div className={`vsb-callout-block${callout === 'final-again' ? ' is-again' : ''}`}>
+              {callout === 'losers-semifinal' && <p className="vsb-callout-side">ルーザーズ</p>}
+              <p className="vsb-callout-main">{CALLOUT_MAIN[callout]}</p>
+              {callout === 'final-again' && <p className="vsb-callout-again">アゲイン</p>}
+            </div>
+          )}
           {roundLabel && <p className="vsb-round">{roundLabel}</p>}
           <p className="vsb-team vsb-team-l">{left.name}</p>
           <p className="vsb-team vsb-team-r">{right.name}</p>

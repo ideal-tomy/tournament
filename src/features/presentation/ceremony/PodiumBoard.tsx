@@ -3,6 +3,7 @@ import { TOURNAMENT_EFFECTS as FX } from '../../../lib/tournamentEffects';
 import CeremonyFrame, { cardSlots, people, type CeremonyTeam } from './CeremonyFrame';
 import { useCeremonyIntro, type CeremonyIntroOptions } from './useCeremonyIntro';
 import RatedName from './RatedName';
+import VenueTeamNameplate from './VenueTeamNameplate';
 
 const FLOOR = 1040;
 const COLUMN = 440;
@@ -119,12 +120,12 @@ export default function PodiumBoard({ first, second, third, ...intro }: Ceremony
                 {person.face ? <img src={person.face} alt={person.name} /> : <div className="cer-empty">?</div>}
                 <p className="cer-card-name"><RatedName text={person.name} /></p>
               </article>)}
-              <p
-                className={`pd-team cer-gold${place.rank === 1 ? ' pd-team-champ' : ''}`}
-                style={{ left: center - teamWidth / 2, top: teamTop, width: teamWidth }}
-              >
-                {team.name}
-              </p>
+              <VenueTeamNameplate
+                name={team.name}
+                width={Math.min(place.rank === 1 ? 520 : 360, teamWidth)}
+                className={`pd-venue-plate${place.rank === 1 ? ' pd-venue-plate-champ' : ''}`}
+                style={{ left: center - Math.min(place.rank === 1 ? 520 : 360, teamWidth) / 2, top: teamTop }}
+              />
             </div>;
           })}
         </div>

@@ -154,7 +154,7 @@ function CourtSpotlightView({ state, spot }: { state: DrawState; spot: CourtSpot
       return <LosersIntro key={`${spot.id}-title`} startAt={spot.elapsed} audioEnabled durationSec={LOSERS_INTRO_TITLE_SEC} />;
     }
     return (
-      <div key={`${spot.id}-bracket`} className="relative h-full min-h-[60vh]">
+      <div key={`${spot.id}-bracket`} className="losers-bracket-fade relative h-full min-h-[60vh]">
         <SavedBracket state={{ ...state, flow: { ...state.flow!, boardSide: 'losers' } }} />
       </div>
     );
@@ -320,7 +320,7 @@ export default function FlowPresentation({ state, controlledTime }: { state: Dra
           return <LosersIntro key={`losers-intro-${state.sceneSeq}`} startAt={elapsed} audioEnabled={controlledTime == null} durationSec={LOSERS_INTRO_TITLE_SEC} />;
         }
         return (
-          <div key={`losers-bracket-${state.sceneSeq}`} className="relative h-full min-h-[60vh]">
+          <div key={`losers-bracket-${state.sceneSeq}`} className="losers-bracket-fade relative h-full min-h-[60vh]">
             <SavedBracket state={{ ...state, flow: { ...state.flow!, boardSide: 'losers' } }} />
           </div>
         );

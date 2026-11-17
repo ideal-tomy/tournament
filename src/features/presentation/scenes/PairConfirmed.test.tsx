@@ -21,8 +21,8 @@ describe('PairConfirmed', () => {
     expect(markup).toContain('RYOJI');
     expect(markup).toContain('TAKUMA');
     expect(markup).toContain('ナイトメア');
-    expect(markup).toContain('pc-nameplate');
-    expect(markup.indexOf('pc-nameplate')).toBeLessThan(markup.indexOf('pc-venue-name'));
+    expect(markup).toContain('cer-venue-plate-img');
+    expect(markup.indexOf('cer-venue-plate-img')).toBeLessThan(markup.indexOf('cer-venue-plate-name'));
     expect(markup).not.toContain('impact-mark');
     expect(markup).not.toContain('draw-dart');
   });

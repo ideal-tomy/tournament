@@ -16,4 +16,7 @@
 .venue-opening-status{position:absolute;top:14px;left:18px;margin:0;color:rgba(233,240,248,.72);font-size:13px}
 .draw-monitor>.error{position:relative;z-index:30}
 .obt-caption{position:absolute;left:4vw;right:4vw;bottom:36px;z-index:2;margin:0;text-align:center;font-size:clamp(26px,2.6vw,44px);font-weight:900;line-height:1.35;color:#f8fafc;text-shadow:0 2px 10px #020617;pointer-events:none;word-break:keep-all}
-.draw-team-label{flex:none;margin:10px 0 0;text-align:center;font-size:clamp(14px,1.4vw,22px);font-weight:900;line-height:1.2;color:#fde68a;word-break:keep-all}
+.draw-team-nameplate{flex:none;width:100%;max-width:360px;margin:10px auto 0}
+.losers-bracket-fade{animation:losers-bracket-in .4s ease-out both}
+@keyframes losers-bracket-in{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){.losers-bracket-fade{animation:none}}

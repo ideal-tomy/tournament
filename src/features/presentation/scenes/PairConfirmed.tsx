@@ -1,9 +1,9 @@
 import { useRef } from 'react';
 import { TOURNAMENT_EFFECTS as FX } from '../../../lib/tournamentEffects';
 import type { DrawRevealParticipant } from '../../draw/presentationTypes';
-import nameplate from '../../../../public/images/プレート01.png';
 import CeremonyFrame, { cardSlots } from '../ceremony/CeremonyFrame';
 import RatedName from '../ceremony/RatedName';
+import VenueTeamNameplate, { PAIR_PLATE_WIDTH } from '../ceremony/VenueTeamNameplate';
 
 interface PairConfirmedProps {
   teamNumber: number;
@@ -40,10 +40,7 @@ export default function PairConfirmed({ teamNumber, members, teamLabel }: PairCo
         <div className="pc-flare" />
         <p className="cer-text pc-team-no">TEAM {String(teamNumber).padStart(2, '0')}</p>
         <h2 className="cer-text cer-gold pc-title">{isPair ? 'PAIR CONFIRMED' : 'TEAM CONFIRMED'}</h2>
-        <div className="pc-name-bar">
-          <img className="pc-nameplate" src={nameplate} alt="" />
-          <p className="pc-venue-name">{venueLabel(teamLabel, members)}</p>
-        </div>
+        <VenueTeamNameplate name={venueLabel(teamLabel, members)} width={PAIR_PLATE_WIDTH} className="pc-name-bar" />
         {members.map((member, index) => (
           <article
             key={member.id}

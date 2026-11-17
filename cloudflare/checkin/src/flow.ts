@@ -130,7 +130,11 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
   payload={...payload,championTeamId:champion,placements,ceremony:step,durationSec:stepDuration(step)};nextScene='award';
  }
  function nextMatch(){
-  const data=toStageData(snapshot),next=getChapterMatches(data)[0]??getNextMatch(data);
+  const data=toStageData(snapshot);
+  const resting=new Set<string>();
+  if(payload.winnerTeamId)resting.add(payload.winnerTeamId);
+  if(payload.loserTeamId)resting.add(payload.loserTeamId);
+  const next=getCourtFillMatches(data,new Set(),resting).matches[0]??getChapterMatches(data)[0]??getNextMatch(data);
   if(!next||next.opponent1?.id==null||next.opponent2?.id==null)throw new ClientError('NO_PLAYABLE_MATCH',409);
   current=next.id;
   const losersIntro=getMatchBracketKind(data,next)==='loser'&&!payload.losersIntroPlayed;

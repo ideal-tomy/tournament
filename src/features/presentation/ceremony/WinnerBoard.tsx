@@ -3,6 +3,7 @@ import { TOURNAMENT_EFFECTS as FX } from '../../../lib/tournamentEffects';
 import CeremonyFrame, { cardSlots, people, type CeremonyTeam } from './CeremonyFrame';
 import { useCeremonyIntro, type CeremonyIntroOptions } from './useCeremonyIntro';
 import RatedName from './RatedName';
+import VenueTeamNameplate, { PAIR_PLATE_WIDTH } from './VenueTeamNameplate';
 
 const INTRO_END = 3;
 const STAGE = 1920;
@@ -59,13 +60,13 @@ export default function WinnerBoard({
     (tl, cue) => {
       tl.set('.wb-card', { autoAlpha: 0, y: 120, scale: 0.9 })
         .set('.wb-title', { autoAlpha: 0, scale: 1.6 })
-        .set('.wb-team, .wb-group-name, .cer-card-name', { autoAlpha: 0, y: 20 })
+        .set('.wb-venue-plate, .wb-group-plate, .cer-card-name', { autoAlpha: 0, y: 20 })
         .set('.wb-drop', { autoAlpha: 0, y: 16 })
         .fromTo('.wb-scene', { autoAlpha: 0, scale: 1.08 }, { autoAlpha: 1, scale: 1, duration: 1.4, ease: 'power2.out' }, 0)
         .to('.wb-card', { autoAlpha: 1, y: 0, scale: 1, duration: 0.75, stagger: 0.1, ease: 'back.out(1.4)' }, 0.35)
         .fromTo('.cer-white', { autoAlpha: 0 }, { autoAlpha: 0.85, duration: 0.05, yoyo: true, repeat: 1 }, 1.05)
         .to('.wb-title', { autoAlpha: 1, scale: 1, duration: 0.55, ease: 'expo.out' }, 1.05)
-        .to('.wb-team, .wb-group-name', { autoAlpha: 1, y: 0, duration: 0.45 }, 1.4)
+        .to('.wb-venue-plate, .wb-group-plate', { autoAlpha: 1, y: 0, duration: 0.45 }, 1.4)
         .to('.cer-card-name', { autoAlpha: 1, y: 0, duration: 0.4, stagger: 0.05 }, 1.5)
         .to('.wb-drop', { autoAlpha: 1, y: 0, duration: 0.4 }, 1.6);
       cue('pairImpact', 1.05);
@@ -93,6 +94,7 @@ export default function WinnerBoard({
         const members = people(item);
         const slots = cardSlots(members.length, card, innerGap, centers[group] ?? BEAM_X);
         const height = card * 1.5;
+        const groupWidth = card * members.length + innerGap * Math.max(0, members.length - 1) + 24;
         return (
           <div key={`${item.name}-${group}`}>
             {members.map((person, index) => (
@@ -102,17 +104,19 @@ export default function WinnerBoard({
               </article>
             ))}
             {grouped && (
-              <p
-                className="wb-group-name cer-gold"
-                style={{ left: (slots[0] ?? 0) - 12, width: card * members.length + innerGap * Math.max(0, members.length - 1) + 24, top: 276 + height + 18 }}
-              >
-                {item.name}
-              </p>
+              <VenueTeamNameplate
+                name={item.name}
+                width={Math.min(PAIR_PLATE_WIDTH, groupWidth)}
+                className="wb-group-plate"
+                style={{ left: (slots[0] ?? 0) - 12, top: 276 + height + 18 }}
+              />
             )}
           </div>
         );
       })}
-      {!grouped && clusters[0] && <p className="cer-text cer-gold wb-team">{clusters[0].name}</p>}
+      {!grouped && clusters[0] && (
+        <VenueTeamNameplate name={clusters[0].name} width={PAIR_PLATE_WIDTH} className="wb-venue-plate" />
+      )}
       {opponent && (
         <aside className="wb-drop">
           <DropMark text={dropLabel} />
