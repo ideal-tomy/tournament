@@ -4,15 +4,13 @@ import type { StageData } from '../../bracket/layout';
 import { computeBracketLayout } from '../../bracket/layout';
 import BracketView from '../../bracket/BracketView';
 import {
-  BRACKET_TOUR_HOLD_SEC,
-  BRACKET_TOUR_OVERVIEW_SEC,
-  BRACKET_TOUR_ZOOM_SEC,
-  openingTourCaption,
-  openingTourCaptionIndex,
   openingTourDurationSec,
+  fitTourAspect,
   openingTourFrame,
   openingTourPhase,
   openingTourStops,
+  openingTourViewAt,
+  type OpeningTourFrame,
 } from '../openingTourTiming';
 
 export interface TourTeam {
@@ -27,7 +25,7 @@ export { openingTourDurationSec };
 /** 同じトーナメント表のカメラで、初戦を左から右へ一巡して全体で止まる。 */
 export default function OpeningBracketTour({
   data,
-  teams,
+  teams: _teams,
   faceUrlByTeamId,
   labelByTeamId,
   memberNamesByTeamId,
@@ -41,17 +39,11 @@ export default function OpeningBracketTour({
   startAt?: number;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const captionRef = useRef<HTMLParagraphElement>(null);
   const cam = useRef({ x: 0, y: 0, w: 1, h: 1 });
   const playing = useRef(false);
   const startRef = useRef(startAt);
   const dataRef = useRef(data);
-  const labelsRef = useRef(labelByTeamId);
   dataRef.current = data;
-  labelsRef.current = {
-    ...Object.fromEntries(teams.map((team) => [team.id, team.name])),
-    ...labelByTeamId,
-  };
   const signature = openingTourStops(data)
     .map((stop) => stop.matchIds.join(','))
     .join('|');
@@ -61,50 +53,27 @@ export default function OpeningBracketTour({
     const svg = root?.querySelector('svg');
     if (!root || !svg) return;
     const stage = dataRef.current;
-    const labels = labelsRef.current;
-    const stops = openingTourStops(stage).map((stop) => ({
-      ...stop,
-      caption: openingTourCaption(stage, stop.matchIds, labels),
-    }));
+    const stops = openingTourStops(stage);
     const layout = computeBracketLayout(stage, undefined, 'winners');
-    const full = { x: 0, y: 0, w: layout.width, h: layout.height };
+    const tight = stops[0] ? openingTourFrame(stage, stops[0].matchIds) : { x: 0, y: 0, w: layout.width, h: layout.height };
+    const aspect = tight.h > 0 ? tight.w / tight.h : 1;
+    const full = fitTourAspect({ x: 0, y: 0, w: layout.width, h: layout.height }, aspect);
+    const frames = stops.map((stop) => fitTourAspect(openingTourFrame(stage, stop.matchIds), aspect));
     const state = cam.current;
-    state.x = full.x;
-    state.y = full.y;
-    state.w = full.w;
-    state.h = full.h;
-    const apply = (elapsed: number) => {
-      svg.setAttribute('viewBox', `${state.x} ${state.y} ${state.w} ${state.h}`);
-      root.dataset.viewBox = `${state.x} ${state.y} ${state.w} ${state.h}`;
-      const index = openingTourCaptionIndex(elapsed, stops.length);
-      root.dataset.stop = index == null ? '' : String(index);
+    const write = (frame: OpeningTourFrame, elapsed: number) => {
+      state.x = frame.x;
+      state.y = frame.y;
+      state.w = frame.w;
+      state.h = frame.h;
+      svg.setAttribute('viewBox', `${frame.x} ${frame.y} ${frame.w} ${frame.h}`);
+      root.dataset.viewBox = `${frame.x} ${frame.y} ${frame.w} ${frame.h}`;
       root.dataset.phase = openingTourPhase(elapsed, stops.length);
       root.dataset.stops = String(stops.length);
-      if (captionRef.current) captionRef.current.textContent = index == null ? '' : stops[index]?.caption ?? '';
     };
-    const tl = gsap.timeline({ paused: true, onUpdate: () => apply(tl.time()) });
-    tl.to({}, { duration: BRACKET_TOUR_OVERVIEW_SEC });
-    for (const stop of stops) {
-      const frame = openingTourFrame(stage, stop.matchIds);
-      tl.to(state, {
-        x: frame.x,
-        y: frame.y,
-        w: frame.w,
-        h: frame.h,
-        duration: BRACKET_TOUR_ZOOM_SEC,
-        ease: 'power2.inOut',
-      });
-      tl.to({}, { duration: BRACKET_TOUR_HOLD_SEC });
-      tl.to(state, {
-        x: full.x,
-        y: full.y,
-        w: full.w,
-        h: full.h,
-        duration: BRACKET_TOUR_ZOOM_SEC,
-        ease: 'power2.inOut',
-      });
-    }
     const total = openingTourDurationSec(stage);
+    const apply = (elapsed: number) => write(openingTourViewAt(elapsed, full, frames), elapsed);
+    const tl = gsap.timeline({ paused: true, onUpdate: () => apply(tl.time()) });
+    tl.to({}, { duration: total });
     const begin = Math.min(total, Math.max(0, startRef.current));
     tl.seek(begin, false);
     apply(begin);
@@ -135,7 +104,6 @@ export default function OpeningBracketTour({
           memberNamesByTeamId={memberNamesByTeamId}
         />
       </div>
-      <p ref={captionRef} className="obt-caption" aria-live="polite" />
     </div>
   );
 }

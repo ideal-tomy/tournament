@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { bedOverlapSec, BED_LOOP_CROSSFADE_SEC, resolveVenueBed, setPresentationBed } from './presentationBed';
+import { bedOverlapSec, BED_LOOP_CROSSFADE_SEC, BED_PAIR_LOOP_CROSSFADE_SEC, resolveVenueBed, setPresentationBed } from './presentationBed';
 
 const idle = { review: null, scene: 'idle', hasSession: true, photoError: false } as const;
 
@@ -26,6 +26,8 @@ describe('resolveVenueBed', () => {
 describe('bedOverlapSec', () => {
   it('crossfades three seconds on a long track and shortens the overlap on a short one', () => {
     expect(bedOverlapSec(180)).toBe(BED_LOOP_CROSSFADE_SEC);
+    expect(bedOverlapSec(180, BED_PAIR_LOOP_CROSSFADE_SEC)).toBe(BED_PAIR_LOOP_CROSSFADE_SEC);
+    expect(BED_PAIR_LOOP_CROSSFADE_SEC - BED_LOOP_CROSSFADE_SEC).toBe(5);
     expect(bedOverlapSec(6)).toBe(2);
     expect(bedOverlapSec(1.2)).toBeCloseTo(0.45);
     expect(bedOverlapSec(Number.NaN)).toBe(BED_LOOP_CROSSFADE_SEC);
@@ -144,6 +146,48 @@ describe('setPresentationBed', () => {
 
     setPresentationBed(null);
     expect(audios.every((audio) => audio.paused)).toBe(true);
+  });
+
+  it('starts the next pair loop five seconds before the waiting track would', async () => {
+    vi.stubGlobal('Audio', class {
+      constructor() {
+        const audio = new FakeAudio();
+        audio.duration = 152;
+        audios.push(audio);
+        return audio;
+      }
+    });
+    vi.stubGlobal('performance', { now: () => now });
+    vi.stubGlobal('requestAnimationFrame', (callback: (time: number) => void) => {
+      now += 400;
+      callback(now);
+      return 1;
+    });
+    vi.stubGlobal('cancelAnimationFrame', () => undefined);
+    vi.stubGlobal('window', {
+      setInterval: (callback: () => void) => {
+        watch = callback;
+        return 1;
+      },
+      clearInterval: () => {
+        watch = null;
+      },
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    });
+
+    setPresentationBed('pair');
+    await Promise.resolve();
+    audios[0].currentTime = 152 - BED_PAIR_LOOP_CROSSFADE_SEC - 1;
+    watch?.();
+    expect(audios).toHaveLength(1);
+
+    audios[0].currentTime = 152 - BED_PAIR_LOOP_CROSSFADE_SEC;
+    watch?.();
+    expect(audios).toHaveLength(2);
+    expect(audios[1].currentTime).toBe(0);
+    expect(audios[1].paused).toBe(false);
+    expect(audios[0].paused).toBe(true);
   });
 
   it('keeps fading in when the first frame is timestamped before the fade starts', async () => {

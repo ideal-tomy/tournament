@@ -4,6 +4,8 @@ import { TOURNAMENT_EFFECTS as FX } from '../../../lib/tournamentEffects';
 /** 開始フェード、周回のクロスフェード、場面の切り替え。秒。 */
 export const BED_FADE_IN_SEC = 0.8;
 export const BED_LOOP_CROSSFADE_SEC = 3;
+/** ペア曲は末尾が約5秒かけて落ちる。その無音を待たず、次の周回を5秒早く重ねる。 */
+export const BED_PAIR_LOOP_CROSSFADE_SEC = 8;
 export const BED_SCENE_CROSSFADE_SEC = 1.5;
 const BED_VOLUME = 0.4;
 
@@ -16,9 +18,9 @@ const BED_URL: Record<BedTrack, string> = {
   ending: FX.audio.opening,
 };
 
-export function bedOverlapSec(duration: number) {
-  if (!Number.isFinite(duration) || duration <= 0) return BED_LOOP_CROSSFADE_SEC;
-  return Math.min(BED_LOOP_CROSSFADE_SEC, Math.max(0.45, duration / 3));
+export function bedOverlapSec(duration: number, crossfade = BED_LOOP_CROSSFADE_SEC) {
+  if (!Number.isFinite(duration) || duration <= 0) return crossfade;
+  return Math.min(crossfade, Math.max(0.45, duration / 3));
 }
 
 type VenueReview = 'draw' | 'vs' | 'winner' | 'champion' | null;
@@ -85,6 +87,7 @@ class LoopingBed {
   constructor(
     private readonly url: string,
     private readonly fadeSec: number,
+    private readonly overlapSec: number,
     private readonly onPlaying: () => void,
     private readonly onBlocked: () => void,
   ) {
@@ -134,7 +137,7 @@ class LoopingBed {
     if (this.stopped || this.crossing) return;
     const { duration, currentTime } = this.current;
     if (!Number.isFinite(duration) || duration <= 0) return;
-    const overlap = bedOverlapSec(duration);
+    const overlap = bedOverlapSec(duration, this.overlapSec);
     if (currentTime >= duration - overlap) this.cross(overlap);
   };
 
@@ -243,6 +246,7 @@ export function setPresentationBed(next: BedTrack | null) {
   const created = new LoopingBed(
     BED_URL[next],
     previous ? BED_SCENE_CROSSFADE_SEC : BED_FADE_IN_SEC,
+    next === 'pair' ? BED_PAIR_LOOP_CROSSFADE_SEC : BED_LOOP_CROSSFADE_SEC,
     () => {
       if (active === created) {
         setGestureNeeded(false);

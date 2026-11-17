@@ -4,12 +4,12 @@ import { getMatchBracketKind, getMatchRoundLabel } from '../progression/tiers';
 
 /** 最初の全体表示。 */
 export const BRACKET_TOUR_OVERVIEW_SEC = 2;
-/** 寄る時間と、引いて全体へ戻る時間。 */
-export const BRACKET_TOUR_ZOOM_SEC = 1;
+/** 寄る時間と、引いて全体へ戻る時間。直線補間なので縦横比は変えない。 */
+export const BRACKET_TOUR_ZOOM_SEC = 2.8;
 /** 顔と対戦相手が読める位置で止める時間。 */
 export const BRACKET_TOUR_HOLD_SEC = 4;
-
-const CLUSTER_LIMIT = 2;
+/** 左から右へ止める回数。下段はこの回数で等分する。 */
+export const BRACKET_TOUR_STOPS = 4;
 
 export interface OpeningTourStop {
   matchIds: number[];
@@ -39,69 +39,32 @@ function teamKey(data: StageData, participantId: number | null | undefined): str
   return data.participant.find((row) => row.id === participantId)?.name ?? null;
 }
 
-function isOneSided(match: BMMatch): boolean {
-  return (match.opponent1?.id != null) !== (match.opponent2?.id != null);
+function teamsInMatch(data: StageData, match: BMMatch): string[] {
+  return [match.opponent1?.id, match.opponent2?.id]
+    .map((id) => teamKey(data, id))
+    .filter((team): team is string => team != null);
 }
 
-function firstContest(appearances: BMMatch[]): BMMatch {
-  let chosen = appearances[0];
-  for (const match of appearances) {
-    chosen = match;
-    if (!isOneSided(match)) break;
-  }
-  return chosen;
-}
-
-/** 各チームの初戦を1回だけ、左から右へ。不戦勝で上下に同じ顔があっても1回。 */
+/** 下段を左から4区画に分け、各区画を1回だけ寄る。 */
 export function openingTourStops(data: StageData): OpeningTourStop[] {
-  const appearances = new Map<string, BMMatch[]>();
-  for (const match of winnerMatches(data)) {
-    for (const participantId of [match.opponent1?.id, match.opponent2?.id]) {
-      const team = teamKey(data, participantId);
-      if (!team) continue;
-      const list = appearances.get(team) ?? [];
-      list.push(match);
-      appearances.set(team, list);
-    }
-  }
-
-  const teamsByMatch = new Map<number, string[]>();
-  for (const [team, list] of appearances) {
-    if (!list.length) continue;
-    const matchId = firstContest(list).id;
-    const teams = teamsByMatch.get(matchId) ?? [];
-    teams.push(team);
-    teamsByMatch.set(matchId, teams);
-  }
-
   const layout = computeBracketLayout(data, undefined, 'winners');
-  const ordered = [...teamsByMatch.keys()]
-    .map((id) => ({ id, box: layout.byId[id]?.box, round: getMatchRoundLabel(data, data.match.find((match) => match.id === id)!) }))
-    .filter((item): item is { id: number; box: NonNullable<typeof item.box>; round: number } => item.box != null)
-    .sort((a, b) => a.box.x - b.box.x || a.box.y - b.box.y || a.id - b.id);
-
-  const stops: Array<OpeningTourStop & { round: number; right: number }> = [];
-  for (const item of ordered) {
-    const last = stops[stops.length - 1];
-    const beside =
-      last != null &&
-      last.round === item.round &&
-      last.matchIds.length < CLUSTER_LIMIT &&
-      item.box.x - last.right <= item.box.w * 1.8;
-    if (last && beside) {
-      last.matchIds.push(item.id);
-      last.teamIds.push(...(teamsByMatch.get(item.id) ?? []));
-      last.right = item.box.x + item.box.w;
-      continue;
-    }
-    stops.push({
-      matchIds: [item.id],
-      teamIds: [...(teamsByMatch.get(item.id) ?? [])],
-      round: item.round,
-      right: item.box.x + item.box.w,
-    });
+  const leaves = winnerMatches(data)
+    .filter((match) => getMatchRoundLabel(data, match) === 1 && layout.byId[match.id])
+    .sort((a, b) => layout.byId[a.id].box.x - layout.byId[b.id].box.x || a.id - b.id);
+  const groups = Math.min(BRACKET_TOUR_STOPS, leaves.length);
+  if (!groups) return [];
+  const base = Math.floor(leaves.length / groups);
+  const extra = leaves.length % groups;
+  const stops: OpeningTourStop[] = [];
+  let index = 0;
+  for (let group = 0; group < groups; group += 1) {
+    const size = base + (group < extra ? 1 : 0);
+    const matches = leaves.slice(index, index + size);
+    index += size;
+    const teamIds = [...new Set(matches.flatMap((match) => teamsInMatch(data, match)))];
+    stops.push({ matchIds: matches.map((match) => match.id), teamIds });
   }
-  return stops.map(({ matchIds, teamIds }) => ({ matchIds, teamIds }));
+  return stops;
 }
 
 export function openingTourCaption(
@@ -140,26 +103,77 @@ function sideLabel(
   return '勝者';
 }
 
-/** その試合と、上下につながる隣の枠が入る範囲。 */
-export function openingTourFrame(data: StageData, matchIds: number[]): OpeningTourFrame {
+function boxCenter(box: { x: number; y: number; w: number; h: number }) {
+  return { x: box.x + box.w / 2, y: box.y + box.h / 2 };
+}
+
+/** 中心を動かさず、画面と同じ縦横比まで広げる。 */
+export function fitTourAspect(frame: OpeningTourFrame, aspect: number): OpeningTourFrame {
+  if (!(aspect > 0) || frame.h <= 0) return frame;
+  const cx = frame.x + frame.w / 2;
+  const cy = frame.y + frame.h / 2;
+  let { w, h } = frame;
+  if (w / h < aspect) w = h * aspect;
+  else h = w / aspect;
+  return { x: cx - w / 2, y: cy - h / 2, w, h };
+}
+
+/** 下段の区画を収め、2段目の中心が画面中央に来る範囲。 */
+export function openingTourFrame(data: StageData, matchIds: number[], aspect = 0): OpeningTourFrame {
   const layout = computeBracketLayout(data, undefined, 'winners');
-  const ids = new Set<number>(matchIds);
-  for (const id of matchIds) {
-    const parent = findParentMatch(data, id);
-    if (parent && layout.byId[parent.id]) ids.add(parent.id);
-    for (const feeder of findFeederMatches(data, id)) {
-      if (layout.byId[feeder.id]) ids.add(feeder.id);
-    }
+  const leaves = matchIds.map((id) => layout.byId[id]?.box).filter((box) => box != null);
+  if (!leaves.length) return { x: 0, y: 0, w: layout.width, h: layout.height };
+  const parents = [...new Set(matchIds.map((id) => findParentMatch(data, id)?.id).filter((id): id is number => id != null))]
+    .map((id) => layout.byId[id]?.box)
+    .filter((box) => box != null);
+  const grandparents = [...new Set(matchIds.map((id) => findParentMatch(data, id)?.id).filter((id): id is number => id != null))]
+    .map((id) => findParentMatch(data, id)?.id)
+    .filter((id): id is number => id != null);
+  const upper = [...new Set(grandparents)].map((id) => layout.byId[id]?.box).filter((box) => box != null);
+  const second = parents.length ? parents : leaves;
+  const center = second.reduce((sum, box) => {
+    const point = boxCenter(box);
+    return { x: sum.x + point.x / second.length, y: sum.y + point.y / second.length };
+  }, { x: 0, y: 0 });
+  const boxes = [...leaves, ...parents, ...upper];
+  const pad = 8;
+  const left = Math.min(...boxes.map((box) => box.x)) - pad;
+  const right = Math.max(...boxes.map((box) => box.x + box.w)) + pad;
+  const top = Math.min(...boxes.map((box) => box.y)) - pad;
+  const bottom = Math.max(...boxes.map((box) => box.y + box.h)) + pad;
+  let halfW = Math.max(center.x - left, right - center.x);
+  let halfH = Math.max(center.y - top, bottom - center.y);
+  if (aspect > 0) {
+    if (halfW / halfH < aspect) halfW = halfH * aspect;
+    else halfH = halfW / aspect;
   }
-  const boxes = [...ids].map((id) => layout.byId[id]?.box).filter((box) => box != null);
-  if (!boxes.length) return { x: 0, y: 0, w: layout.width, h: layout.height };
-  const padX = boxes[0].w * 0.55;
-  const padY = boxes[0].h * 0.7;
-  const x = Math.max(0, Math.min(...boxes.map((box) => box.x)) - padX);
-  const y = Math.max(0, Math.min(...boxes.map((box) => box.y)) - padY);
-  const right = Math.min(layout.width, Math.max(...boxes.map((box) => box.x + box.w)) + padX);
-  const bottom = Math.min(layout.height, Math.max(...boxes.map((box) => box.y + box.h)) + padY);
-  return { x, y, w: Math.max(1, right - x), h: Math.max(1, bottom - y) };
+  return { x: center.x - halfW, y: center.y - halfH, w: halfW * 2, h: halfH * 2 };
+}
+
+/** 縦横比を保ったまま、中心と幅だけを直線に補間する。 */
+export function openingTourViewAt(
+  elapsed: number,
+  full: OpeningTourFrame,
+  frames: OpeningTourFrame[],
+): OpeningTourFrame {
+  const lerp = (from: OpeningTourFrame, to: OpeningTourFrame, amount: number): OpeningTourFrame => {
+    const t = -(Math.cos(Math.PI * amount) - 1) / 2;
+    const cx = from.x + from.w / 2 + (to.x + to.w / 2 - (from.x + from.w / 2)) * t;
+    const cy = from.y + from.h / 2 + (to.y + to.h / 2 - (from.y + from.h / 2)) * t;
+    const w = from.w + (to.w - from.w) * t;
+    const h = from.h + (to.h - from.h) * t;
+    return { x: cx - w / 2, y: cy - h / 2, w, h };
+  };
+  if (elapsed <= BRACKET_TOUR_OVERVIEW_SEC || !frames.length) return full;
+  const cycle = BRACKET_TOUR_ZOOM_SEC + BRACKET_TOUR_HOLD_SEC + BRACKET_TOUR_ZOOM_SEC;
+  const into = elapsed - BRACKET_TOUR_OVERVIEW_SEC;
+  if (into >= frames.length * cycle) return full;
+  const index = Math.min(frames.length - 1, Math.floor(into / cycle));
+  const local = into - index * cycle;
+  const target = frames[index];
+  if (local < BRACKET_TOUR_ZOOM_SEC) return lerp(full, target, local / BRACKET_TOUR_ZOOM_SEC);
+  if (local < BRACKET_TOUR_ZOOM_SEC + BRACKET_TOUR_HOLD_SEC) return target;
+  return lerp(target, full, (local - BRACKET_TOUR_ZOOM_SEC - BRACKET_TOUR_HOLD_SEC) / BRACKET_TOUR_ZOOM_SEC);
 }
 
 export function openingTourPhase(

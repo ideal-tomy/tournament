@@ -102,14 +102,17 @@ export default function WinnerBoard({
               </article>
             ))}
             {grouped && (
-              <p className="wb-group-name cer-gold" style={{ left: (slots[0] ?? 0) - 12, width: card * members.length + innerGap * Math.max(0, members.length - 1) + 24, top: 276 + height + 18 }}>
+              <p
+                className="wb-group-name cer-gold"
+                style={{ left: (slots[0] ?? 0) - 12, width: card * members.length + innerGap * Math.max(0, members.length - 1) + 24, top: 276 + height + 18 }}
+              >
                 {item.name}
               </p>
             )}
           </div>
         );
       })}
-      {!grouped && clusters[0] && <p className="cer-text wb-team cer-gold">{clusters[0].name}</p>}
+      {!grouped && clusters[0] && <p className="cer-text cer-gold wb-team">{clusters[0].name}</p>}
       {opponent && (
         <aside className="wb-drop">
           <DropMark text={dropLabel} />

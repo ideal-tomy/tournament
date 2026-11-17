@@ -119,7 +119,12 @@ export default function PodiumBoard({ first, second, third, ...intro }: Ceremony
                 {person.face ? <img src={person.face} alt={person.name} /> : <div className="cer-empty">?</div>}
                 <p className="cer-card-name"><RatedName text={person.name} /></p>
               </article>)}
-              <p className={`pd-team cer-gold${place.rank === 1 ? ' pd-team-champ' : ''}`} style={{ left: center - teamWidth / 2, top: teamTop, width: teamWidth }}>{team.name}</p>
+              <p
+                className={`pd-team cer-gold${place.rank === 1 ? ' pd-team-champ' : ''}`}
+                style={{ left: center - teamWidth / 2, top: teamTop, width: teamWidth }}
+              >
+                {team.name}
+              </p>
             </div>;
           })}
         </div>

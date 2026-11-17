@@ -7,6 +7,7 @@ describe('PairConfirmed', () => {
     const markup = renderToStaticMarkup(
       <PairConfirmed
         teamNumber={1}
+        teamLabel="ナイトメア"
         members={[
           { id: 'a', displayName: 'RYOJI', faceUrl: '/faces/a.jpg' },
           { id: 'b', displayName: 'TAKUMA', faceUrl: '/faces/b.jpg' },
@@ -19,6 +20,9 @@ describe('PairConfirmed', () => {
     expect(markup).not.toContain('NEXT DRAW');
     expect(markup).toContain('RYOJI');
     expect(markup).toContain('TAKUMA');
+    expect(markup).toContain('ナイトメア');
+    expect(markup).toContain('pc-nameplate');
+    expect(markup.indexOf('pc-nameplate')).toBeLessThan(markup.indexOf('pc-venue-name'));
     expect(markup).not.toContain('impact-mark');
     expect(markup).not.toContain('draw-dart');
   });

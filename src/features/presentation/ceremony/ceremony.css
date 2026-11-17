@@ -27,8 +27,9 @@
 .pc-flare{position:absolute;left:510px;top:56px;width:900px;height:900px;border-radius:50%;background:radial-gradient(circle,rgba(255,244,200,.95),rgba(251,191,36,.45) 30%,transparent 62%);mix-blend-mode:screen;opacity:0;visibility:hidden;pointer-events:none}
 .pc-team-no{top:40px;font-size:28px;letter-spacing:.5em;padding-left:.5em;color:#fcd34d;text-shadow:0 2px 6px #000}
 .pc-title{top:76px;font-size:78px;letter-spacing:.18em;padding-left:.18em}
-.pc-name-bar{position:absolute;top:828px;left:160px;right:160px;z-index:2;display:grid;place-items:center;min-height:92px;padding:12px 28px;border-radius:16px;background:rgba(5,8,16,.88);border:1px solid rgba(253,230,138,.45);box-shadow:0 10px 28px rgba(0,0,0,.45)}
-.pc-venue-name{position:relative;top:auto;left:auto;right:auto;margin:0;overflow:hidden;text-align:center;font-size:72px;font-weight:900;letter-spacing:.04em;color:#fff;text-shadow:0 2px 0 #000,0 0 18px rgba(0,0,0,.8);text-overflow:ellipsis;word-break:keep-all}
+.pc-name-bar{position:absolute;top:702px;left:0;right:0;z-index:6;height:394px;pointer-events:none}
+.pc-nameplate{position:absolute;left:50%;top:0;z-index:0;width:1180px;height:394px;transform:translateX(-50%);object-fit:fill;pointer-events:none}
+.pc-venue-name{position:absolute;top:170px;left:180px;right:180px;z-index:1;height:72px;margin:0;overflow:hidden;text-align:center;font-size:72px;font-weight:900;line-height:1;letter-spacing:.04em;color:#fff;text-shadow:0 2px 0 #000,0 0 12px rgba(0,0,0,.85);text-overflow:ellipsis;white-space:nowrap;word-break:keep-all}
 
 /* Winner: the light shaft runs through x=962, its floor reflection at y=794. */
 .wb-board{background:#020306}
@@ -39,6 +40,7 @@
 .wb-title{top:56px;font-size:156px;letter-spacing:.2em;padding-left:.2em}
 .wb-team{top:790px;left:120px;right:120px;font-size:72px;letter-spacing:.06em;overflow:hidden;text-overflow:ellipsis}
 .wb-group-name{position:absolute;margin:0;overflow:hidden;text-align:center;font-size:48px;font-weight:900;letter-spacing:.04em;white-space:nowrap;text-overflow:ellipsis}
+.cb-team{top:900px;left:120px;right:120px;font-size:72px;letter-spacing:.06em;overflow:hidden;text-overflow:ellipsis}
 .wb-loser{position:absolute;right:56px;bottom:44px;margin:0;font-size:26px;font-weight:800;letter-spacing:.1em;color:#94a3b8;text-shadow:0 2px 6px #000}
 .wb-drop{position:absolute;right:48px;bottom:36px;z-index:4;display:flex;flex-direction:column;align-items:center;gap:8px;width:220px}
 .wb-drop-mark{position:relative;margin:0;display:flex;justify-content:center;align-items:center;gap:4px;font-size:22px;font-weight:900;letter-spacing:.08em;color:#fb923c;text-shadow:0 2px 0 #000;pointer-events:none;word-break:keep-all}
@@ -71,7 +73,6 @@
 .cb-title{top:24px;font-size:140px;letter-spacing:.16em;padding-left:.16em}
 .cb-card-name{bottom:28px;left:18px;right:18px;font-size:40px;line-height:1.12}
 .pd-card .cer-card-name{left:6px;right:6px;bottom:8px;font-size:15px;line-height:1.15}
-.cb-team{top:900px;left:120px;right:120px;font-size:72px;letter-spacing:.06em;overflow:hidden;text-overflow:ellipsis}
 
 /* Podium: blocks stand on y=1040; 1st in the middle, 2nd on the left, 3rd on the right. */
 .pd-board{background:#020306}

@@ -279,11 +279,6 @@ export default function DrawStage({
                           const teamIndex = page * 4 + slice.indexOf(members);
                           return (
                             <div key={`${copy}-${members.map((member) => member.id).join('-')}`} className="draw-team-card">
-                              <img src={FX.frames.teamPlate} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-fill opacity-45" />
-                              <p className="relative text-xs font-black tracking-widest text-amber-200">TEAM {teamIndex + 1}</p>
-                              {data.teamLabels?.[teamIndex] && (
-                                <p className="cer-gold relative mt-1 text-center text-[clamp(22px,2.4vw,40px)] font-black leading-tight">{data.teamLabels[teamIndex]}</p>
-                              )}
                               <div className="names relative">
                                 {members.map((member) => (
                                   <div key={member.id} className="min-w-0 text-center">
@@ -292,6 +287,9 @@ export default function DrawStage({
                                   </div>
                                 ))}
                               </div>
+                              <p className="draw-team-label">
+                                {data.teamLabels?.[teamIndex]?.trim() || members.map((m) => m.displayName.replace(/（Rt\.[^）]*）$/u, '').trim()).join(' & ')}
+                              </p>
                             </div>
                           );
                         })}

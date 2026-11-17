@@ -74,7 +74,7 @@ export function appendPairCelebration(tl: Timeline, root: Element, pairStage: El
   const rings = pairStage.querySelector('.pc-rings'), flare = pairStage.querySelector('.pc-flare');
   const cards = [...pairStage.querySelectorAll<HTMLElement>('.pc-card')];
   const teamNo = pairStage.querySelector('.pc-team-no'), title = pairStage.querySelector('.pc-title');
-  const venue = pairStage.querySelector('.pc-venue-name');
+  const venue = pairStage.querySelector('.pc-name-bar');
   const entering = [rings, ...cards, teamNo, title, venue].filter((element): element is Element => element != null);
   if (entering.length) tl.set(entering, { autoAlpha: 0 }, at);
   if (scrim) {

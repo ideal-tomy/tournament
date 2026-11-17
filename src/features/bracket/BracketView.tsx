@@ -297,10 +297,10 @@ function VerticalSlotContent({
   compact: boolean;
   facesOnly?: boolean;
 }) {
-  const pad = compact || facesOnly ? 2 : 3;
+  const pad = 1;
   const cx = x + w / 2;
   const fontSize = compact ? 7 : 8;
-  const faceGap = 2;
+  const faceGap = 1;
 
   if (isEmpty) {
     if (facesOnly) return null;
@@ -342,21 +342,18 @@ function VerticalSlotContent({
     (_, i) => faceUrls[i] ?? placeholderFace,
   );
   const nameColumn = names.join('・');
-  const faceSize =
-    count > 1
-      ? Math.min(Math.floor((w - pad * 2 - faceGap) / 2), Math.floor(h - pad * 2 - (facesOnly ? 0 : 14)))
-      : Math.min(w - pad * 2, facesOnly ? h - pad * 2 : compact ? 16 : 20);
-  const rowWidth = count * faceSize + Math.max(0, count - 1) * faceGap;
-  const faceLeft = x + (w - rowWidth) / 2;
-  const faceTop = y + pad + (facesOnly ? Math.max(0, (h - pad * 2 - faceSize) / 2) : 2);
+  const nameRoom = facesOnly || !nameColumn ? 0 : 14;
+  const faceW = Math.max(1, w - pad * 2);
+  const faceH = Math.max(1, Math.floor((h - pad * 2 - nameRoom - faceGap * Math.max(0, count - 1)) / count));
+  const faceTop = y + pad;
   const faceNodes = displayFaces.map((faceUrl, i) => (
     <image
       key={`face-${i}-${faceUrl}`}
       href={faceUrl}
-      x={faceLeft + i * (faceSize + faceGap)}
-      y={faceTop}
-      width={faceSize}
-      height={faceSize}
+      x={x + pad}
+      y={faceTop + i * (faceH + faceGap)}
+      width={faceW}
+      height={faceH}
       preserveAspectRatio="xMidYMid slice"
     />
   ));
@@ -370,7 +367,7 @@ function VerticalSlotContent({
     );
   }
 
-  const nameY = faceTop + faceSize + (compact ? 4 : 6);
+  const nameY = faceTop + count * faceH + Math.max(0, count - 1) * faceGap + (compact ? 4 : 6);
   const nameMaxH = y + h - pad - nameY;
 
   return (

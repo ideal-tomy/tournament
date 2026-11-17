@@ -5,7 +5,6 @@ import type { DrawPresentationData } from '../features/draw/presentationTypes';
 import DrawStage from '../features/presentation/scenes/DrawStage';
 import FlowPresentation, { SavedBracket } from './FlowPresentation';
 import { toPresentationParticipant } from './presentationAdapter';
-import { venueTeamName } from '../features/draw/teamName';
 import { portraitUrlFor } from './portraitCache';
 import { useTournamentState } from './useTournamentState';
 import { preloadPresentationAssets } from './preloadPresentationAssets';
@@ -42,7 +41,7 @@ export default function DrawControl({administration,onAuthRequired,sessionVersio
   try{
    const byId=new Map(state.participants.map(p=>[p.id,p]));
    const participants=state.session.revealOrder.map(id=>{const p=byId.get(id);if(!p)throw new Error('確定参加者が見つかりません。');const adapted=toPresentationParticipant(p);return {id:adapted.id,displayName:adapted.displayName,faceUrl:portraitUrlFor(p),rating:adapted.rating};});
-   const teamLabels=[...state.teams].sort((a,b)=>a.seed-b.seed).map(team=>venueTeamName(team.name,team.memberIds.map(id=>byId.get(id)?.name??'')));
+   const teamLabels=[...state.teams].sort((a,b)=>a.seed-b.seed).map(team=>team.name.trim()||null);
    return {data:{sessionId:state.session.id,teamSize:2,participants,teamLabels} satisfies DrawPresentationData,error:''};
   }catch(reason){return {data:null,error:reason instanceof Error?reason.message:'演出データが不正です。'};}
  },[state]);

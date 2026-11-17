@@ -48,7 +48,7 @@ describe('ceremony boards', () => {
     expect(markup).toContain('TEAM BLUE');
     expect(markup).toContain('TEAM RED');
     expect(markup).not.toContain('TEAM BLUE ／ TEAM RED');
-    expect(markup.match(/wb-group-name/g)).toHaveLength(2);
+    expect((markup.match(/wb-group-name/g) ?? []).length).toBe(2);
   });
 
   it('introduces 3rd, 2nd and 1st on the podium, skipping an absent place', () => {
