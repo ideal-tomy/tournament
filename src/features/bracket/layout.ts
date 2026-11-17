@@ -381,17 +381,24 @@ function placeTreeSection(
   if (items.length === 0) return [];
 
   const minRound = Math.min(...items.map((m) => m.round));
+  const maxRound = Math.max(...items.map((m) => m.round));
   const centerXByMatchId = computeCenterXMap(items, allMetas, cfg, offsetX);
-  const tierStep = cfg.boxH + cfg.roundGap;
+  const boxHFor = (round: number) => (round === minRound ? cfg.boxH : cfg.compactBoxH);
+  const tierBottomAt = new Map<number, number>();
+  let tierBottom = baseBottom - (roundOffset(minRound) - minRound) * (cfg.boxH + cfg.roundGap);
+  for (let round = minRound; round <= maxRound; round += 1) {
+    tierBottomAt.set(roundOffset(round), tierBottom);
+    tierBottom -= boxHFor(round) + cfg.roundGap;
+  }
   const layouts: MatchLayout[] = [];
 
   for (const meta of items) {
     const cx = centerXByMatchId.get(meta.match.id);
     if (cx == null) continue;
     const isLeaf = meta.round === minRound;
-    const tierBottom = baseBottom - (roundOffset(meta.round) - 1) * tierStep;
-    const boxH = isLeaf ? cfg.boxH : cfg.compactBoxH;
-    const boxY = tierBottom - boxH;
+    const boxH = boxHFor(meta.round);
+    const bottom = tierBottomAt.get(roundOffset(meta.round)) ?? baseBottom;
+    const boxY = bottom - boxH;
     layouts.push(buildMatchLayout(meta, cx, boxY, cfg, isLeaf));
   }
 

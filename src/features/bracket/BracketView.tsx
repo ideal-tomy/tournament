@@ -9,7 +9,15 @@ import {
 } from './layout';
 import { bracketTheme, themeForBracket } from '../../styles/bracketTheme';
 import placeholderFace from '../../assets/placeholder_face.svg';
-import { toVerticalDisplayChars } from './verticalText';
+
+export function frameViewBox(matches: { box: { x: number; y: number; w: number; h: number } }[]): string {
+  if (!matches.length) return '0 0 1 1';
+  const left = Math.min(...matches.map((m) => m.box.x)) - 28;
+  const top = Math.min(...matches.map((m) => m.box.y)) - 40;
+  const right = Math.max(...matches.map((m) => m.box.x + m.box.w)) + 28;
+  const bottom = Math.max(...matches.map((m) => m.box.y + m.box.h)) + 24;
+  return `${left} ${top} ${Math.max(1, right - left)} ${Math.max(1, bottom - top)}`;
+}
 
 interface BracketViewProps {
   data: StageData;
@@ -22,10 +30,13 @@ interface BracketViewProps {
   suppressConnectorHighlight?: boolean;
   /** Presentation only: keep frozen/updated layers in the same coordinate space. */
   layoutData?: StageData;
-  /** 表示範囲をこの試合群の段へ寄せ、終わった試合を暗くする */
-  focusMatchIds?: number[];
+  /** 終わった試合を消して、残りの表全体を画面に収める */
+  omitCompleted?: boolean;
+  /** 勝ち上がり演出のあいだだけ残す試合 */
+  retainMatchIds?: number[];
   /** 章に合わせて片方だけ大きく出す */
   boardSide?: BracketBoardSide;
+  clipPrefix?: string;
 }
 
 export default function BracketView({
@@ -37,31 +48,25 @@ export default function BracketView({
   compact = false,
   suppressConnectorHighlight = false,
   layoutData,
-  focusMatchIds,
+  omitCompleted = false,
+  retainMatchIds = [],
   boardSide = 'all',
+  clipPrefix = 'slot',
 }: BracketViewProps) {
   const L = computeBracketLayout(layoutData??data, undefined, boardSide);
-  const focus = (focusMatchIds ?? []).map((id) => L.byId[id]).filter((m) => m != null);
-  let viewBox = `0 0 ${L.width} ${L.height}`;
-  if (focus.length) {
-    const related = L.matches.filter((m) =>
-      focus.some((f) => f.matchId === m.matchId || Math.abs(f.box.y - m.box.y) < f.box.h * 2.2),
-    );
-    const region = related.length ? related : focus;
-    const top = Math.min(...region.map((m) => m.box.y));
-    const bottom = Math.max(...region.map((m) => m.box.y + m.box.h));
-    const left = Math.min(...region.map((m) => m.box.x));
-    const right = Math.max(...region.map((m) => m.box.x + m.box.w));
-    const height = Math.min(L.height, Math.max(L.height * 0.42, bottom - top + 220));
-    const width = Math.min(L.width, Math.max(L.width * 0.42, right - left + 220));
-    const y = Math.max(0, Math.min(L.height - height, (top + bottom) / 2 - height / 2));
-    const x = Math.max(0, Math.min(L.width - width, (left + right) / 2 - width / 2));
-    viewBox = `${x} ${y} ${width} ${height}`;
-  }
+  const retain = new Set(retainMatchIds);
+  const shown = L.matches.filter((m) => {
+    if (!omitCompleted) return true;
+    const bm = data.match.find((row) => row.id === m.matchId);
+    if (bm == null || bm.status < 4) return true;
+    return retain.has(m.matchId);
+  });
+  const framed = shown.length ? shown : L.matches;
+  const viewBox = frameViewBox(framed);
 
-  const wbMatches = L.matches.filter((m) => m.bracket === 'winner');
-  const lbMatches = L.matches.filter((m) => m.bracket === 'loser');
-  const gfMatches = L.matches.filter((m) => m.bracket === 'grand_final');
+  const wbMatches = shown.filter((m) => m.bracket === 'winner');
+  const lbMatches = shown.filter((m) => m.bracket === 'loser');
+  const gfMatches = shown.filter((m) => m.bracket === 'grand_final');
 
   const bottomY = (ms: typeof L.matches) =>
     ms.length ? Math.max(...ms.map((m) => m.box.y + m.box.h)) : 0;
@@ -143,6 +148,8 @@ export default function BracketView({
       })}
 
       {L.connectors.map((c) => {
+        const visibleIds = new Set(shown.map((m) => m.matchId));
+        if (!visibleIds.has(c.fromMatchId) || !visibleIds.has(c.toMatchId)) return null;
         const lit = !suppressConnectorHighlight && isConnectorHighlighted(c, data);
         const isDrop = c.kind === 'drop';
         const stroke = isDrop
@@ -173,7 +180,7 @@ export default function BracketView({
         );
       })}
 
-      {L.matches.map((m) => {
+      {shown.map((m) => {
         const theme = themeForBracket(m.bracket);
         const isCurrent = currentMatchId != null && m.matchId === currentMatchId;
         const bm = data.match.find((x) => x.id === m.matchId);
@@ -187,7 +194,7 @@ export default function BracketView({
             data-center-x={m.center.x}
             data-center-y={m.center.y}
             className={isCurrent ? bracketTheme.current.pulseClass : undefined}
-            opacity={focus.length && isDone ? 0.45 : undefined}
+            opacity={omitCompleted ? undefined : isDone ? 0.45 : undefined}
           >
             <rect
               x={m.box.x}
@@ -260,7 +267,7 @@ export default function BracketView({
                     isEmpty={isBye || (!teamId && teamRef == null)}
                     accent={theme.stroke}
                     compact={compact}
-                    facesOnly
+                    clipId={`${clipPrefix}-${m.matchId}-${s.slot}`}
                   />
                 </g>
               );
@@ -283,7 +290,7 @@ function VerticalSlotContent({
   label,
   isEmpty,
   compact,
-  facesOnly = false,
+  clipId,
 }: {
   x: number;
   y: number;
@@ -295,34 +302,27 @@ function VerticalSlotContent({
   isEmpty: boolean;
   accent?: string;
   compact: boolean;
-  facesOnly?: boolean;
+  clipId: string;
 }) {
   const pad = 1;
   const cx = x + w / 2;
-  const fontSize = compact ? 7 : 8;
   const faceGap = 1;
 
   if (isEmpty) {
-    if (facesOnly) return null;
     const byeSize = Math.min(w - pad * 2, compact ? 16 : 20);
     return (
       <g>
+        <clipPath id={clipId}><rect x={x} y={y} width={w} height={h} /></clipPath>
+        <g clipPath={`url(#${clipId})`}>
         <image
           href={placeholderFace}
           x={cx - byeSize / 2}
-          y={y + pad + 4}
+          y={y + pad + 2}
           width={byeSize}
           height={byeSize}
           opacity={0.35}
         />
-        <VerticalText
-          x={cx}
-          y={y + pad + byeSize + 12}
-          text="BYE"
-          fontSize={fontSize}
-          fill="#64748b"
-          maxHeight={h - byeSize - pad * 2 - 14}
-        />
+        </g>
       </g>
     );
   }
@@ -341,10 +341,12 @@ function VerticalSlotContent({
     { length: count },
     (_, i) => faceUrls[i] ?? placeholderFace,
   );
-  const nameColumn = names.join('・');
-  const nameRoom = facesOnly || !nameColumn ? 0 : 14;
+  const teamLabel = label || names.join('・');
+  const glyphs = Math.max(1, Array.from(teamLabel).length);
+  const nameSize = teamLabel ? Math.max(1, Math.min(h * 0.28, (w - 2) / glyphs)) : 0;
+  const nameBand = nameSize * 1.35;
   const faceW = Math.max(1, w - pad * 2);
-  const faceH = Math.max(1, Math.floor((h - pad * 2 - nameRoom - faceGap * Math.max(0, count - 1)) / count));
+  const faceH = Math.max(1, Math.floor((h - pad * 2 - nameBand - faceGap * Math.max(0, count - 1)) / count));
   const faceTop = y + pad;
   const faceNodes = displayFaces.map((faceUrl, i) => (
     <image
@@ -358,87 +360,29 @@ function VerticalSlotContent({
     />
   ));
 
-  if (facesOnly) {
-    return (
-      <g>
-        <title>{label}</title>
-        {faceNodes}
-      </g>
-    );
-  }
-
-  const nameY = faceTop + count * faceH + Math.max(0, count - 1) * faceGap + (compact ? 4 : 6);
-  const nameMaxH = y + h - pad - nameY;
-
   return (
     <g>
-      <title>{label}</title>
+      <clipPath id={clipId}><rect x={x} y={y} width={w} height={h} /></clipPath>
+      <g clipPath={`url(#${clipId})`}>
+      <title>{teamLabel}</title>
       {faceNodes}
-      {nameColumn && (
-        <VerticalText
+      {teamLabel && (
+        <text
           x={cx}
-          y={nameY}
-          text={nameColumn}
-          fontSize={fontSize}
-          fill="#f1f5f9"
-          maxHeight={nameMaxH}
+          y={y + h - pad}
+          textAnchor="middle"
+          fill="#f8fafc"
+          fontSize={nameSize}
+          fontWeight="700"
           stroke="#0f172a"
-          strokeWidth={2}
-        />
+          strokeWidth={Math.max(0.4, nameSize * 0.12)}
+          paintOrder="stroke"
+        >
+          {teamLabel}
+        </text>
       )}
+      </g>
     </g>
-  );
-}
-
-/** SVG 縦書き（1 文字ずつ下方向） */
-function VerticalText({
-  x,
-  y,
-  text,
-  fontSize,
-  fill,
-  maxHeight,
-  stroke,
-  strokeWidth,
-}: {
-  x: number;
-  y: number;
-  text: string;
-  fontSize: number;
-  fill: string;
-  maxHeight: number;
-  stroke?: string;
-  strokeWidth?: number;
-}) {
-  const lineHeight = fontSize * 1.12;
-  const maxChars = Math.max(1, Math.floor(maxHeight / lineHeight));
-  const allChars = toVerticalDisplayChars(text);
-  const chars = allChars.slice(0, maxChars);
-  const truncated = allChars.length > maxChars;
-
-  return (
-    <text
-      x={x}
-      y={y}
-      textAnchor="middle"
-      fill={fill}
-      fontSize={fontSize}
-      fontWeight="600"
-      stroke={stroke}
-      strokeWidth={strokeWidth}
-      paintOrder={stroke ? 'stroke' : undefined}
-    >
-      {chars.map((ch, i) => (
-        <tspan key={`${ch}-${i}`} x={x} dy={i === 0 ? 0 : lineHeight}>
-          {ch}
-        </tspan>
-      ))}
-      {truncated && (
-        <tspan x={x} dy={lineHeight}>
-          …
-        </tspan>
-      )}
-    </text>
   );
 }
 

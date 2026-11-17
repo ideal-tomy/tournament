@@ -3,7 +3,7 @@ import { TOURNAMENT_EFFECTS as FX } from '../../../lib/tournamentEffects';
 import CeremonyFrame, { cardSlots, people, type CeremonyTeam } from './CeremonyFrame';
 import { useCeremonyIntro, type CeremonyIntroOptions } from './useCeremonyIntro';
 import RatedName from './RatedName';
-import VenueTeamNameplate, { PAIR_PLATE_WIDTH } from './VenueTeamNameplate';
+import VenueTeamNameplate from './VenueTeamNameplate';
 
 const INTRO_END = 3;
 const STAGE = 1920;
@@ -18,6 +18,13 @@ function clusterCenters(counts: number[], card: number, innerGap: number, teamGa
     x += width + teamGap;
     return center;
   });
+}
+
+function groupedPlateWidth(slotLeft: number, groupWidth: number, top: number) {
+  const left = Math.max(16, slotLeft - 12);
+  const roomW = Math.max(80, 1904 - left);
+  const roomH = Math.max(48, 1064 - top);
+  return Math.min(groupWidth, roomW, roomH * (1180 / 394));
 }
 
 function DropMark({ text }: { text: string }) {
@@ -106,16 +113,16 @@ export default function WinnerBoard({
             {grouped && (
               <VenueTeamNameplate
                 name={item.name}
-                width={Math.min(PAIR_PLATE_WIDTH, groupWidth)}
+                width={groupedPlateWidth(slots[0] ?? 0, groupWidth, 276 + height + 18)}
                 className="wb-group-plate"
-                style={{ left: (slots[0] ?? 0) - 12, top: 276 + height + 18 }}
+                style={{ left: Math.max(16, (slots[0] ?? 0) - 12), top: 276 + height + 18 }}
               />
             )}
           </div>
         );
       })}
       {!grouped && clusters[0] && (
-        <VenueTeamNameplate name={clusters[0].name} width={PAIR_PLATE_WIDTH} className="wb-venue-plate" />
+        <VenueTeamNameplate name={clusters[0].name} width={800} className="wb-venue-plate" />
       )}
       {opponent && (
         <aside className="wb-drop">

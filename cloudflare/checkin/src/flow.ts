@@ -4,6 +4,7 @@ import { applyResult, explainCourtFillWait, getBoardSide, getChapterMatches, get
 import type { BMMatch } from '../../../src/features/bracket/layout';
 import { openingTourDurationSec } from '../../../src/features/presentation/openingTourTiming';
 import { LOSERS_INTRO_TOTAL_SEC } from '../../../src/features/presentation/losersIntroTiming';
+import { calloutForRound } from '../../../src/features/presentation/vsBoard/callout';
 import { rehearsalTiming } from '../../../src/lib/rehearsalTiming';
 import { eventProfile } from './profile';
 import { ClientError, hash, requestId, type CheckinEnv, type Statement } from './domain';
@@ -68,14 +69,10 @@ export async function flowView(env:CheckinEnv,projection?:Awaited<ReturnType<typ
  const single=snapshot.stage[0]?.type==='single_elimination';
  const finalRound=Math.max(...data.round.map(r=>r.number));
  const roundName=(round:number,kind:string)=>!single?kind==='winner'?`ウィナーズ ${round}回戦`:kind==='loser'?`ルーザーズ ${round}回戦`:round===1?'グランドファイナル':'グランドファイナル リセット':round===finalRound?'Final':round===finalRound-1?'Semi Final':round===finalRound-2?'Quarter Final':`Round of ${data.participant.length/2**(round-1)}`;
- const calloutFor=(kind:string,round:number):'semifinal'|'losers-semifinal'|'final'|'final-again'|null=>{
-  if(kind==='grand_final')return round===1?'final':'final-again';
-  if(single)return round===finalRound?'final':round===finalRound-1?'semifinal':null;
-  const maxRound=Math.max(0,...data.match.filter(m=>getMatchBracketKind(data,m)===kind).map(m=>getMatchRoundLabel(data,m)));
-  if(round===maxRound)return kind==='winner'?'final':kind==='loser'?'losers-semifinal':null;
-  if(round===maxRound-1)return 'semifinal';
-  return null;
- };
+ const calloutFor=(kind:string,round:number)=>calloutForRound({
+  single,kind,round,singleFinalRound:finalRound,
+  maxRoundOfKind:Math.max(0,...data.match.filter(m=>getMatchBracketKind(data,m)===kind).map(m=>getMatchRoundLabel(data,m))),
+ });
  const describe=(m:typeof data.match[number])=>{const round=getMatchRoundLabel(data,m),kind=getMatchBracketKind(data,m);return {id:m.id,teamA:getSlotTeamUuid(data,m,0),teamB:getSlotTeamUuid(data,m,1),round,roundName:roundName(round,kind),kind,final:isFinalMatch(snapshot,m),callout:calloutFor(kind,round)};};
  const currentMatch=selected?describe(selected):null;
  const boardSide:BoardSide=getBoardSide(data,current);

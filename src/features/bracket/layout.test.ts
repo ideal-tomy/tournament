@@ -114,6 +114,16 @@ describe('computeBracketLayout', () => {
     expect(d).not.toMatch(/L.*L.*L/);
   });
 
+  it('ルーザーの段間はカードの高さに合わせる', async () => {
+    const data = await buildSnapshotForTeamCount(8);
+    const L = computeBracketLayout(toStageData(data), undefined, 'losers');
+    const rounds = [2, 3].map((round) => L.matches.find((m) => m.bracket === 'loser' && m.round === round));
+    const [lower, upper] = rounds;
+    expect(lower && upper).toBeTruthy();
+    if (!lower || !upper) return;
+    expect(lower.box.y - (upper.box.y + upper.box.h)).toBeLessThanOrEqual(28);
+  });
+
   it('2 回戦の試合は 1 回戦 2 試合の中央に配置される', async () => {
     const data = await buildSnapshotForTeamCount(16);
     const L = computeBracketLayout(toStageData(data));

@@ -4,7 +4,7 @@ import { TOURNAMENT_EFFECTS as FX } from '../../../lib/tournamentEffects';
 import CeremonyFrame, { cardSlots, people, type CeremonyTeam } from './CeremonyFrame';
 import { useCeremonyIntro, type CeremonyIntroOptions } from './useCeremonyIntro';
 import RatedName from './RatedName';
-import VenueTeamNameplate, { PAIR_PLATE_WIDTH } from './VenueTeamNameplate';
+import VenueTeamNameplate from './VenueTeamNameplate';
 
 const DESCEND = 10;
 const AFTER = 5;
@@ -112,7 +112,7 @@ export default function ChampionBoard({ team, ...intro }: CeremonyIntroOptions &
           {person.face ? <img src={person.face} alt={person.name} /> : <div className="cer-empty">?</div>}
           <p className="cer-card-name cb-card-name"><RatedName text={person.name} /></p>
         </article>)}
-        <VenueTeamNameplate name={team.name} width={PAIR_PLATE_WIDTH} className="cb-venue-plate" />
+        <VenueTeamNameplate name={team.name} width={800} className="cb-venue-plate" />
       </div>
       <div className="cb-ball" aria-hidden="true">
         <div className="cb-beams" />

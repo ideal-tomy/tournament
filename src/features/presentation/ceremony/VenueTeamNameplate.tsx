@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import { useLayoutEffect, useRef, type CSSProperties } from 'react';
 import nameplate from '../../../../public/images/プレート01.png';
 
 /** Pair-confirmed plate recipe at full size. Other scenes only shrink this box. */
@@ -35,6 +35,19 @@ export default function VenueTeamNameplate({
   style?: CSSProperties;
 }) {
   const m = plateMetrics(width);
+  const nameRef = useRef<HTMLParagraphElement>(null);
+  useLayoutEffect(() => {
+    const el = nameRef.current;
+    if (!el) return;
+    let size = m.fontSize;
+    el.style.fontSize = `${size}px`;
+    const room = el.clientWidth;
+    if (room <= 0) return;
+    while (el.scrollWidth > room + 1 && size > 16) {
+      size -= 1;
+      el.style.fontSize = `${size}px`;
+    }
+  }, [name, m.fontSize, m.width]);
   return (
     <div
       className={`cer-venue-plate${className ? ` ${className}` : ''}`}
@@ -42,6 +55,7 @@ export default function VenueTeamNameplate({
     >
       <img className="cer-venue-plate-img" src={nameplate} alt="" />
       <p
+        ref={nameRef}
         className="cer-venue-plate-name"
         style={{
           top: m.textTop,

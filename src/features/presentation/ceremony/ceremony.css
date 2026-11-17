@@ -27,10 +27,10 @@
 .pc-flare{position:absolute;left:510px;top:56px;width:900px;height:900px;border-radius:50%;background:radial-gradient(circle,rgba(255,244,200,.95),rgba(251,191,36,.45) 30%,transparent 62%);mix-blend-mode:screen;opacity:0;visibility:hidden;pointer-events:none}
 .pc-team-no{top:40px;font-size:28px;letter-spacing:.5em;padding-left:.5em;color:#fcd34d;text-shadow:0 2px 6px #000}
 .pc-title{top:76px;font-size:78px;letter-spacing:.18em;padding-left:.18em}
-.pc-name-bar{position:absolute;top:702px;left:50%;z-index:6;transform:translateX(-50%);pointer-events:none}
+.pc-name-bar{position:absolute;top:670px;left:50%;z-index:6;transform:translateX(-50%);pointer-events:none}
 .cer-venue-plate{position:relative;display:block;pointer-events:none}
 .cer-venue-plate-img{position:absolute;inset:0;z-index:0;width:100%;height:100%;object-fit:fill;pointer-events:none}
-.cer-venue-plate-name{position:absolute;z-index:1;margin:0;overflow:hidden;text-align:center;font-weight:900;line-height:1;letter-spacing:.04em;color:#fff;text-shadow:0 2px 0 #000,0 0 12px rgba(0,0,0,.85);text-overflow:ellipsis;white-space:nowrap;word-break:keep-all}
+.cer-venue-plate-name{position:absolute;z-index:1;margin:0;overflow:hidden;text-align:center;font-weight:900;line-height:1;letter-spacing:.04em;color:#fff;text-shadow:0 2px 0 #000,0 0 12px rgba(0,0,0,.85);white-space:nowrap;word-break:keep-all}
 
 /* Winner: the light shaft runs through x=962, its floor reflection at y=794. */
 .wb-board{background:#020306}
@@ -39,9 +39,9 @@
 .wb-dust{position:absolute;left:842px;top:0;width:240px;height:820px;mix-blend-mode:screen;opacity:.85;background:radial-gradient(circle,rgba(255,236,170,.95) 0 1.6px,transparent 2.6px) 0 0/38px 46px,radial-gradient(circle,rgba(253,224,138,.7) 0 1.1px,transparent 2px) 19px 23px/52px 64px;-webkit-mask-image:radial-gradient(ellipse 50% 52% at 50% 46%,#000 35%,transparent 100%);mask-image:radial-gradient(ellipse 50% 52% at 50% 46%,#000 35%,transparent 100%);animation:wb-rise 8s linear infinite}
 @keyframes wb-rise{to{background-position:0 -460px,19px -425px}}
 .wb-title{top:56px;font-size:156px;letter-spacing:.2em;padding-left:.2em}
-.wb-venue-plate{position:absolute;top:786px;left:50%;z-index:3;transform:translateX(-50%)}
+.wb-venue-plate{position:absolute;top:772px;left:50%;z-index:3;transform:translateX(-50%)}
 .wb-group-plate{position:absolute;z-index:3}
-.cb-venue-plate{position:absolute;top:900px;left:50%;z-index:3;transform:translateX(-50%)}
+.cb-venue-plate{position:absolute;top:797px;left:50%;z-index:3;transform:translateX(-50%)}
 .pd-venue-plate{position:absolute;z-index:3}
 .pd-venue-plate-champ .cer-venue-plate-name{animation:pd-name-flash 1.4s ease-in-out infinite}
 .wb-loser{position:absolute;right:56px;bottom:44px;margin:0;font-size:26px;font-weight:800;letter-spacing:.1em;color:#94a3b8;text-shadow:0 2px 6px #000}

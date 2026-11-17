@@ -20,6 +20,8 @@ describe('VsBoard', () => {
     expect(markup).toContain('ファイナル');
     expect(markup).toContain('アゲイン');
     expect(markup).toContain('vsb-callout-again');
+    expect(markup).toContain('has-callout');
+    expect(markup).toContain('has-again');
     expect(markup).not.toContain('バトル');
   });
 
@@ -29,6 +31,8 @@ describe('VsBoard', () => {
       left={{ name: 'A', members: ['1'], faces: [] }}
       right={{ name: 'B', members: ['2'], faces: [] }}
     />);
+    expect(markup).toContain('has-callout');
+    expect(markup).not.toContain('has-again');
     expect(markup).toContain('セミファイナル');
     expect(markup).toContain('ルーザーズ');
     expect(markup).not.toContain('準決勝');

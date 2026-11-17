@@ -141,7 +141,7 @@ export default function VsBoard({
         <div className="vsb-hole" aria-hidden="true">
           <img src={FX.backgrounds.vsBlackHole} alt="" />
         </div>
-        <div className="vsb-shake">
+        <div className={`vsb-shake${callout ? ' has-callout' : ''}${callout === 'final-again' ? ' has-again' : ''}`}>
           <div className="vsb-spot vsb-spot-l" />
           <div className="vsb-spot vsb-spot-r" />
           <div className="vsb-streak vsb-streak-l"><img src={FX.darts.motionStreak} alt="" /></div>
@@ -155,8 +155,8 @@ export default function VsBoard({
             </div>
           )}
           {roundLabel && <p className="vsb-round">{roundLabel}</p>}
-          <p className="vsb-team vsb-team-l">{left.name}</p>
-          <p className="vsb-team vsb-team-r">{right.name}</p>
+          <FitLine text={left.name} className="vsb-team vsb-team-l" maxSize={52} />
+          <FitLine text={right.name} className="vsb-team vsb-team-r" maxSize={52} />
           <Side side="left" team={left} xs={LEFT_X} />
           <Side side="right" team={right} xs={RIGHT_X} />
           <img className="vsb-logo" src={FX.effects.vsMark} alt="VS" />
@@ -166,6 +166,23 @@ export default function VsBoard({
       </div>
     </div>
   );
+}
+
+function FitLine({ text, className, maxSize }: { text: string; className: string; maxSize: number }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let size = maxSize;
+    el.style.fontSize = `${size}px`;
+    const room = el.clientWidth;
+    if (room <= 0) return;
+    while (el.scrollWidth > room + 1 && size > 18) {
+      size -= 1;
+      el.style.fontSize = `${size}px`;
+    }
+  }, [text, maxSize]);
+  return <p ref={ref} className={className}>{text}</p>;
 }
 
 function Side({ side, team, xs }: { side: 'left' | 'right'; team: VsSide; xs: number[] }) {

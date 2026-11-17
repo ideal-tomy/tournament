@@ -14,8 +14,22 @@ const PLACES = [
   { rank: 2, label: '2位', center: 480, height: 220, card: 150 },
   { rank: 1, label: '優勝', center: 960, height: 360, card: 340 },
 ] as const;
-const SECOND_PHOTO_TOP =
-  FLOOR - PLACES[1].height - 46 - Math.round(PLACES[1].card * 1.35);
+const PLATE_RATIO = 394 / 1180;
+
+function plateSize(rank: number, teamWidth: number) {
+  const width = Math.min(rank === 1 ? 440 : 240, teamWidth);
+  return { width, height: width * PLATE_RATIO };
+}
+
+function restingCard(place: (typeof PLACES)[number], teamWidth: number, memberCount: number) {
+  const width = Math.min(place.card, (teamWidth - 8 * Math.max(0, memberCount - 1)) / Math.max(1, memberCount));
+  const height = Math.round(width * 1.35);
+  const plate = plateSize(place.rank, teamWidth);
+  const blockTop = FLOOR - place.height;
+  const teamTop = blockTop - plate.height - 12;
+  const cardTop = Math.max(36, teamTop - 12 - height);
+  return { width, height, cardTop, teamTop, plate };
+}
 const APPEAR = 0.28;
 const HOLD_OTHER = 2;
 const HOLD_CHAMPION = 3.2;
@@ -33,7 +47,6 @@ function holdFor(rank: number) {
 /** Scale the resting cards until they fill the stage, then hold that size. */
 function closeUp(place: (typeof PLACES)[number], group: CeremonyTeam[]) {
   const teamWidth = (COLUMN - GAP * (group.length - 1)) / group.length;
-  const blockTop = FLOOR - place.height;
   let top = Infinity;
   let bottom = -Infinity;
   let left = Infinity;
@@ -41,14 +54,12 @@ function closeUp(place: (typeof PLACES)[number], group: CeremonyTeam[]) {
   group.forEach((team, teamIndex) => {
     const members = people(team);
     const center = place.center - COLUMN / 2 + teamWidth / 2 + teamIndex * (teamWidth + GAP);
-    const width = Math.min(place.card, (teamWidth - 8 * Math.max(0, members.length - 1)) / Math.max(1, members.length));
-    const height = Math.round(width * 1.35);
-    const cardTop = blockTop - 46 - height;
-    for (const slot of cardSlots(members.length, width, 8, center)) {
+    const card = restingCard(place, teamWidth, members.length);
+    for (const slot of cardSlots(members.length, card.width, 8, center)) {
       left = Math.min(left, slot);
-      right = Math.max(right, slot + width);
-      top = Math.min(top, cardTop);
-      bottom = Math.max(bottom, cardTop + height + 44);
+      right = Math.max(right, slot + card.width);
+      top = Math.min(top, card.cardTop);
+      bottom = Math.max(bottom, card.teamTop + card.plate.height);
     }
   });
   const width = Math.max(1, right - left);
@@ -109,22 +120,18 @@ export default function PodiumBoard({ first, second, third, ...intro }: Ceremony
           {group.map((team, teamIndex) => {
             const members = people(team);
             const center = place.center - COLUMN / 2 + teamWidth / 2 + teamIndex * (teamWidth + GAP);
-            const width = Math.min(place.card, (teamWidth - 8 * Math.max(0, members.length - 1)) / members.length);
-            const height = Math.round(width * 1.35);
-            const nameTop = place.rank === 1 ? SECOND_PHOTO_TOP - 72 : blockTop - 46 - height + height + 8;
-            const cardTop = place.rank === 1 ? Math.max(48, nameTop - height - 18) : blockTop - 46 - height;
-            const teamTop = place.rank === 1 ? nameTop : cardTop + height + 8;
-            const slots = cardSlots(members.length, width, 8, center);
+            const card = restingCard(place, teamWidth, members.length);
+            const slots = cardSlots(members.length, card.width, 8, center);
             return <div key={`${team.name}-${teamIndex}`}>
-              {members.map((person, index) => <article key={`${person.name}-${index}`} className="cer-card pd-card" style={{ left: slots[index], top: cardTop, width, height }}>
+              {members.map((person, index) => <article key={`${person.name}-${index}`} className="cer-card pd-card" style={{ left: slots[index], top: card.cardTop, width: card.width, height: card.height }}>
                 {person.face ? <img src={person.face} alt={person.name} /> : <div className="cer-empty">?</div>}
                 <p className="cer-card-name"><RatedName text={person.name} /></p>
               </article>)}
               <VenueTeamNameplate
                 name={team.name}
-                width={Math.min(place.rank === 1 ? 520 : 360, teamWidth)}
+                width={card.plate.width}
                 className={`pd-venue-plate${place.rank === 1 ? ' pd-venue-plate-champ' : ''}`}
-                style={{ left: center - Math.min(place.rank === 1 ? 520 : 360, teamWidth) / 2, top: teamTop }}
+                style={{ left: center - card.plate.width / 2, top: card.teamTop }}
               />
             </div>;
           })}

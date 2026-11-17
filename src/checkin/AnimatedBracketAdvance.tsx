@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
 import gsap from 'gsap';
-import BracketView from '../features/bracket/BracketView';
+import BracketView, { frameViewBox } from '../features/bracket/BracketView';
 import { toStageData } from '../features/bracket/stageData';
 import { resolveResultAdvance } from '../features/bracket/resultAdvance';
 import type { DrawState } from './DrawControl';
@@ -107,6 +107,11 @@ export default function AnimatedBracketAdvance({
   const winner = state.teams.find((t) => t.id === presentation.winnerTeamId);
   const people = winner?.memberIds.map((id) => state.participants.find((p) => p.id === id)).filter((p): p is NonNullable<typeof p> => !!p) ?? [];
   const view = data.advance?.layout;
+  const retainMatchIds = data.advance ? [data.advance.sourceMatchId] : [];
+  const overlayMatches = (view?.matches ?? []).filter((match) => {
+    const row = data.after.match.find((item) => item.id === match.matchId);
+    return row == null || row.status < 4 || retainMatchIds.includes(match.matchId);
+  });
   const boardSide =
     state.flow?.boardSide ??
     (presentation.match.kind === 'loser' ? 'losers' : presentation.match.kind === 'grand_final' ? 'grand_final' : 'winners');
@@ -114,13 +119,13 @@ export default function AnimatedBracketAdvance({
   return (
     <div ref={root} className="audience-advance" data-advance-from={data.advance?.sourceMatchId} data-advance-to={data.advance?.targetMatchId}>
       <div className="advance-before">
-        <BracketView data={data.before} layoutData={data.after} boardSide={data.advance?.boardSide ?? boardSide} faceUrlByTeamId={faceUrlByTeamId} labelByTeamId={labels} memberNamesByTeamId={names} />
+        <BracketView data={data.before} layoutData={data.after} boardSide={data.advance?.boardSide ?? boardSide} omitCompleted retainMatchIds={retainMatchIds} clipPrefix="before" faceUrlByTeamId={faceUrlByTeamId} labelByTeamId={labels} memberNamesByTeamId={names} />
       </div>
       <div className="advance-after">
-        <BracketView data={data.after} boardSide={data.advance?.boardSide ?? boardSide} faceUrlByTeamId={faceUrlByTeamId} labelByTeamId={labels} memberNamesByTeamId={names} />
+        <BracketView data={data.after} boardSide={data.advance?.boardSide ?? boardSide} omitCompleted retainMatchIds={retainMatchIds} clipPrefix="after" faceUrlByTeamId={faceUrlByTeamId} labelByTeamId={labels} memberNamesByTeamId={names} />
       </div>
       {data.advance && view && (
-        <svg className="advance-overlay" viewBox={`0 0 ${view.width} ${view.height}`} preserveAspectRatio="xMidYMid meet" aria-label="勝者の実Bracket進出">
+        <svg className="advance-overlay" viewBox={frameViewBox(overlayMatches.length ? overlayMatches : view.matches)} preserveAspectRatio="xMidYMid meet" aria-label="勝者の実Bracket進出">
           <path className="advance-line" pathLength={1} strokeDasharray={1} d={data.advance.path} fill="none" stroke="#86efac" strokeWidth={3} />
           <g className="advance-flight" transform={`translate(${data.advance.source.x},${data.advance.source.y})`}>
             <rect x={-17} y={-24} width={34} height={48} rx={3} fill="#102c3b" stroke="#fde68a" />

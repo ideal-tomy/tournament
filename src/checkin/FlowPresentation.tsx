@@ -12,7 +12,6 @@ import ThanksBoard from '../features/presentation/ceremony/ThanksBoard';
 import LosersIntro from '../features/presentation/scenes/LosersIntro';
 import OpeningBracketTour from '../features/presentation/scenes/OpeningBracketTour';
 import { LOSERS_INTRO_TITLE_SEC, LOSERS_INTRO_TOTAL_SEC } from '../features/presentation/losersIntroTiming';
-import { getOpenTierMatches } from '../features/progression/tiers';
 import { getActiveWinnersTeamIds } from '../features/progression/winnersAlive';
 import type { BracketBoardSide } from '../features/bracket/layout';
 import CourtBoards from './CourtBoards';
@@ -76,31 +75,18 @@ function GrandFinalFeature({ state }: { state: DrawState }) {
 
 export function SavedBracket({
   state,
-  focusBottomTier = false,
+  omitCompleted = false,
 }: {
   state: DrawState;
-  focusBottomTier?: boolean;
+  omitCompleted?: boolean;
 }) {
   if (!state.bracket) return null;
   const data = toStageData(state.bracket);
   const side = boardSideFor(state);
-  if (side === 'grand_final') {
-    const feature = <GrandFinalFeature state={state} />;
-    if (feature) return feature;
-  }
   const current = state.flow?.currentMatch;
-  const showcase =
-    current &&
-    (current.callout === 'semifinal' ||
-      current.callout === 'losers-semifinal' ||
-      current.callout === 'final' ||
-      current.callout === 'final-again' ||
-      current.kind === 'grand_final');
-  const focusMatchIds = showcase
-    ? [current.id]
-    : focusBottomTier
-      ? getOpenTierMatches(data).map((m) => m.id)
-      : undefined;
+  if (side === 'grand_final' && current?.teamA && current?.teamB) {
+    return <GrandFinalFeature state={state} />;
+  }
   return (
     <div className={`persisted-bracket board-side-${side}`}>
       <h2>{side === 'losers' ? 'ルーザーズ' : side === 'grand_final' ? 'グランドファイナル' : 'ウィナーズ'}</h2>
@@ -108,7 +94,7 @@ export function SavedBracket({
         <BracketView
           data={data}
           boardSide={side}
-          focusMatchIds={focusMatchIds}
+          omitCompleted={omitCompleted}
           faceUrlByTeamId={Object.fromEntries(
             state.teams.map((team) => [
               team.id,
@@ -155,7 +141,7 @@ function CourtSpotlightView({ state, spot }: { state: DrawState; spot: CourtSpot
     }
     return (
       <div key={`${spot.id}-bracket`} className="losers-bracket-fade relative h-full min-h-[60vh]">
-        <SavedBracket state={{ ...state, flow: { ...state.flow!, boardSide: 'losers' } }} />
+        <SavedBracket omitCompleted state={{ ...state, flow: { ...state.flow!, boardSide: 'losers' } }} />
       </div>
     );
   }
@@ -275,12 +261,12 @@ export default function FlowPresentation({ state, controlledTime }: { state: Dra
           />
         );
       }
-      return <SavedBracket state={state} />;
+      return <SavedBracket omitCompleted state={state} />;
     }
     if (state.scene === 'interval') {
       const courts = state.flow?.courts;
       if (courts?.spotlight) return <CourtSpotlightView state={state} spot={courts.spotlight} />;
-      return courts?.showBracket ? <SavedBracket state={state} focusBottomTier /> : <CourtBoards state={state} teamOf={(id) => existingTeam(state, id)} />;
+      return courts?.showBracket ? <SavedBracket omitCompleted state={state} /> : <CourtBoards state={state} teamOf={(id) => existingTeam(state, id)} />;
     }
     if (state.scene === 'finished') return <ThanksBoard />;
     if (state.scene === 'award') {
@@ -321,7 +307,7 @@ export default function FlowPresentation({ state, controlledTime }: { state: Dra
         }
         return (
           <div key={`losers-bracket-${state.sceneSeq}`} className="losers-bracket-fade relative h-full min-h-[60vh]">
-            <SavedBracket state={{ ...state, flow: { ...state.flow!, boardSide: 'losers' } }} />
+            <SavedBracket omitCompleted state={{ ...state, flow: { ...state.flow!, boardSide: 'losers' } }} />
           </div>
         );
       }
