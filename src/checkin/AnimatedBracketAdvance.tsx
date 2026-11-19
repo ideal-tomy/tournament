@@ -1,11 +1,37 @@
-import { useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import gsap from 'gsap';
 import BracketView, { frameViewBox } from '../features/bracket/BracketView';
+import LosersColumnBoard from '../features/bracket/LosersColumnBoard';
 import { toStageData } from '../features/bracket/stageData';
 import { resolveResultAdvance } from '../features/bracket/resultAdvance';
 import type { DrawState } from './DrawControl';
 import { portraitUrlFor } from './portraitCache';
 import { ratedName } from './presentationAdapter';
+
+/** 寄った画面のまま線をつなぎ、全体は3秒で出す。アップは50%から0.5秒で消す。 */
+const WINNER_ADVANCE_SEC = 6;
+
+function parseViewBox(value: string) {
+  const [x, y, w, h] = value.split(/[\s,]+/).map(Number);
+  return { x, y, w, h };
+}
+
+function focusViewBox(
+  source: { x: number; y: number; w: number; h: number },
+  target: { x: number; y: number; w: number; h: number },
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+) {
+  const midY = (from.y + to.y) / 2;
+  const xs = [source.x, source.x + source.w, target.x, target.x + target.w, from.x, to.x];
+  const ys = [source.y, source.y + source.h, target.y, target.y + target.h, from.y, to.y, midY];
+  const pad = 16;
+  const left = Math.min(...xs) - pad;
+  const top = Math.min(...ys) - pad;
+  const right = Math.max(...xs) + pad;
+  const bottom = Math.max(...ys) + pad;
+  return `${left} ${top} ${Math.max(1, right - left)} ${Math.max(1, bottom - top)}`;
+}
 
 export default function AnimatedBracketAdvance({
   state,
@@ -18,6 +44,8 @@ export default function AnimatedBracketAdvance({
 }) {
   const root = useRef<HTMLDivElement>(null);
   const timeline = useRef<gsap.core.Timeline>();
+  const beatRef = useRef(WINNER_ADVANCE_SEC);
+  const [frameLit, setFrameLit] = useState((controlledTime ?? state.elapsedSeconds) >= 2);
   const presentation = state.flow?.resultPresentation;
   const data = useMemo(() => {
     if (!state.bracket || !presentation) return null;
@@ -32,56 +60,82 @@ export default function AnimatedBracketAdvance({
 
   useLayoutEffect(() => {
     if (!root.current || !data) return;
+    const side = data.advance?.boardSide ?? (presentation?.match.kind === 'loser' ? 'losers' : 'winners');
+    const losers = side === 'losers';
+    const beat = WINNER_ADVANCE_SEC;
+    beatRef.current = beat;
+    let observer: ResizeObserver | undefined;
     const ctx = gsap.context(() => {
       const tl = gsap.timeline({ paused: true });
       timeline.current = tl;
-      tl.set('.advance-after,.advance-flight', { autoAlpha: 0 })
-        .set('.advance-line', { strokeDashoffset: 1 })
-        .set('.advance-before', { autoAlpha: 1 })
-        .set('.advance-winner-out', { autoAlpha: 1 });
-      tl.to('.advance-winner-out', { autoAlpha: 0, duration: 0.45 }, 0);
-      const path = root.current!.querySelector<SVGPathElement>('.advance-line');
-      const flight = root.current!.querySelector<SVGGElement>('.advance-flight');
-      if (data.advance && path && flight) {
-        const motion = { progress: 0 };
-        const length = path.getTotalLength();
-        tl.to('.advance-line', { strokeDashoffset: 0, autoRound: false, duration: 2.4, ease: 'power1.inOut' }, 0.45)
-          .to('.advance-flight', { autoAlpha: 1, duration: 0.15 }, 0.45)
-          .to(
-            `.advance-before [data-match-id="${data.advance.sourceMatchId}"] [data-slot="${data.advance.sourceSlot}"]`,
-            { opacity: 0.25, duration: 0.3 },
-            0.45,
-          )
-          .to(
-            motion,
-            {
-              progress: 1,
-              duration: 2.6,
-              ease: 'power1.inOut',
-              onUpdate: () => {
-                const p = path.getPointAtLength(length * motion.progress);
-                flight.setAttribute('transform', `translate(${p.x},${p.y})`);
-              },
-            },
-            0.45,
-          )
-          .to('.advance-flight', { autoAlpha: 0, duration: 0.3 }, 3.05);
+      if (losers && data.advance) {
+        const slot = root.current!.querySelector<HTMLElement>(
+          `.losers-tight [data-match-id="${data.advance.targetMatchId}"] [data-slot="${data.advance.targetSlot}"]`,
+        );
+        tl.set('.advance-winner-out', { autoAlpha: 0 })
+          .set('.losers-draw-line', { strokeDashoffset: 1 })
+          .set('.advance-full', { autoAlpha: 0 })
+          .set('.advance-stage', { autoAlpha: 1 });
+        if (slot) tl.set(slot, { opacity: 0 });
+        tl.call(() => setFrameLit(false), undefined, 0)
+          .call(() => setFrameLit(true), undefined, 2);
+        tl.to('.losers-draw-line', { strokeDashoffset: 0, autoRound: false, duration: 1.5, ease: 'none' }, 0.5);
+        if (slot) tl.to(slot, { opacity: 1, duration: 0.5, ease: 'power1.out' }, 2);
+        tl.to('.advance-stage', { autoAlpha: 0.5, duration: 1.5, ease: 'none' }, 3)
+          .to('.advance-stage', { autoAlpha: 0, duration: 0.5, ease: 'power2.in' }, 4.5)
+          .to('.advance-full', { autoAlpha: 1, duration: 3, ease: 'none' }, 3);
+      } else if (data.advance) {
+        const source = data.advance.layout.byId[data.advance.sourceMatchId];
+        const target = data.advance.layout.byId[data.advance.targetMatchId];
+        const tight = source && target
+          ? parseViewBox(focusViewBox(source.box, target.box, data.advance.source, data.advance.target))
+          : null;
+        const wide = parseViewBox(frameViewBox(data.advance.layout.matches));
+        const stage = root.current!.querySelector<HTMLElement>('.advance-stage');
+        const applyTight = () => {
+          if (!tight || !stage) return;
+          const viewW = stage.clientWidth;
+          const viewH = stage.clientHeight;
+          if (!viewW || !viewH) return;
+          const fullFit = Math.min(viewW / wide.w, viewH / wide.h);
+          const originX = (viewW - wide.w * fullFit) / 2;
+          const originY = (viewH - wide.h * fullFit) / 2;
+          const zoom = Math.min(viewW / (tight.w * fullFit), viewH / (tight.h * fullFit));
+          const centerX = originX + (tight.x + tight.w / 2 - wide.x) * fullFit;
+          const centerY = originY + (tight.y + tight.h / 2 - wide.y) * fullFit;
+          stage.style.transformOrigin = '0 0';
+          stage.style.transform = `translate(${viewW / 2 - centerX * zoom}px, ${viewH / 2 - centerY * zoom}px) scale(${zoom})`;
+        };
+        const slot = root.current!.querySelector<SVGGElement>(
+          `.advance-board [data-match-id="${data.advance.targetMatchId}"] [data-slot="${data.advance.targetSlot}"]`,
+        );
+        tl.set('.advance-winner-out', { autoAlpha: 0 })
+          .set('.advance-line', { strokeDashoffset: 1 })
+          .set('.advance-full', { autoAlpha: 0 })
+          .set('.advance-stage', { autoAlpha: 1 });
+        if (slot) tl.set(slot, { opacity: 0 });
+        applyTight();
+        observer = new ResizeObserver(() => applyTight());
+        if (stage) observer.observe(stage);
+        tl.to('.advance-line', { strokeDashoffset: 0, autoRound: false, duration: 1.5, ease: 'none' }, 0.5);
+        if (slot) tl.to(slot, { opacity: 1, duration: 0.5, ease: 'power1.out' }, 2);
+        tl.to('.advance-stage', { autoAlpha: 0.5, duration: 1.5, ease: 'none' }, 3)
+          .to('.advance-stage', { autoAlpha: 0, duration: 0.5, ease: 'power2.in' }, 4.5)
+          .to('.advance-full', { autoAlpha: 1, duration: 3, ease: 'none' }, 3);
       }
-      tl.to('.advance-after', { autoAlpha: 1, duration: 0.45 }, 3.05)
-        .to('.advance-before', { autoAlpha: 0, duration: 0.45 }, 3.05)
-        .to('.advance-line', { autoAlpha: 0, duration: 0.35 }, 3.4)
-        .to({}, { duration: 6 }, 0);
-      tl.seek(Math.min(6, controlledTime ?? state.elapsedSeconds), false);
-      if (controlledTime == null && state.elapsedSeconds < 6) tl.play();
+      tl.to({}, { duration: beat }, 0);
+      tl.seek(Math.min(beat, controlledTime ?? state.elapsedSeconds), false);
+      if (controlledTime == null && state.elapsedSeconds < beat) tl.play();
     }, root);
     return () => {
+      observer?.disconnect();
       timeline.current = undefined;
       ctx.revert();
     };
   }, [data]);
 
   useLayoutEffect(() => {
-    if (controlledTime != null) timeline.current?.pause().seek(Math.max(0, Math.min(6, controlledTime)), false);
+    if (controlledTime != null) timeline.current?.pause().seek(Math.max(0, Math.min(beatRef.current, controlledTime)), false);
   }, [controlledTime]);
 
   if (!data || !presentation) return null;
@@ -104,37 +158,71 @@ export default function AnimatedBracketAdvance({
       }),
     ]),
   );
-  const winner = state.teams.find((t) => t.id === presentation.winnerTeamId);
-  const people = winner?.memberIds.map((id) => state.participants.find((p) => p.id === id)).filter((p): p is NonNullable<typeof p> => !!p) ?? [];
   const view = data.advance?.layout;
-  const retainMatchIds = data.advance ? [data.advance.sourceMatchId] : [];
-  const overlayMatches = (view?.matches ?? []).filter((match) => {
-    const row = data.after.match.find((item) => item.id === match.matchId);
-    return row == null || row.status < 4 || retainMatchIds.includes(match.matchId);
-  });
+  const wideViewBox = view ? frameViewBox(view.matches) : '0 0 1 1';
   const boardSide =
     state.flow?.boardSide ??
     (presentation.match.kind === 'loser' ? 'losers' : presentation.match.kind === 'grand_final' ? 'grand_final' : 'winners');
 
+  const side = data.advance?.boardSide ?? boardSide;
+  const losers = side === 'losers';
+  const pulseMatchIds = losers && frameLit && data.advance
+    ? [data.advance.sourceMatchId, data.advance.targetMatchId]
+    : [];
   return (
     <div ref={root} className="audience-advance" data-advance-from={data.advance?.sourceMatchId} data-advance-to={data.advance?.targetMatchId}>
-      <div className="advance-before">
-        <BracketView data={data.before} layoutData={data.after} boardSide={data.advance?.boardSide ?? boardSide} omitCompleted retainMatchIds={retainMatchIds} clipPrefix="before" faceUrlByTeamId={faceUrlByTeamId} labelByTeamId={labels} memberNamesByTeamId={names} />
-      </div>
-      <div className="advance-after">
-        <BracketView data={data.after} boardSide={data.advance?.boardSide ?? boardSide} omitCompleted retainMatchIds={retainMatchIds} clipPrefix="after" faceUrlByTeamId={faceUrlByTeamId} labelByTeamId={labels} memberNamesByTeamId={names} />
-      </div>
-      {data.advance && view && (
-        <svg className="advance-overlay" viewBox={frameViewBox(overlayMatches.length ? overlayMatches : view.matches)} preserveAspectRatio="xMidYMid meet" aria-label="勝者の実Bracket進出">
-          <path className="advance-line" pathLength={1} strokeDasharray={1} d={data.advance.path} fill="none" stroke="#86efac" strokeWidth={3} />
-          <g className="advance-flight" transform={`translate(${data.advance.source.x},${data.advance.source.y})`}>
-            <rect x={-17} y={-24} width={34} height={48} rx={3} fill="#102c3b" stroke="#fde68a" />
-            {people.map((p, i) => (
-              <image key={p.id} href={portraitUrlFor(p)} x={-15} y={-22 + i * 21} width={30} height={20} preserveAspectRatio="xMidYMid slice" />
-            ))}
-            <title>{winner?.name}</title>
-          </g>
-        </svg>
+      {losers ? (
+        <>
+          <div className="advance-stage losers-tight">
+            <LosersColumnBoard
+              data={data.after}
+              faceUrlByTeamId={faceUrlByTeamId}
+              labelByTeamId={labels}
+              frameMatchId={data.advance?.sourceMatchId ?? presentation.match.id}
+              pulseMatchIds={pulseMatchIds}
+            />
+          </div>
+          <div className="advance-full">
+            <LosersColumnBoard
+              data={data.after}
+              faceUrlByTeamId={faceUrlByTeamId}
+              labelByTeamId={labels}
+              highlightMatchId={data.advance?.targetMatchId ?? data.advance?.sourceMatchId ?? presentation.match.id}
+              pulseMatchIds={pulseMatchIds}
+            />
+          </div>
+        </>
+      ) : (
+        <>
+        <div className="advance-stage">
+          <div className="advance-board">
+            <BracketView
+              data={data.after}
+              boardSide={side}
+              clipPrefix="after"
+              faceUrlByTeamId={faceUrlByTeamId}
+              labelByTeamId={labels}
+              memberNamesByTeamId={names}
+              mutedConnector={data.advance ? { fromMatchId: data.advance.sourceMatchId, toMatchId: data.advance.targetMatchId } : null}
+            />
+          </div>
+          {data.advance && (
+            <svg className="advance-overlay" viewBox={wideViewBox} preserveAspectRatio="xMidYMid meet" aria-label="勝者の勝ち上がり">
+              <path className="advance-line" pathLength={1} strokeDasharray={1} d={data.advance.path} fill="none" stroke="#86efac" strokeWidth={3} />
+            </svg>
+          )}
+        </div>
+        <div className="advance-full">
+          <BracketView
+            data={data.after}
+            boardSide={side}
+            clipPrefix="full"
+            faceUrlByTeamId={faceUrlByTeamId}
+            labelByTeamId={labels}
+            memberNamesByTeamId={names}
+          />
+        </div>
+        </>
       )}
       <div className="advance-winner-out">{winnerOverlay}</div>
     </div>

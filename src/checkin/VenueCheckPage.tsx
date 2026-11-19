@@ -1,9 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import gsap from 'gsap';
 import face from '../assets/placeholder_face.svg';
+import { api } from './api';
+import { repairStoredPng } from './portraitCache';
 import { buildDoubleElimination, toStageData } from '../features/bracket/manager';
 import type { StageData } from '../features/bracket/layout';
 import BracketView from '../features/bracket/BracketView';
+import LosersColumnBoard from '../features/bracket/LosersColumnBoard';
 import { computeBracketLayout } from '../features/bracket/layout';
 import AnimatedBracketAdvance from './AnimatedBracketAdvance';
 import type { DrawState } from './DrawControl';
@@ -52,7 +55,8 @@ const VIEWS = [
 
 type ViewId = (typeof VIEWS)[number][0];
 
-function roster(): FixtureTeam[] {
+function roster(photos: string[] = []): FixtureTeam[] {
+  const pool = photos.length ? photos : [face];
   return Array.from({ length: TEAM_COUNT }, (_, index) => {
     const number = index + 1;
     const left = index * 2 + 1;
@@ -61,9 +65,24 @@ function roster(): FixtureTeam[] {
       id: `team-${number}`,
       name: `仮ペア${String(number).padStart(2, '0')}`,
       members: [`仮参加者${String(left).padStart(2, '0')}`, `仮参加者${String(right).padStart(2, '0')}`],
-      faces: [face, face],
+      faces: [pool[(index * 2) % pool.length], pool[(index * 2 + 1) % pool.length]],
     };
   });
+}
+
+/** 保存済みの顔写真。足りない枠は同じ写真を繰り返す。失敗しても仮の顔で続ける。 */
+async function albumFaces(): Promise<string[]> {
+  const body = await api<{ portraits: { portraitUrl: string; version: number }[] }>('/api/rehearsal/portrait-pool');
+  const loaded = await Promise.all(body.portraits.slice(0, TEAM_COUNT * 2).map(async (person) => {
+    const response = await fetch(`${person.portraitUrl}?version=${person.version}`, { credentials: 'same-origin', cache: 'no-store' });
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    if (!blob.type.startsWith('image/')) return null;
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const portrait = blob.type === 'image/png' ? new Blob([repairStoredPng(bytes)], { type: blob.type }) : blob;
+    return URL.createObjectURL(portrait);
+  }));
+  return loaded.filter((url): url is string => url != null);
 }
 
 function ceremony(team: FixtureTeam): CeremonyTeam {
@@ -99,7 +118,9 @@ function BracketBoard({
     <div className="persisted-bracket">
       <h2>{side === 'losers' ? 'ルーザーズ' : 'ウィナーズ'}</h2>
       <div className="persisted-bracket-body">
-        <BracketView data={data} boardSide={side} omitCompleted={omitCompleted} {...maps} />
+        {side === 'losers'
+          ? <LosersColumnBoard data={data} faceUrlByTeamId={maps.faceUrlByTeamId} labelByTeamId={maps.labelByTeamId} />
+          : <BracketView data={data} boardSide={side} omitCompleted={side === 'winners' ? false : omitCompleted} activeRound={side === 'winners' && omitCompleted} {...maps} />}
       </div>
     </div>
   );
@@ -159,7 +180,7 @@ function BracketFocusPlay({ teams, replay, onNote }: { teams: FixtureTeam[]; rep
         const last = steps[steps.length - 1];
         if (!cancelled) {
           setData(toStageData(last.after));
-          onNote(`${last.label} · 終了試合は非表示＋レイアウト詰め`);
+          onNote(`${last.label} · 消化済みは残し、いまの段を初戦と同じ大きさで中央へ`);
         }
       })
       .catch((reason) => {
@@ -189,27 +210,30 @@ function PairHold({ team }: { team: FixtureTeam }) {
       <PairConfirmed
         teamNumber={1}
         teamLabel={team.name}
-        members={team.members.map((name, index) => ({ id: `${team.id}-${index}`, displayName: name, faceUrl: face }))}
+        members={team.members.map((name, index) => ({ id: `${team.id}-${index}`, displayName: name, faceUrl: team.faces[index] ?? face }))}
       />
     </div>
   );
 }
 
 function advanceState(teams: FixtureTeam[], step: VenueAdvance): DrawState {
-  const participants = teams.flatMap((team) => team.members.map((name, index) => ({
+  const participants = teams.flatMap((team) => team.members.map((name, index) => {
+    const photo = team.faces[index] ?? face;
+    return {
     id: `${team.id}-${index}`,
     eventId: 'venue-check',
     name,
     rating: null,
-    portraitUrl: face,
-    photoUrl: face,
-    portraitContentType: 'image/svg+xml',
-    portraitSource: 'automated-test' as const,
+    portraitUrl: photo,
+    photoUrl: photo,
+    portraitContentType: 'image/jpeg',
+    portraitSource: 'uploaded' as const,
     createdAt: '',
     version: 1,
     updatedAt: '',
-    presentationPortraitUrl: face,
-  })));
+    presentationPortraitUrl: photo,
+    };
+  }));
   return {
     eventId: 'venue-check',
     title: '表示確認',
@@ -274,7 +298,7 @@ function AdvancePlay({ teams, replay, onNote, kind }: { teams: FixtureTeam[]; re
   }, [kind, replay, teams]);
   useEffect(() => {
     if (index >= steps.length - 1) return undefined;
-    const timer = window.setTimeout(() => setIndex((value) => value + 1), 6400);
+    const timer = window.setTimeout(() => setIndex((value) => value + 1), 7200);
     return () => window.clearTimeout(timer);
   }, [index, steps.length]);
   const step = steps[index];
@@ -348,21 +372,32 @@ export default function VenueCheckPage() {
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   useEffect(() => {
-    const teams = roster();
     let cancelled = false;
-    buildDoubleElimination(teams.map((team) => team.id)).then((snapshot) => {
-      if (!cancelled) setReady({ data: toStageData(snapshot), teams });
+    const photos: string[] = [];
+    Promise.all([
+      buildDoubleElimination(roster().map((team) => team.id)),
+      albumFaces().catch(() => [] as string[]),
+    ]).then(([snapshot, faces]) => {
+      if (cancelled) {
+        for (const url of faces) URL.revokeObjectURL(url);
+        return;
+      }
+      photos.push(...faces);
+      setReady({ data: toStageData(snapshot), teams: roster(faces) });
     }).catch((reason) => {
       if (!cancelled) setError(reason instanceof Error ? reason.message : '仮の大会を組めませんでした。');
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      for (const url of photos) URL.revokeObjectURL(url);
+    };
   }, []);
   if (!view) {
     return (
       <section className="venue-check-menu">
         <p className="eyebrow">40人 · ダブルイリミネーション</p>
         <h1>表示を確認する</h1>
-        <p>仮の20組です。各演出は別の窓で開きます。受付の入力や、進行中の大会には影響しません。</p>
+        <p>仮の20組です。顔は保存済みの写真を使います。各演出は別の窓で開きます。受付の入力や、進行中の大会には影響しません。</p>
         {error && <p role="alert">{error}</p>}
         <ul>
           {VIEWS.map(([id, label]) => (

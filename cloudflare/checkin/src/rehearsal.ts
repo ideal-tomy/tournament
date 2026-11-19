@@ -167,6 +167,17 @@ export async function rehearsalRoute(request:Request,env:CheckinEnv):Promise<Res
  if(path==='/api/rehearsal/prepare-progression'&&request.method==='POST'){
   return prepareProgression(env,await readBody(request,2048));
  }
+ if(path==='/api/rehearsal/portrait-pool'&&request.method==='GET'){
+  const prefer=env.REHEARSAL_SOURCE_EVENT_ID??'';
+  const found=await env.DB.prepare(`SELECT p.photo_path,p.event_id,p.id,p.checkin_version FROM participants p JOIN events e ON e.id=p.event_id
+   WHERE e.environment='rehearsal' AND p.note LIKE 'checkin-v1:%' AND p.status='entered' AND length(coalesce(p.photo_path,''))>0
+   ORDER BY CASE WHEN p.event_id=? THEN 0 ELSE 1 END,p.updated_at DESC LIMIT 40`).bind(prefer).all<{photo_path:string;event_id:string;id:string;checkin_version:number|null}>();
+  const portraits=found.results.filter(row=>validKey(row.photo_path,row.event_id,row.id)).map(row=>({
+   portraitUrl:`/api/events/${row.event_id}/participants/${row.id}/portrait`,
+   version:row.checkin_version??0,
+  }));
+  return response({portraits});
+ }
  if(path==='/api/rehearsal/source'&&request.method==='GET'){
   if(!env.REHEARSAL_SOURCE_EVENT_ID)throw new ClientError('NOT_CONFIGURED',503);
   const source={...env,CHECKIN_EVENT_ID:env.REHEARSAL_SOURCE_EVENT_ID};

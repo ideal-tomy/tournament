@@ -1,4 +1,6 @@
 import BracketView from '../features/bracket/BracketView';
+import LosersColumnBoard from '../features/bracket/LosersColumnBoard';
+import { losersColumns } from '../features/bracket/losersBoard';
 import { toStageData } from '../features/bracket/stageData';
 import { ratedName, toPresentationTeam } from './presentationAdapter';
 import type { CourtSpotlight, DrawState } from './DrawControl';
@@ -73,6 +75,13 @@ function GrandFinalFeature({ state }: { state: DrawState }) {
   );
 }
 
+function pulsePair(data: ReturnType<typeof toStageData>, matchId: number | null) {
+  if (matchId == null) return [];
+  const match = losersColumns(data).flatMap((column) => column.matches).find((item) => item.id === matchId);
+  if (!match) return [];
+  return match.nextId == null ? [match.id] : [match.id, match.nextId];
+}
+
 export function SavedBracket({
   state,
   omitCompleted = false,
@@ -87,14 +96,40 @@ export function SavedBracket({
   if (side === 'grand_final' && current?.teamA && current?.teamB) {
     return <GrandFinalFeature state={state} />;
   }
+  const boards = state.flow?.courts?.boards ?? [];
+  const liveMatchId = boards.find((board) => board.stage === 'live')?.match?.id ?? null;
+  const calledMatchId = boards.find((board) => board.stage === 'call')?.match?.id ?? null;
+  const resultMatchId = boards.find((board) => board.stage === 'result')?.match?.id ?? null;
+  const pulseMatchIds = side === 'losers'
+    ? [...new Set([liveMatchId, resultMatchId, state.flow?.lastMatchId].flatMap((id) => pulsePair(data, id ?? null)))]
+    : [];
   return (
     <div className={`persisted-bracket board-side-${side}`}>
       <h2>{side === 'losers' ? 'ルーザーズ' : side === 'grand_final' ? 'グランドファイナル' : 'ウィナーズ'}</h2>
       <div className="persisted-bracket-body">
+        {side === 'losers' ? (
+          <LosersColumnBoard
+            data={data}
+            liveMatchId={liveMatchId}
+            calledMatchId={calledMatchId}
+            pulseMatchIds={pulseMatchIds}
+            faceUrlByTeamId={Object.fromEntries(
+              state.teams.map((team) => [
+                team.id,
+                team.memberIds.map((id) => {
+                  const person = state.participants.find((entry) => entry.id === id);
+                  return person ? portraitUrlFor(person) : '';
+                }),
+              ]),
+            )}
+            labelByTeamId={Object.fromEntries(state.teams.map((team) => [team.id, team.name]))}
+          />
+        ) : (
         <BracketView
           data={data}
           boardSide={side}
-          omitCompleted={omitCompleted}
+          omitCompleted={side === 'winners' ? false : omitCompleted}
+          activeRound={side === 'winners' && omitCompleted}
           faceUrlByTeamId={Object.fromEntries(
             state.teams.map((team) => [
               team.id,
@@ -115,6 +150,7 @@ export function SavedBracket({
             ]),
           )}
         />
+        )}
         {winnersRail(state)}
       </div>
     </div>

@@ -1,5 +1,6 @@
 import {
   buildOrthogonalConnectorPath,
+  activeLeafRound,
   computeBracketLayout,
   isConnectorHighlighted,
   resolveTeamId,
@@ -39,6 +40,13 @@ interface BracketViewProps {
   /** 章に合わせて片方だけ大きく出す */
   boardSide?: BracketBoardSide;
   clipPrefix?: string;
+  /** 終わった下の回戦は残したまま、いまの段を初戦と同じ大きさで中央に出す */
+  activeRound?: boolean;
+  /** 演出側がカメラの枠を渡す */
+  viewBox?: string;
+  svgClassName?: string;
+  /** この勝ち上がり線は、演出の光が描くので表側では点灯しない */
+  mutedConnector?: { fromMatchId: number; toMatchId: number } | null;
 }
 
 export default function BracketView({
@@ -54,13 +62,20 @@ export default function BracketView({
   retainMatchIds = [],
   boardSide = 'all',
   clipPrefix = 'slot',
+  activeRound = false,
+  viewBox: viewBoxOverride,
+  svgClassName,
+  mutedConnector = null,
 }: BracketViewProps) {
   const retain = new Set(retainMatchIds);
   const layoutSource = layoutData ?? data;
+  const leafRound = activeRound && boardSide === 'winners' ? activeLeafRound(data, 'winner') : 1;
   const focus =
-    omitCompleted
-      ? { visibleMatchIds: visibleMatchIdsWhenOmitCompleted(data, boardSide, retainMatchIds) }
-      : undefined;
+    leafRound > 1
+      ? { leafRound }
+      : omitCompleted
+        ? { visibleMatchIds: visibleMatchIdsWhenOmitCompleted(data, boardSide, retainMatchIds) }
+        : undefined;
   const L = computeBracketLayout(layoutSource, undefined, boardSide, focus);
   const shown = L.matches.filter((m) => {
     if (!omitCompleted) return true;
@@ -69,7 +84,7 @@ export default function BracketView({
     return retain.has(m.matchId);
   });
   const framed = shown.length ? shown : L.matches;
-  const viewBox = frameViewBox(framed);
+  const viewBox = viewBoxOverride ?? (leafRound > 1 ? `0 0 ${L.width} ${L.height}` : frameViewBox(framed));
 
   const wbMatches = shown.filter((m) => m.bracket === 'winner');
   const lbMatches = shown.filter((m) => m.bracket === 'loser');
@@ -114,7 +129,7 @@ export default function BracketView({
   return (
     <svg
       viewBox={viewBox}
-      className={compact ? 'w-full h-auto max-h-48' : 'w-full h-full'}
+      className={`${compact ? 'w-full h-auto max-h-48' : 'w-full h-full'}${svgClassName ? ` ${svgClassName}` : ''}`}
       preserveAspectRatio="xMidYMid meet"
       role="img"
       aria-label="トーナメント表"
@@ -157,7 +172,8 @@ export default function BracketView({
       {L.connectors.map((c) => {
         const visibleIds = new Set(shown.map((m) => m.matchId));
         if (!visibleIds.has(c.fromMatchId) || !visibleIds.has(c.toMatchId)) return null;
-        const lit = !suppressConnectorHighlight && isConnectorHighlighted(c, data);
+        const muted = mutedConnector?.fromMatchId === c.fromMatchId && mutedConnector.toMatchId === c.toMatchId;
+        const lit = !muted && !suppressConnectorHighlight && isConnectorHighlighted(c, data);
         const isDrop = c.kind === 'drop';
         const stroke = isDrop
           ? bracketTheme.drop.stroke

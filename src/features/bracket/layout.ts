@@ -453,7 +453,25 @@ export type BracketBoardSide = 'winners' | 'losers' | 'grand_final' | 'all';
 
 export interface BracketLayoutFocus {
   /** 終了試合を除外したあとの残りだけで座標を組み直す（カメラ寄せ） */
-  visibleMatchIds: Set<number>;
+  visibleMatchIds?: Set<number>;
+  /** この回戦を一番下の大きいカードにし、初戦と同じ画面幅の中央へ置く */
+  leafRound?: number;
+}
+
+/** まだ終わっていない一番下の回戦。全部終わっていれば最終回戦。 */
+export function activeLeafRound(data: StageData, bracket: BracketKind = 'winner'): number {
+  const rounds = new Map<number, BMMatch[]>();
+  for (const meta of buildMatchMetas(data)) {
+    if (meta.bracket !== bracket) continue;
+    const list = rounds.get(meta.round) ?? [];
+    list.push(meta.match);
+    rounds.set(meta.round, list);
+  }
+  const ordered = [...rounds.keys()].sort((a, b) => a - b);
+  for (const round of ordered) {
+    if ((rounds.get(round) ?? []).some((match) => match.status < Status.Completed)) return round;
+  }
+  return ordered[ordered.length - 1] ?? 1;
 }
 
 export function visibleMatchIdsWhenOmitCompleted(
@@ -520,6 +538,19 @@ export function computeBracketLayout(
     lbLeafCount > 0 ? lbLeafCount * cfg.boxW + (lbLeafCount - 1) * cfg.matchGap : 0;
   const wbLeft = cfg.padding;
   const lbLeft = wbLeft + wbWidth + (lbWidth > 0 ? cfg.sectionGap : 0);
+  const leafRound = focus?.leafRound;
+  const stage = leafRound != null && leafRound > 1 && showWb ? computeBracketLayout(data, cfg, boardSide) : null;
+  let placedWb = wbMetas;
+  let wbOffset = wbLeft;
+  if (stage && leafRound != null) {
+    placedWb = wbMetas.filter((meta) => meta.round >= leafRound);
+    const leafItems = placedWb.filter((meta) => meta.round === leafRound);
+    const rows = leafItems.map((meta) => meta.row);
+    const minRow = rows.length ? Math.min(...rows) : 0;
+    const maxRow = rows.length ? Math.max(...rows) : 0;
+    const span = (maxRow - minRow) * (cfg.boxW + cfg.matchGap) + cfg.boxW;
+    wbOffset = (stage.width - span) / 2 - minRow * (cfg.boxW + cfg.matchGap);
+  }
 
   const baseBottom =
     cfg.padding + (maxRound + gfMaxRound + 1) * (cfg.boxH + cfg.roundGap);
@@ -529,7 +560,7 @@ export function computeBracketLayout(
   const baseline = baselineMatchIds(baselineScope.filter((m) => m.bracket !== 'loser'), hidden);
 
   const matches: MatchLayout[] = [
-    ...placeTreeSection(wbMetas, metas, cfg, baseBottom, (r) => r, wbLeft, hidden, baseline),
+    ...placeTreeSection(placedWb, metas, cfg, baseBottom, (r) => r, wbOffset, hidden, baseline),
     ...placeTreeSection(lbMetas, metas, cfg, baseBottom, (r) => r, lbLeft, hidden, baseline),
     ...placeTreeSection(gfMetas, metas, cfg, baseBottom, (r) => maxRound + r, wbLeft, hidden, baseline),
   ];
@@ -573,7 +604,8 @@ export function computeBracketLayout(
   const maxRight = matches.reduce((mx, m) => Math.max(mx, m.box.x + m.box.w), 0);
   const minTop = matches.reduce((mn, m) => Math.min(mn, m.box.y), baseBottom);
   const maxBottom = matches.reduce((mx, m) => Math.max(mx, m.box.y + m.box.h), baseBottom);
-  const yShift = minTop - cfg.padding;
+  const framedHeight = stage ? Math.max(stage.height, maxBottom - minTop + cfg.padding * 2) : 0;
+  const yShift = stage ? (minTop + maxBottom) / 2 - framedHeight / 2 : minTop - cfg.padding;
 
   if (yShift !== 0) {
     for (const m of matches) {
@@ -589,6 +621,8 @@ export function computeBracketLayout(
       c.to.y -= yShift;
     }
   }
+
+  if (stage) return { matches, connectors, width: stage.width, height: framedHeight, byId };
 
   const width = maxRight + cfg.padding;
   const height = maxBottom - minTop + cfg.padding * 2;

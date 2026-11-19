@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildSnapshotForTeamCount, toStageData } from './manager';
-import { computeBracketLayout, buildOrthogonalConnectorPath, slotPresence, visibleMatchIdsWhenOmitCompleted } from './layout';
+import { activeLeafRound, computeBracketLayout, buildOrthogonalConnectorPath, slotPresence, visibleMatchIdsWhenOmitCompleted, DEFAULT_LAYOUT } from './layout';
 import { buildVenueAdvances } from '../../checkin/venueAdvance';
 
 const BRACKET_KINDS = ['winner', 'loser', 'grand_final'] as const;
@@ -177,6 +177,27 @@ describe('computeBracketLayout', () => {
     expect(slotPresence(match, 0)).toBe('team');
     expect(slotPresence(match, 1)).toBe('waiting');
     expect(slotPresence({ opponent1: { id: null }, opponent2: { id: null } } as Parameters<typeof slotPresence>[0], 0)).toBe('empty');
+  });
+
+  it('1回戦が終わると、2回戦を初戦と同じ大きさで画面中央に置く', async () => {
+    const teamIds = Array.from({ length: 20 }, (_, index) => `team-${index + 1}`);
+    const steps = await buildVenueAdvances(teamIds, 40);
+    const found = steps.map((step) => toStageData(step.after)).find((data) => activeLeafRound(data) > 1);
+    expect(found).toBeTruthy();
+    const full = computeBracketLayout(found!, undefined, 'winners');
+    const leaf = activeLeafRound(found!);
+    const active = computeBracketLayout(found!, undefined, 'winners', { leafRound: leaf });
+    const row = active.matches.filter((match) => match.isLeafRound);
+    expect(row.length).toBeGreaterThan(0);
+    expect(row.every((match) => match.round === leaf)).toBe(true);
+    expect(row.every((match) => match.box.w === DEFAULT_LAYOUT.boxW && match.box.h === DEFAULT_LAYOUT.boxH)).toBe(true);
+    expect(active.matches.some((match) => match.round < leaf)).toBe(false);
+    expect(full.matches.some((match) => match.round < leaf)).toBe(true);
+    expect(active.width).toBeCloseTo(full.width, 0);
+    expect(active.height).toBeCloseTo(full.height, 0);
+    const left = Math.min(...row.map((match) => match.box.x));
+    const right = Math.max(...row.map((match) => match.box.x + match.box.w));
+    expect((left + right) / 2).toBeCloseTo(active.width / 2, 0);
   });
 
   it('消化後のフォーカスレイアウトは縦余白を詰める', async () => {
