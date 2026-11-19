@@ -37,12 +37,15 @@ export function nextRehearsalCommand(
     if (live) {
       return { command: { path: '/api/tournament/court-winner', body: { ...body, board: live.board, winnerSlot: 0 } }, matchSince };
     }
+    if (state.flow.twenty?.promptSwitch) {
+      return { command: { path: '/api/tournament/courts-parallel', body }, matchSince };
+    }
     const result = boards.find(b => b.stage === 'result');
     if (result) {
       return { command: { path: '/api/tournament/court-next', body: { ...body, board: result.board } }, matchSince };
     }
     const idle = boards.find(b => b.stage === 'idle' && b.matchId == null);
-    if (idle) {
+    if (idle && (!state.flow.twenty || state.flow.nextMatch)) {
       return { command: { path: '/api/tournament/court-next', body: { ...body, board: idle.board } }, matchSince };
     }
     if (state.flow.courts.spotlight && timing.vsHold > 0) {

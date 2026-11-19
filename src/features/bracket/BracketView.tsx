@@ -3,6 +3,7 @@ import {
   computeBracketLayout,
   isConnectorHighlighted,
   resolveTeamId,
+  visibleMatchIdsWhenOmitCompleted,
   type BracketBoardSide,
   type BracketKind,
   type StageData,
@@ -53,8 +54,13 @@ export default function BracketView({
   boardSide = 'all',
   clipPrefix = 'slot',
 }: BracketViewProps) {
-  const L = computeBracketLayout(layoutData??data, undefined, boardSide);
   const retain = new Set(retainMatchIds);
+  const layoutSource = layoutData ?? data;
+  const focus =
+    omitCompleted
+      ? { visibleMatchIds: visibleMatchIdsWhenOmitCompleted(data, boardSide, retainMatchIds) }
+      : undefined;
+  const L = computeBracketLayout(layoutSource, undefined, boardSide, focus);
   const shown = L.matches.filter((m) => {
     if (!omitCompleted) return true;
     const bm = data.match.find((row) => row.id === m.matchId);

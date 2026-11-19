@@ -33,5 +33,5 @@
 .venue-check-frame{height:100%}
 .venue-check-frame>p{margin:0;padding:24px;color:#e2e8f0}
 .venue-check-tools{position:absolute;z-index:60;top:12px;left:12px;display:flex;gap:8px}
-.venue-check-tools a,.venue-check-tools button{color:#e2e8f0;background:#0f172acc;border:0;border-radius:8px;padding:6px 10px;font-size:14px;text-decoration:none;cursor:pointer}
+.venue-check-tools a,.venue-check-tools button,.venue-check-tools span{color:#e2e8f0;background:#0f172acc;border:0;border-radius:8px;padding:6px 10px;font-size:14px;text-decoration:none;cursor:pointer;word-break:keep-all}
 .venue-pair{position:relative;height:100%}

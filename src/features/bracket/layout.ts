@@ -447,21 +447,51 @@ function placeTreeSection(
 
 export type BracketBoardSide = 'winners' | 'losers' | 'grand_final' | 'all';
 
+export interface BracketLayoutFocus {
+  /** 終了試合を除外したあとの残りだけで座標を組み直す（カメラ寄せ） */
+  visibleMatchIds: Set<number>;
+}
+
+export function visibleMatchIdsWhenOmitCompleted(
+  data: StageData,
+  boardSide: BracketBoardSide,
+  retainMatchIds: number[] = [],
+): Set<number> {
+  const retain = new Set(retainMatchIds);
+  const full = computeBracketLayout(data, DEFAULT_LAYOUT, boardSide);
+  return new Set(
+    full.matches
+      .filter((m) => {
+        const bm = data.match.find((row) => row.id === m.matchId);
+        if (bm == null || bm.status < Status.Completed) return true;
+        return retain.has(m.matchId);
+      })
+      .map((m) => m.matchId),
+  );
+}
+
 export function computeBracketLayout(
   data: StageData,
   cfg: LayoutConfig = DEFAULT_LAYOUT,
   boardSide: BracketBoardSide = 'all',
+  focus?: BracketLayoutFocus,
 ): BracketLayout {
   const allMetas = buildMatchMetas(data);
   const visibleIds = new Set(filterVisibleMetas(allMetas).map((m) => m.match.id));
   const metas = allMetas;
+  const focusSet = focus?.visibleMatchIds;
+  const inFocus = (id: number) => focusSet == null || focusSet.has(id);
   const showWb = boardSide === 'all' || boardSide === 'winners';
   const showLb = boardSide === 'all' || boardSide === 'losers';
   const showGf = boardSide === 'all' || boardSide === 'grand_final';
-  const wbMetas = showWb ? metas.filter((m) => m.bracket === 'winner') : [];
-  const lbMetas = showLb ? metas.filter((m) => m.bracket === 'loser' && visibleIds.has(m.match.id)) : [];
+  const wbMetas = showWb
+    ? metas.filter((m) => m.bracket === 'winner' && inFocus(m.match.id))
+    : [];
+  const lbMetas = showLb
+    ? metas.filter((m) => m.bracket === 'loser' && visibleIds.has(m.match.id) && inFocus(m.match.id))
+    : [];
   const gfMetas = showGf
-    ? metas.filter((m) => m.bracket === 'grand_final' && visibleIds.has(m.match.id))
+    ? metas.filter((m) => m.bracket === 'grand_final' && visibleIds.has(m.match.id) && inFocus(m.match.id))
     : [];
 
   const wbMaxRound = wbMetas.reduce((mx, m) => Math.max(mx, m.round), 0);
@@ -469,7 +499,13 @@ export function computeBracketLayout(
   const gfMaxRound = gfMetas.reduce((mx, m) => Math.max(mx, m.round), 0);
   const maxRound = Math.max(wbMaxRound, lbMaxRound, gfMaxRound, 1);
 
-  const wbLeafCount = wbMetas.filter((m) => m.round === 1).length || 1;
+  const wbRound1 = wbMetas.filter((m) => m.round === 1);
+  const wbLeafCount =
+    wbRound1.length > 0
+      ? wbRound1.length
+      : wbMetas.length > 0
+        ? Math.max(...groupByRound(wbMetas).map((g) => g.items.length), 1)
+        : 1;
   const lbLeafCount =
     lbMetas.length > 0
       ? Math.max(...groupByRound(lbMetas).map((g) => g.items.length), 1)
@@ -484,7 +520,8 @@ export function computeBracketLayout(
   const baseBottom =
     cfg.padding + (maxRound + gfMaxRound + 1) * (cfg.boxH + cfg.roundGap);
   const hidden = byePlaceholderIds(metas);
-  const baseline = baselineMatchIds(metas, hidden);
+  const baselineScope = focusSet ? metas.filter((m) => inFocus(m.match.id)) : metas;
+  const baseline = baselineMatchIds(baselineScope, hidden);
 
   const matches: MatchLayout[] = [
     ...placeTreeSection(wbMetas, metas, cfg, baseBottom, (r) => r, wbLeft, hidden, baseline),
@@ -497,6 +534,7 @@ export function computeBracketLayout(
 
   const connectors: Connector[] = [];
   for (const link of buildAdvanceConnectors(metas)) {
+    if (!inFocus(link.from) || !inFocus(link.to)) continue;
     if (!visibleIds.has(link.from) || !visibleIds.has(link.to)) continue;
     const from = byId[link.from];
     const to = byId[link.to];
@@ -510,6 +548,7 @@ export function computeBracketLayout(
     });
   }
   for (const link of buildDropConnectors(metas)) {
+    if (!inFocus(link.from) || !inFocus(link.to)) continue;
     if (!visibleIds.has(link.from) || !visibleIds.has(link.to)) continue;
     const source = data.match.find((m) => m.id === link.from);
     if (!source || source.status < Status.Completed) continue;

@@ -16,6 +16,18 @@ export {
   getOpenTierMatches,
   type BoardSide,
 } from './tiers';
+export {
+  isTwentyDe,
+  reassignCall,
+  selectTwenty,
+  winnersFieldRound,
+  TWENTY_REASON,
+  TWENTY_WAIT,
+  type TwentyCandidate,
+  type TwentyInput,
+  type TwentyPhase,
+  type TwentyView,
+} from './twenty';
 
 export class ProgressionError extends Error {
   constructor(message: string) {

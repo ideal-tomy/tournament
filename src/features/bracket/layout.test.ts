@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildSnapshotForTeamCount, toStageData } from './manager';
-import { computeBracketLayout, buildOrthogonalConnectorPath } from './layout';
+import { computeBracketLayout, buildOrthogonalConnectorPath, visibleMatchIdsWhenOmitCompleted } from './layout';
+import { buildVenueAdvances } from '../../checkin/venueAdvance';
 
 const BRACKET_KINDS = ['winner', 'loser', 'grand_final'] as const;
 
@@ -155,6 +156,18 @@ describe('computeBracketLayout', () => {
       expect(target?.round).toBe(3);
       expect(target!.box.y).toBeLessThan(waiting[0].box.y);
     }
+  });
+
+  it('消化後のフォーカスレイアウトは縦余白を詰める', async () => {
+    const teamIds = Array.from({ length: 20 }, (_, index) => `team-${index + 1}`);
+    const steps = await buildVenueAdvances(teamIds, 10);
+  expect(steps.length).toBeGreaterThan(3);
+    const data = toStageData(steps[steps.length - 1].after);
+    const full = computeBracketLayout(data, undefined, 'winners');
+    const focusIds = visibleMatchIdsWhenOmitCompleted(data, 'winners');
+    const focused = computeBracketLayout(data, undefined, 'winners', { visibleMatchIds: focusIds });
+    expect(focused.matches.length).toBeLessThan(full.matches.length);
+    expect(focused.height).toBeLessThan(full.height * 0.9);
   });
 
   it('2 回戦の試合は 1 回戦 2 試合の中央に配置される', async () => {

@@ -304,7 +304,7 @@ async function complete(env:CheckinEnv,body:Record<string,unknown>){
 }
 export async function drawRoute(request:Request,env:CheckinEnv):Promise<Response|null>{
   const url=new URL(request.url);
-  const flow=/^\/api\/tournament\/(advance|game-start|start|winner|courts-open|court-start|court-winner|court-next|courts-view)$/.exec(url.pathname);
+  const flow=/^\/api\/tournament\/(advance|game-start|start|winner|courts-open|court-start|court-winner|court-next|court-pick|courts-parallel|courts-view)$/.exec(url.pathname);
   if(flow&&request.method==='POST'){await flowCommand(env,flow[1] as FlowAction,await readBody(request,1024));return response(await read(env));}
   if(url.pathname==='/api/draw/state'&&request.method==='GET')return response(await read(env));
   if(url.pathname==='/api/draw/pairs'&&request.method==='POST')return prepare(env,await readBody(request,16384));

@@ -17,6 +17,8 @@ const reviewDone = () => {};
 
 export interface FlowMatch {id:number;teamA:string;teamB:string;round:number;roundName?:string;kind:string;final:boolean;callout?:'semifinal'|'losers-semifinal'|'final'|'final-again'|null}
 export interface CourtBoard {board:number;matchId:number|null;stage:'idle'|'call'|'live'|'result';startedAt:string|null;winnerTeamId?:string|null;loserTeamId?:string|null;showing:boolean;match:FlowMatch|null}
+export interface TwentyChoice {id:number;roundName:string;teamA:string;teamB:string;playedA:number;playedB:number;restMinA:number;restMinB:number;priority:boolean}
+export interface TwentyFlow {phase:'A'|'B'|'C';manual:boolean;canSwitch:boolean;promptSwitch:boolean;priorityReason:string|null;choices:{board:number;matches:TwentyChoice[]}[]}
 export type ResultPresentation={beforeBracket:BracketSnapshot;match:{id:number;teamA:string;teamB:string;round:number;kind:string;final:boolean};winnerTeamId:string};
 export interface CourtSpotlight {id:string;kind:'vs'|'winner'|'losers-intro';board:number;match:FlowMatch;elapsed:number;winnerSec:number;winnerTeamId:string|null;loserTeamId:string|null;resultPresentation:ResultPresentation|null}
 export type CeremonyStep='third'|'second'|'champion'|'podium';
@@ -24,7 +26,7 @@ export interface Placements {first:string;second:string[];third:string[]}
 export interface DrawState {
  official?:boolean;
  format?:string; timingPreset?:'show'|'fast'|'instant'; openingVersion?:string|null;
- flow: {ceremony?:CeremonyStep|null;placements?:Placements|null;resultPresentation?:ResultPresentation|null;phase:string;currentMatch:FlowMatch|null;boardSide?:'winners'|'losers'|'grand_final';losersIntroPlayed?:boolean;losersIntroPending?:boolean;losersIntroRemainingSec?:number;courts?:{count:number;showBracket:boolean;spotlight:CourtSpotlight|null;boards:CourtBoard[]}|null;nextMatch?:{id:number;teamA:string|null;teamB:string|null}|null;nextWaitReason?:string|null;progressionDebug?:{chapterMatches:FlowMatch[];courtFillQueue:FlowMatch[];deferredRest:boolean}|null;winnerTeamId:string|null;loserTeamId:string|null;championTeamId:string|null;lastMatchId:number|null;canGameStart:boolean;canAnnounce:boolean;canStart:boolean;canScore:boolean;canAdvance:boolean;completedMatches:number}|null;
+ flow: {ceremony?:CeremonyStep|null;placements?:Placements|null;resultPresentation?:ResultPresentation|null;phase:string;currentMatch:FlowMatch|null;boardSide?:'winners'|'losers'|'grand_final';losersIntroPlayed?:boolean;losersIntroPending?:boolean;losersIntroRemainingSec?:number;courts?:{count:number;showBracket:boolean;spotlight:CourtSpotlight|null;boards:CourtBoard[]}|null;nextMatch?:{id:number;teamA:string|null;teamB:string|null}|null;nextWaitReason?:string|null;twenty?:TwentyFlow|null;progressionDebug?:{chapterMatches:FlowMatch[];courtFillQueue:FlowMatch[];deferredRest:boolean}|null;winnerTeamId:string|null;loserTeamId:string|null;championTeamId:string|null;lastMatchId:number|null;canGameStart:boolean;canAnnounce:boolean;canStart:boolean;canScore:boolean;canAdvance:boolean;completedMatches:number}|null;
  eventId:string;title:string;checkinStatus:string;checkinRevision:number;scene:string;version:number;sceneSeq:number;
  elapsedSeconds:number;durationSec:number;canComplete:boolean;
  session:{id:string;revealOrder:string[];committedAt:string}|null;

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError, scopedUrl, type Participant } from './api';
-import type { CeremonyStep, CourtBoard, DrawState, FlowMatch } from './DrawControl';
+import type { CeremonyStep, CourtBoard, DrawState, FlowMatch, TwentyChoice } from './DrawControl';
 import { useTournamentState } from './useTournamentState';
 import { makeBalancedTeams } from '../features/draw/draw';
 import { generatedTeamName, VENUE_TEAM_NAME_MAX } from '../features/draw/teamName';
@@ -164,9 +164,9 @@ function MatchCard({ state, match = state.flow!.currentMatch!, choose, chosen }:
 
 const boardStage: Record<CourtBoard['stage'], string> = { idle: '空き', call: '呼び出し中', live: '試合中', result: '勝者確定' };
 
-function BoardCard({ state, board, busy, pick, fillable, blockedLabel, onPick, onCommand }: {
-  state: DrawState; board: CourtBoard; busy: boolean; pick?: 0 | 1; fillable: boolean; blockedLabel: string | null;
-  onPick(slot: 0 | 1): void; onCommand(action: 'court-start' | 'court-winner' | 'court-next', extra?: Record<string, unknown>): void;
+function BoardCard({ state, board, busy, pick, fillable, blockedLabel, choices, onPick, onChoose, onCommand }: {
+  state: DrawState; board: CourtBoard; busy: boolean; pick?: 0 | 1; fillable: boolean; blockedLabel: string | null; choices: TwentyChoice[];
+  onPick(slot: 0 | 1): void; onChoose(matchId: number): void; onCommand(action: 'court-start' | 'court-winner' | 'court-next', extra?: Record<string, unknown>): void;
 }) {
   const match = board.match;
   const teamName = (id: string | null | undefined) => state.teams.find(team => team.id === id)?.name ?? '';
@@ -186,6 +186,12 @@ function BoardCard({ state, board, busy, pick, fillable, blockedLabel, onPick, o
         ? <button className="primary" disabled>勝ったチームをタップ</button>
         : <button className="primary" disabled={busy} onClick={() => onCommand('court-winner', { winnerSlot: pick })}>{teamName(pick === 0 ? match.teamA : match.teamB)} の勝利で確定</button>)}
     {board.stage === 'result' && <button className="primary" disabled={busy || board.showing} onClick={() => onCommand('court-next')}>{board.showing ? '会場で勝者演出中…' : 'この台に次の試合'}</button>}
+    {(board.stage === 'idle' || board.stage === 'call') && choices.length > 0 && <details className="op-hint">
+      <summary>別の試合にする</summary>
+      {choices.map(choice => <button key={choice.id} className="op-link-button" disabled={busy} onClick={() => onChoose(choice.id)}>
+        {choice.priority ? '優先 · ' : ''}{choice.roundName} · {teamName(choice.teamA)} 対 {teamName(choice.teamB)} · {choice.playedA}試合 {choice.restMinA}分 / {choice.playedB}試合 {choice.restMinB}分
+      </button>)}
+    </details>}
   </section>;
 }
 
@@ -227,7 +233,7 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
       }
     } finally { setBusy(false); setPendingVersion(v => v + 1); }
   }
-  const flow = (action: 'advance' | 'game-start' | 'start' | 'winner' | 'courts-open' | 'court-start' | 'court-winner' | 'court-next' | 'courts-view', extra: Record<string, unknown> = {}) => send(`/api/tournament/${action}`, extra);
+  const flow = (action: 'advance' | 'game-start' | 'start' | 'winner' | 'courts-open' | 'court-start' | 'court-winner' | 'court-next' | 'court-pick' | 'courts-parallel' | 'courts-view', extra: Record<string, unknown> = {}) => send(`/api/tournament/${action}`, extra);
 
   if (!state) return <section className="op"><p className="op-loading" role="status">{error || '大会を読み込んでいます…'}</p></section>;
   const current = state;
@@ -316,8 +322,13 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
               <div className="op-side"><span className="op-side-names">{nextSides[1]?.name ?? '未定'}</span></div>
             </div>
           : <p className="op-note">まだ組める対戦がありません</p>}
+        {f.twenty?.priorityReason && <p className="op-hint">{f.twenty.priorityReason}</p>}
         {f.nextWaitReason && <p className="op-hint">{f.nextWaitReason}</p>}
-        {f.progressionDebug && <details className="op-hint">
+        {f.twenty?.canSwitch && <>
+          {f.twenty.promptSwitch && <p className="op-hint">出せるルーザーズが尽きました。ウィナーズも同時に進められます。</p>}
+          <button className={f.twenty.promptSwitch ? 'primary' : 'op-link-button'} disabled={busy || losersLeft > 0} onClick={() => void flow('courts-parallel')}>ウィナーズも同時に進める</button>
+        </>}
+        {!f.twenty && f.progressionDebug && <details className="op-hint">
           <summary>進行デバッグ</summary>
           <p>待ち理由: {f.nextWaitReason ?? 'なし'}</p>
           <p>休息で後回し: {f.progressionDebug.deferredRest ? 'あり' : 'なし'}</p>
@@ -333,8 +344,10 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
       <button className="op-link-button" disabled={busy || losersLeft > 0} onClick={() => void flow('courts-view', { show: !courts.showBracket })}>{courts.showBracket ? '会場を台の表示に戻す' : '会場にトーナメント表を出す'}</button>
       {courts.boards.map(board => <BoardCard key={board.board} state={state} board={board} busy={busy || losersLeft > 0}
         fillable={Boolean(next)} blockedLabel={f.nextWaitReason ?? null}
+        choices={f.twenty?.manual ? f.twenty.choices.find(choice => choice.board === board.board)?.matches ?? [] : []}
         pick={board.match ? picks[board.match.id] : undefined}
         onPick={slot => board.match && setPicks(value => ({ ...value, [board.match!.id]: value[board.match!.id] === slot ? undefined : slot }))}
+        onChoose={matchId => void flow('court-pick', { board: board.board, matchId })}
         onCommand={(action, extra) => void flow(action, { board: board.board, ...extra })} />)}
     </div>;
   } else if (f?.phase === 'bracket_update') {
