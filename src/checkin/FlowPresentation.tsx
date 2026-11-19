@@ -169,6 +169,7 @@ function CourtSpotlightView({ state, spot }: { state: DrawState; spot: CourtSpot
         team={team}
         opponent={opponent}
         dropLabel={drop}
+        context={label}
         startAt={spot.elapsed}
         audioEnabled
       />

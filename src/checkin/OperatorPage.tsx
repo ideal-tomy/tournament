@@ -185,7 +185,11 @@ function BoardCard({ state, board, busy, pick, fillable, blockedLabel, choices, 
       : pick == null
         ? <button className="primary" disabled>勝ったチームをタップ</button>
         : <button className="primary" disabled={busy} onClick={() => onCommand('court-winner', { winnerSlot: pick })}>{teamName(pick === 0 ? match.teamA : match.teamB)} の勝利で確定</button>)}
-    {board.stage === 'result' && <button className="primary" disabled={busy || board.showing} onClick={() => onCommand('court-next')}>{board.showing ? '会場で勝者演出中…' : 'この台に次の試合'}</button>}
+    {board.stage === 'result' && (board.showing
+      ? <button className="primary" disabled>会場で勝者演出中…</button>
+      : fillable
+        ? <button className="primary" disabled={busy} onClick={() => onCommand('court-next')}>この台に次の試合</button>
+        : <button className="primary op-wait" disabled>{blockedLabel ?? 'まだ組める対戦がありません'}</button>)}
     {(board.stage === 'idle' || board.stage === 'call') && choices.length > 0 && <details className="op-hint">
       <summary>別の試合にする</summary>
       {choices.map(choice => <button key={choice.id} className="op-link-button" disabled={busy} onClick={() => onChoose(choice.id)}>

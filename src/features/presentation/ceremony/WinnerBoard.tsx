@@ -47,6 +47,7 @@ export default function WinnerBoard({
   contained = false,
   title = 'WINNER',
   label,
+  context,
   ...intro
 }: CeremonyIntroOptions & {
   team?: CeremonyTeam;
@@ -56,6 +57,8 @@ export default function WinnerBoard({
   contained?: boolean;
   title?: string;
   label?: string;
+  /** 台番号と対戦。全画面でも、どの台の勝利かを残す。 */
+  context?: string;
 }) {
   const clusters = groups?.length ? groups : team ? [team] : [];
   const grouped = clusters.length > 1;
@@ -97,6 +100,7 @@ export default function WinnerBoard({
       </div>
       <div className="cer-vignette" />
       <h2 className="cer-text cer-gold wb-title">{title}</h2>
+      {context && <p className="wb-context">{context}</p>}
       {clusters.map((item, group) => {
         const members = people(item);
         const slots = cardSlots(members.length, card, innerGap, centers[group] ?? BEAM_X);

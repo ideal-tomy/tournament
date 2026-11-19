@@ -39,6 +39,7 @@
 .wb-dust{position:absolute;left:842px;top:0;width:240px;height:820px;mix-blend-mode:screen;opacity:.85;background:radial-gradient(circle,rgba(255,236,170,.95) 0 1.6px,transparent 2.6px) 0 0/38px 46px,radial-gradient(circle,rgba(253,224,138,.7) 0 1.1px,transparent 2px) 19px 23px/52px 64px;-webkit-mask-image:radial-gradient(ellipse 50% 52% at 50% 46%,#000 35%,transparent 100%);mask-image:radial-gradient(ellipse 50% 52% at 50% 46%,#000 35%,transparent 100%);animation:wb-rise 8s linear infinite}
 @keyframes wb-rise{to{background-position:0 -460px,19px -425px}}
 .wb-title{top:56px;font-size:156px;letter-spacing:.2em;padding-left:.2em}
+.wb-context{position:absolute;top:214px;left:0;right:0;z-index:4;margin:0;text-align:center;color:#fde68a;font-size:28px;font-weight:800;letter-spacing:.06em;word-break:keep-all}
 .wb-venue-plate{position:absolute;top:772px;left:50%;z-index:3;transform:translateX(-50%)}
 .wb-group-plate{position:absolute;z-index:3}
 .cb-venue-plate{position:absolute;top:797px;left:50%;z-index:3;transform:translateX(-50%)}

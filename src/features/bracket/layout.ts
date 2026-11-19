@@ -228,7 +228,11 @@ function isSlotFilled(op: BMOpponent | null | undefined): boolean {
   return op?.id != null;
 }
 
-/** ウィナーズとルーザーズは空枠も含めて全ラウンド表示。GF は参加者が入った試合のみ。 */
+function hasEntrant(meta: MatchMeta): boolean {
+  return meta.match.opponent1?.id != null || meta.match.opponent2?.id != null;
+}
+
+/** ウィナーズは空枠も含めて表示。ルーザーズは誰か入った試合だけ。GF は参加者が入った試合のみ。 */
 export function isMatchVisibleForDisplay(meta: MatchMeta): boolean {
   if (meta.bracket === 'winner' || meta.bracket === 'loser') return true;
   return isSlotFilled(meta.match.opponent1) || isSlotFilled(meta.match.opponent2);
@@ -488,7 +492,7 @@ export function computeBracketLayout(
     ? metas.filter((m) => m.bracket === 'winner' && inFocus(m.match.id))
     : [];
   const lbMetas = showLb
-    ? metas.filter((m) => m.bracket === 'loser' && visibleIds.has(m.match.id) && inFocus(m.match.id))
+    ? metas.filter((m) => m.bracket === 'loser' && visibleIds.has(m.match.id) && inFocus(m.match.id) && hasEntrant(m))
     : [];
   const gfMetas = showGf
     ? metas.filter((m) => m.bracket === 'grand_final' && visibleIds.has(m.match.id) && inFocus(m.match.id))
@@ -521,7 +525,8 @@ export function computeBracketLayout(
     cfg.padding + (maxRound + gfMaxRound + 1) * (cfg.boxH + cfg.roundGap);
   const hidden = byePlaceholderIds(metas);
   const baselineScope = focusSet ? metas.filter((m) => inFocus(m.match.id)) : metas;
-  const baseline = baselineMatchIds(baselineScope, hidden);
+  // 下段揃えはウィナーズの不戦勝用。ルーザーズの途中枠を初戦の段へ下ろさない。
+  const baseline = baselineMatchIds(baselineScope.filter((m) => m.bracket !== 'loser'), hidden);
 
   const matches: MatchLayout[] = [
     ...placeTreeSection(wbMetas, metas, cfg, baseBottom, (r) => r, wbLeft, hidden, baseline),
@@ -614,10 +619,20 @@ export function getLoserParticipantId(m: BMMatch): number | null {
   return null;
 }
 
+/** 枠の中身。確定した人は出し、相手だけが未定の側は待ちと分かるようにする。 */
+export function slotPresence(match: BMMatch, slot: 0 | 1): 'team' | 'waiting' | 'empty' {
+  const mine = slot === 0 ? match.opponent1 : match.opponent2;
+  const other = slot === 0 ? match.opponent2 : match.opponent1;
+  if (mine?.id != null) return 'team';
+  if (other?.id != null) return 'waiting';
+  return 'empty';
+}
+
 export function isConnectorHighlighted(connector: Connector, data: StageData): boolean {
   const from = data.match.find((m) => m.id === connector.fromMatchId);
   const to = data.match.find((m) => m.id === connector.toMatchId);
   if (!from || !to || from.status < Status.Completed) return false;
+  if (from.opponent1?.id == null || from.opponent2?.id == null) return false;
 
   const participantInTo = (id: number | null) =>
     id != null && (to.opponent1?.id === id || to.opponent2?.id === id);

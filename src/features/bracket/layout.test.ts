@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildSnapshotForTeamCount, toStageData } from './manager';
-import { computeBracketLayout, buildOrthogonalConnectorPath, visibleMatchIdsWhenOmitCompleted } from './layout';
+import { computeBracketLayout, buildOrthogonalConnectorPath, slotPresence, visibleMatchIdsWhenOmitCompleted } from './layout';
 import { buildVenueAdvances } from '../../checkin/venueAdvance';
 
 const BRACKET_KINDS = ['winner', 'loser', 'grand_final'] as const;
@@ -98,11 +98,11 @@ describe('computeBracketLayout', () => {
     assertLayout(data);
   });
 
-  it('初期状態でも Losers の枠と進線を出し、GF は参加者確定まで隠す', async () => {
+  it('初期のルーザーズは空の対戦を描かず、GF は参加者確定まで隠す', async () => {
     const data = await buildSnapshotForTeamCount(16);
     const L = computeBracketLayout(toStageData(data));
     expect(L.matches.filter((m) => m.bracket === 'winner').length).toBeGreaterThan(0);
-    expect(L.matches.filter((m) => m.bracket === 'loser').length).toBeGreaterThan(0);
+    expect(L.matches.filter((m) => m.bracket === 'loser').length).toBe(0);
     expect(L.connectors.some((c) => c.kind === 'advance')).toBe(true);
     expect(L.matches.filter((m) => m.bracket === 'grand_final').length).toBe(0);
     expect(L.connectors.filter((c) => c.kind === 'drop').length).toBe(0);
@@ -116,10 +116,15 @@ describe('computeBracketLayout', () => {
   });
 
   it('ルーザーの段間はカードの高さに合わせる', async () => {
-    const data = await buildSnapshotForTeamCount(8);
-    const L = computeBracketLayout(toStageData(data), undefined, 'losers');
-    const rounds = [2, 3].map((round) => L.matches.find((m) => m.bracket === 'loser' && m.round === round));
-    const [lower, upper] = rounds;
+    const steps = await buildVenueAdvances(Array.from({ length: 8 }, (_, index) => `team-${index + 1}`), 24);
+    let lower: { box: { y: number; h: number } } | undefined;
+    let upper: { box: { y: number; h: number } } | undefined;
+    for (const step of steps) {
+      const laid = computeBracketLayout(toStageData(step.after), undefined, 'losers');
+      lower = laid.matches.find((match) => match.round === 2);
+      upper = laid.matches.find((match) => match.round === 3);
+      if (lower && upper) break;
+    }
     expect(lower && upper).toBeTruthy();
     if (!lower || !upper) return;
     expect(lower.box.y - (upper.box.y + upper.box.h)).toBeLessThanOrEqual(28);
@@ -156,6 +161,22 @@ describe('computeBracketLayout', () => {
       expect(target?.round).toBe(3);
       expect(target!.box.y).toBeLessThan(waiting[0].box.y);
     }
+  });
+
+  it('ルーザーズの上の回戦は初戦の段へ下ろさない', async () => {
+    const steps = await buildVenueAdvances(Array.from({ length: 20 }, (_, index) => `team-${index + 1}`), 12);
+    const data = toStageData(steps[steps.length - 1].after);
+    const L = computeBracketLayout(data, undefined, 'losers');
+    expect(L.matches.length).toBeGreaterThan(0);
+    const min = Math.min(...L.matches.map((match) => match.round));
+    expect(L.matches.filter((match) => match.isLeafRound).every((match) => match.round === min)).toBe(true);
+  });
+
+  it('確定した側はチーム、空いている側は対戦相手待ち', () => {
+    const match = { opponent1: { id: 1 }, opponent2: { id: null } } as Parameters<typeof slotPresence>[0];
+    expect(slotPresence(match, 0)).toBe('team');
+    expect(slotPresence(match, 1)).toBe('waiting');
+    expect(slotPresence({ opponent1: { id: null }, opponent2: { id: null } } as Parameters<typeof slotPresence>[0], 0)).toBe('empty');
   });
 
   it('消化後のフォーカスレイアウトは縦余白を詰める', async () => {

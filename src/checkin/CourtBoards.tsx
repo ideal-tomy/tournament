@@ -1,5 +1,4 @@
 import VsBoard, { type VsSide } from '../features/presentation/vsBoard/VsBoard';
-import WinnerBoard from '../features/presentation/ceremony/WinnerBoard';
 import type { CourtBoard, DrawState, FlowMatch } from './DrawControl';
 import './courts.css';
 
@@ -15,30 +14,24 @@ function progressLabel(match: FlowMatch): string {
 
 function Cell({ board, teamOf }: { board: CourtBoard; teamOf(id: string | null | undefined): VsSide }) {
   const match = board.match;
-  if (!match) return <div className="court-idle"><p>次の試合を待っています</p></div>;
-  if (board.stage === 'result' && board.winnerTeamId) {
-    return (
-      <WinnerBoard
-        key={`${board.board}-${match.id}-result`}
-        contained
-        settled
-        team={teamOf(board.winnerTeamId)}
-        opponent={teamOf(board.loserTeamId)}
-        dropLabel={match.kind === 'winner' ? 'ルーザーへ→' : '敗退→'}
-      />
-    );
-  }
+  if (!match || board.stage === 'result') return <div className="court-idle"><p>次の試合を待っています</p></div>;
   const label = [progressLabel(match), stageLabel[board.stage]].filter(Boolean).join(' · ');
   return <VsBoard key={`${board.board}-${match.id}`} contained settled left={teamOf(match.teamA)} right={teamOf(match.teamB)} roundLabel={label} />;
 }
 
-/** Waiting view while 2 or 3 boards run: the single-board VS stage, scaled into one column per board. */
+function onStage(board: CourtBoard) {
+  return board.stage === 'call' || board.stage === 'live';
+}
+
+/** 出す試合が1つのときだけ全画面。台の割り当ては変えず、台番号は残す。 */
 export default function CourtBoards({ state, teamOf }: { state: DrawState; teamOf(id: string | null | undefined): VsSide }) {
   const boards = state.flow?.courts?.boards ?? [];
-  return <div className="court-split" style={{ gridTemplateColumns: `repeat(${boards.length}, 1fr)` }} aria-label={`${boards.length}台で進行中`}>
-    {boards.map(board => <section key={board.board} className="court-cell" data-board={board.board} data-stage={board.stage}>
+  const playing = boards.filter((board) => board.match && onStage(board));
+  const shown = playing.length === 1 ? playing : boards;
+  return <div className="court-split" style={{ gridTemplateColumns: `repeat(${shown.length}, 1fr)` }} aria-label={shown.length === 1 ? `台 ${shown[0]?.board}` : `${boards.length}台で進行中`}>
+    {shown.map(board => <section key={board.board} className="court-cell" data-board={board.board} data-stage={board.stage}>
       <Cell board={board} teamOf={teamOf} />
-      {board.match && (
+      {board.match && board.stage !== 'result' && (
         <p className={`court-progress${board.match.kind === 'loser' ? ' is-losers' : ''}`}>{progressLabel(board.match)}</p>
       )}
       <p className="court-tag">台 {board.board}</p>

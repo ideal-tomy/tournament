@@ -97,7 +97,7 @@ describe('one continuous tournament with automatic scheduling',()=>{
   ({v,c}=await courts());expect(c!.boards.map(b=>b.stage)).toEqual(['result','live']);expect(c!.boards[1].matchId).toBe(other);
   expect(c!.spotlight).toMatchObject({kind:'vs',board:2});expect((await s.command('court-next',{board:1})).response.status).toBe(409);
   later(9);({v,c}=await courts());expect(c!.spotlight).toMatchObject({kind:'winner',board:1,winnerSec:9});expect(c!.spotlight!.resultPresentation!.match.id).toBe(c!.boards[0].matchId);
-  later(15);({v,c}=await courts());expect(c!.spotlight).toBeNull();
+  later(9);({v,c}=await courts());expect(c!.boards[1].stage).toBe('live');expect(c!.spotlight).toBeNull();
   expect(s.db.prepare("SELECT COUNT(*) n FROM matches WHERE status='in_progress'").get()!.n).toBe(1);
   expect((await s.request('/api/tournament/court-winner','POST',scored.body)).status).toBe(200);expect((await s.view()).version).toBe(v.version);
   const fillIds=(view:View,courtsState:Courts,exceptBoard?:number)=>{

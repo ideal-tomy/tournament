@@ -3,6 +3,7 @@ import {
   computeBracketLayout,
   isConnectorHighlighted,
   resolveTeamId,
+  slotPresence,
   visibleMatchIdsWhenOmitCompleted,
   type BracketBoardSide,
   type BracketKind,
@@ -232,8 +233,20 @@ export default function BracketView({
               const memberNames = teamId
                 ? memberNamesByTeamId[teamId] ?? parseMemberNames(label)
                 : [];
-              const isBye = teamId == null && teamRef == null;
+              const presence = bm ? slotPresence(bm, s.slot) : teamId ? 'team' : 'empty';
+              const showWait = presence === 'waiting' && m.bracket === 'loser';
+              const otherWaiting = presence === 'team' && m.bracket === 'loser' && bm != null && slotPresence(bm, s.slot === 0 ? 1 : 0) === 'waiting';
+              const draw = otherWaiting
+                ? {
+                    x: m.box.x + (s.slot === 0 ? 2 : m.box.w * 0.34),
+                    y: s.rect.y,
+                    w: m.box.w * 0.64,
+                    h: s.rect.h,
+                  }
+                : s.rect;
+              const played = bm?.opponent1?.id != null && bm?.opponent2?.id != null;
               const slotWon =
+                played &&
                 bm &&
                 ((s.slot === 0 && bm.opponent1?.result === 'win') ||
                   (s.slot === 1 && bm.opponent2?.result === 'win'));
@@ -263,14 +276,15 @@ export default function BracketView({
                     />
                   )}
                   <VerticalSlotContent
-                    x={s.rect.x}
-                    y={s.rect.y}
-                    w={s.rect.w}
-                    h={s.rect.h}
+                    x={draw.x}
+                    y={draw.y}
+                    w={draw.w}
+                    h={draw.h}
                     faces={faces}
                     memberNames={memberNames}
                     label={label}
-                    isEmpty={isBye || (!teamId && teamRef == null)}
+                    isEmpty={presence !== 'team'}
+                    waiting={showWait}
                     accent={theme.stroke}
                     compact={compact}
                     clipId={`${clipPrefix}-${m.matchId}-${s.slot}`}
@@ -295,6 +309,7 @@ function VerticalSlotContent({
   memberNames,
   label,
   isEmpty,
+  waiting = false,
   compact,
   clipId,
 }: {
@@ -306,6 +321,7 @@ function VerticalSlotContent({
   memberNames: string[];
   label: string;
   isEmpty: boolean;
+  waiting?: boolean;
   accent?: string;
   compact: boolean;
   clipId: string;
@@ -313,6 +329,16 @@ function VerticalSlotContent({
   const pad = 1;
   const cx = x + w / 2;
   const faceGap = 1;
+
+  if (waiting) {
+    const size = Math.max(8, Math.min(13, w / 4));
+    return (
+      <text x={cx} y={y + h / 2} textAnchor="middle" fill="#fde68a" fontSize={size} fontWeight="700">
+        <tspan x={cx} dy={-size * 0.7}>対戦相手</tspan>
+        <tspan x={cx} dy={size * 1.3}>待ち</tspan>
+      </text>
+    );
+  }
 
   if (isEmpty) {
     const byeSize = Math.min(w - pad * 2, compact ? 16 : 20);
