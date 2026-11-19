@@ -3,34 +3,36 @@ import { buildDoubleElimination, buildSnapshotForTeamCount, toStageData } from '
 import { computeBracketLayout } from '../bracket/layout';
 import { getMatchBracketKind, getMatchRoundLabel } from '../progression/tiers';
 import {
-  BRACKET_TOUR_HOLD_SEC,
+  BRACKET_TOUR_APPROACH_SEC,
+  BRACKET_TOUR_CARD_SEC,
   BRACKET_TOUR_OVERVIEW_SEC,
-  BRACKET_TOUR_STOPS,
-  BRACKET_TOUR_ZOOM_SEC,
+  BRACKET_TOUR_RETURN_SEC,
+  SCREEN_ASPECT,
+  openingCardFrames,
+  openingOverviewFrame,
   openingTourCaption,
   openingTourCaptionIndex,
   openingTourDurationSec,
-  fitTourAspect,
-  openingTourFrame,
+  openingTourPhase,
   openingTourStops,
   openingTourViewAt,
 } from './openingTourTiming';
 
 describe('opening bracket camera', () => {
-  it('introduces each of 20 teams once, including bye placements, from left to right', async () => {
+  it('visits every first-round card once, including bye placements, from left to right', async () => {
     const data = toStageData(await buildSnapshotForTeamCount(20));
     const stops = openingTourStops(data);
     const teams = stops.flatMap((stop) => stop.teamIds);
-    expect(stops).toHaveLength(BRACKET_TOUR_STOPS);
-    expect(stops.every((stop) => stop.matchIds.length === 4)).toBe(true);
+    expect(stops.every((stop) => stop.matchIds.length === 1)).toBe(true);
     expect(new Set(teams).size).toBe(teams.length);
     expect(teams).toHaveLength(20);
 
     const layout = computeBracketLayout(data, undefined, 'winners');
     const centers = stops.map((stop) => layout.byId[stop.matchIds[0]].box.x);
     expect(centers).toEqual([...centers].sort((a, b) => a - b));
-    const frames = stops.map((stop) => openingTourFrame(data, stop.matchIds).x);
-    expect(frames).toEqual([...frames].sort((a, b) => a - b));
+    const frames = openingCardFrames(data);
+    expect(frames.map((frame) => frame.x)).toEqual([...frames.map((frame) => frame.x)].sort((a, b) => a - b));
+    expect(new Set(frames.map((frame) => frame.w)).size).toBe(1);
     const matchIds = stops.flatMap((stop) => stop.matchIds);
     expect(new Set(matchIds).size).toBe(matchIds.length);
 
@@ -63,39 +65,51 @@ describe('opening bracket camera', () => {
     expect(caption).not.toContain('BYE');
   });
 
-  it('centers the second round and keeps the zoom aspect steady', async () => {
+  it('fills a 16:9 frame and approaches the first card slowly, then faster', async () => {
     const data = toStageData(await buildSnapshotForTeamCount(20));
     const layout = computeBracketLayout(data, undefined, 'winners');
-    const stop = openingTourStops(data)[0];
-    const frame = openingTourFrame(data, stop.matchIds);
-    for (const id of stop.matchIds) {
-      const box = layout.byId[id].box;
-      expect(frame.x).toBeLessThanOrEqual(box.x);
-      expect(frame.x + frame.w).toBeGreaterThanOrEqual(box.x + box.w);
+    const full = openingOverviewFrame(data);
+    const cards = openingCardFrames(data);
+    const first = cards[0];
+    expect(full.w / full.h).toBeCloseTo(SCREEN_ASPECT, 2);
+    expect(first.w / first.h).toBeCloseTo(SCREEN_ASPECT, 2);
+    const winnerBoxes = layout.matches.filter((match) => match.bracket === 'winner').map((match) => match.box);
+    for (const box of winnerBoxes) {
+      expect(full.x).toBeLessThanOrEqual(box.x + 1);
+      expect(full.x + full.w).toBeGreaterThanOrEqual(box.x + box.w - 1);
     }
-    const parents = [...new Set(stop.matchIds.map((id) => layout.matches.find((match) => match.round === 2 && Math.abs(layout.byId[id].center.x - match.center.x) < layout.byId[id].box.w)))];
-    expect(parents.length).toBeGreaterThan(0);
-    const cx = parents.reduce((sum, match) => sum + match!.center.x, 0) / parents.length;
-    const cy = parents.reduce((sum, match) => sum + match!.center.y, 0) / parents.length;
-    expect(Math.abs(cx - (frame.x + frame.w / 2))).toBeLessThan(2);
-    expect(Math.abs(cy - (frame.y + frame.h / 2))).toBeLessThan(2);
-    const aspect = frame.w / frame.h;
-    const full = fitTourAspect({ x: 0, y: 0, w: layout.width, h: layout.height }, aspect);
-    const mid = openingTourViewAt(BRACKET_TOUR_OVERVIEW_SEC + BRACKET_TOUR_ZOOM_SEC / 2, full, [frame]);
-    expect(mid.w / mid.h).toBeCloseTo(aspect, 2);
-    expect(frame.w).toBeLessThan(layout.width * 0.4);
+    expect(first.w).toBeLessThan(full.w * 0.35);
+
+    const halfway = BRACKET_TOUR_OVERVIEW_SEC + BRACKET_TOUR_APPROACH_SEC / 2;
+    const mid = openingTourViewAt(halfway, full, cards);
+    const arrived = openingTourViewAt(BRACKET_TOUR_OVERVIEW_SEC + BRACKET_TOUR_APPROACH_SEC, full, cards);
+    const fullCenter = full.x + full.w / 2;
+    const cardCenter = first.x + first.w / 2;
+    expect(Math.abs(mid.x + mid.w / 2 - fullCenter)).toBeLessThan(Math.abs(mid.x + mid.w / 2 - cardCenter));
+    expect(arrived.w).toBeCloseTo(first.w, 1);
+    expect(mid.w / mid.h).toBeCloseTo(SCREEN_ASPECT, 2);
+    expect(openingTourPhase(halfway, cards.length)).toBe('in');
   });
 
-  it('keeps the adjustable timings in the operator gate', async () => {
+  it('pans across the first round and returns to the whole bracket', async () => {
     const data = toStageData(await buildSnapshotForTeamCount(8));
-    const cycle = BRACKET_TOUR_ZOOM_SEC + BRACKET_TOUR_HOLD_SEC + BRACKET_TOUR_ZOOM_SEC;
+    const cards = openingCardFrames(data);
+    const full = openingOverviewFrame(data);
+    const pan = (cards.length - 1) * BRACKET_TOUR_CARD_SEC;
     expect(BRACKET_TOUR_OVERVIEW_SEC).toBe(2);
-    expect(BRACKET_TOUR_ZOOM_SEC).toBe(2.8);
-    expect(BRACKET_TOUR_HOLD_SEC).toBe(4);
-    expect(openingTourDurationSec(data)).toBe(BRACKET_TOUR_OVERVIEW_SEC + openingTourStops(data).length * cycle);
-    expect(openingTourCaptionIndex(0, 3)).toBeNull();
-    expect(openingTourCaptionIndex(2, 3)).toBe(0);
-    expect(openingTourCaptionIndex(2 + cycle, 3)).toBe(1);
-    expect(openingTourCaptionIndex(2 + cycle * 3, 3)).toBeNull();
+    expect(BRACKET_TOUR_APPROACH_SEC).toBe(2);
+    expect(openingTourDurationSec(data)).toBe(
+      BRACKET_TOUR_OVERVIEW_SEC + BRACKET_TOUR_APPROACH_SEC + pan + BRACKET_TOUR_RETURN_SEC,
+    );
+    const panStart = BRACKET_TOUR_OVERVIEW_SEC + BRACKET_TOUR_APPROACH_SEC;
+    const crossing = openingTourViewAt(panStart + pan / 2, full, cards);
+    expect(crossing.x).toBeGreaterThan(cards[0].x);
+    expect(crossing.x).toBeLessThan(cards[cards.length - 1].x);
+    expect(openingTourPhase(panStart + pan / 2, cards.length)).toBe('pan');
+    const back = openingTourViewAt(panStart + pan + BRACKET_TOUR_RETURN_SEC, full, cards);
+    expect(back.w).toBeCloseTo(full.w, 1);
+    expect(openingTourCaptionIndex(0, cards.length)).toBeNull();
+    expect(openingTourCaptionIndex(panStart, cards.length)).toBe(0);
+    expect(openingTourCaptionIndex(panStart + pan + 0.1, cards.length)).toBeNull();
   });
 });

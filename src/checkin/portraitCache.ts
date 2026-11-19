@@ -1,4 +1,4 @@
-import { ApiError, type Participant } from './api';
+import { ApiError, scopedUrl, type Participant } from './api';
 type PresentedParticipant=Participant&{presentationPortraitUrl?:string};
 const cache=new Map<string,Promise<string>>();
 const urls=new Set<string>();
@@ -43,7 +43,7 @@ export function portraitUrlFor(participant:PresentedParticipant){
 export async function preparePortraits<T extends {eventId:string;participants:Participant[]}>(state:T,signal:AbortSignal):Promise<T>{
   if(eventId!==state.eventId){for(const url of urls)URL.revokeObjectURL(url);urls.clear();cache.clear();eventId=state.eventId;}
   const participants=await Promise.all(state.participants.map(async participant=>{
-    const key=`${participant.portraitUrl}?version=${participant.version}`;
+    const key=scopedUrl(`${participant.portraitUrl}?version=${participant.version}`);
     let value=cache.get(key);
     if(!value){
       value=fetch(key,{credentials:'same-origin',cache:'no-store',signal}).then(async response=>{
@@ -52,9 +52,15 @@ export async function preparePortraits<T extends {eventId:string;participants:Pa
         const blob=await response.blob();if(!blob.type.startsWith('image/'))throw Error('保存写真の形式が不正です。');
         const bytes=new Uint8Array(await blob.arrayBuffer());
         const portrait=blob.type==='image/png'?new Blob([repairStoredPng(bytes)],{type:blob.type}):blob;
-        const url=URL.createObjectURL(portrait);urls.add(url);
-        try{const image=new Image();image.src=url;await image.decode();}catch{URL.revokeObjectURL(url);urls.delete(url);throw Error(`${participant.name}の保存写真を表示できません。`);}
-        return url;
+        const objectUrl=URL.createObjectURL(portrait);
+        try{
+          const image=new Image();image.src=objectUrl;await image.decode();
+          urls.add(objectUrl);
+          return objectUrl;
+        }catch{
+          URL.revokeObjectURL(objectUrl);
+          return key;
+        }
       }).catch(error=>{cache.delete(key);throw error;});
       cache.set(key,value);
     }

@@ -345,6 +345,40 @@ describe('progression — court fill', () => {
     expect(getCourtFillMatches(after, exclude).matches).toEqual([]);
     expect(explainCourtFillWait(after, exclude)).toBe(COURT_WAIT.round);
   });
+
+  /**
+   * 現状の回戦門を固定する回帰。意図した進行（空き台へ両者確定の2回戦を入れる）へ
+   * 変えるときは、この期待値を「courtFill に winner round 2 が入る」へ反転する。
+   */
+  it('8チーム2台相当: ウィナー1回戦の最後が試合中だと、確定済み2回戦も台に出さない', async () => {
+    let snapshot = await buildSnapshotForTeamCount(8);
+    const firstRound = getChapterMatches(toStageData(snapshot));
+    expect(firstRound).toHaveLength(4);
+    for (const match of firstRound.slice(0, 3)) {
+      const manager = createManagerFromSnapshot(snapshot);
+      await applyResult(manager, toStageData(snapshot), match.id, 0, match.id);
+      snapshot = await exportSnapshot(manager);
+    }
+    const last = getChapterMatches(toStageData(snapshot))[0];
+    expect(last).toBeTruthy();
+    expect(getMatchBracketKind(toStageData(snapshot), last!)).toBe('winner');
+    expect(getMatchRoundLabel(toStageData(snapshot), last!)).toBe(1);
+    const manager = createManagerFromSnapshot(snapshot);
+    await manager.update.match({ id: last!.id, status: Status.Running });
+    const after = toStageData(await exportSnapshot(manager));
+    const exclude = new Set([last!.id]);
+    expect(getCourtFillMatches(after, exclude).matches).toEqual([]);
+    expect(explainCourtFillWait(after, exclude)).toBe(COURT_WAIT.round);
+    const readyWinners = after.match.filter(
+      (m) =>
+        m.status === Status.Ready &&
+        getMatchBracketKind(after, m) === 'winner' &&
+        getMatchRoundLabel(after, m) === 2 &&
+        m.opponent1?.id != null &&
+        m.opponent2?.id != null,
+    );
+    expect(readyWinners.length).toBeGreaterThan(0);
+  });
 });
 
 describe('progression — undo', () => {

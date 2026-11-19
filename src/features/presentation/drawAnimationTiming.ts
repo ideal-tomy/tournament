@@ -36,6 +36,35 @@ export const DRAW_ANIMATION_TIMING = {
 export type DrawAnimationTimingKey = keyof typeof DRAW_ANIMATION_TIMING;
 
 export function drawTiming(preset:RehearsalTimingPreset='show') {
+  if (preset === 'instant') {
+    return {
+      ...DRAW_ANIMATION_TIMING,
+      introEnter: 0,
+      introHold: 0,
+      introExit: 0,
+      cardEnter: 0,
+      cardSettle: 0,
+      dartFlight: 0,
+      impactBurst: 0,
+      impactHold: 0,
+      cardFlip: 0,
+      playerReveal: 0,
+      revealHold: 0,
+      memberExit: 0,
+      pairReveal: 0,
+      pairConfirmHold: 0,
+      transitionToNext: 0,
+      summaryEnter: 0,
+      summaryHold: 0,
+      summaryPageHold: 0,
+      summaryPageSlide: 0,
+      summaryPageTravel: 0,
+      shortGridEnter: 0,
+      shortGridHold: 0,
+      shortGridExit: 0,
+      liteHold: 0,
+    };
+  }
   return preset==='fast'?{...DRAW_ANIMATION_TIMING,introHold:150,cardSettle:200,impactHold:450,revealHold:500,pairConfirmHold:1400,summaryHold:1200,summaryPageHold:900,summaryPageSlide:500,summaryPageTravel:4000}:DRAW_ANIMATION_TIMING;
 }
 

@@ -21,6 +21,8 @@ export interface CheckinEnv {
   ASSETS: { fetch(request: Request): Promise<Response> };
   CHECKIN_EVENT_ID: string;
   REHEARSAL_ENABLED?: string;
+  /** Local progression harness only. Never set on published Workers. */
+  ALLOW_INSTANT_TIMING?: string;
   REHEARSAL_SOURCE_EVENT_ID?: string;
   OFFICIAL_EVENT_ID?: string;
   REHEARSAL_ACCESS_CODE?: string;

@@ -16,7 +16,8 @@ describe('isolated through rehearsal using normal tournament APIs',()=>{
   const s=setup();expect((await s.request('/api/rehearsal/config')).status).toBe(401);await s.login();expect((await s.request('/api/rehearsal/config')).status).toBe(404);
   s.env.REHEARSAL_ENABLED='1';expect((await s.request('/api/rehearsal/create','POST',{requestId:crypto.randomUUID()},'https://evil.example')).status).toBe(403);
   expect((await s.request('/api/rehearsal/create','POST',{requestId:'cf-rehearsal-001'})).status).toBe(400);
-  expect((await s.request('/api/draw/state?run=cf-rehearsal-001')).status).toBe(409);
+  expect((await s.request('/api/draw/state?run=cf-rehearsal-001')).status).toBe(200);
+  expect((await s.request('/api/draw/state?run=not-a-rehearsal-run')).status).toBe(409);
  });
  it('creates a new event idempotently and confines registrations, close and Draw to that event',async()=>{
   const s=setup();await s.login();await s.create('original');s.env.REHEARSAL_ENABLED='1';const body={requestId:crypto.randomUUID()};
@@ -170,5 +171,44 @@ describe('isolated through rehearsal using normal tournament APIs',()=>{
   const kept=await s.request('/api/draw/state'+run(spare)).then(r=>r.json()) as {scene:string;checkinStatus:string;teams:unknown[]};
   expect(kept).toMatchObject({scene:'idle',checkinStatus:'closed'});expect(kept.teams).toHaveLength(2);
   expect((await s.request('/api/checkin/state'+run(spare)).then(r=>r.json()) as {count:number}).count).toBe(4);
+ });
+ it('rejects instant timing and prepare-progression unless ALLOW_INSTANT_TIMING is set',async()=>{
+  const s=setup();await s.login();s.env.REHEARSAL_ENABLED='1';
+  expect((await s.request('/api/rehearsal/create','POST',{requestId:crypto.randomUUID(),timingPreset:'instant'})).status).toBe(400);
+  expect((await s.request('/api/rehearsal/prepare-progression','POST',{requestId:crypto.randomUUID()})).status).toBe(404);
+  const config=await s.request('/api/rehearsal/config').then(r=>r.json()) as {allowInstant?:boolean};
+  expect(config.allowInstant).toBe(false);
+ });
+ it('prepares an instant 8-player 2-court progression harness locally',async()=>{
+  const s=setup();await s.login();s.env.REHEARSAL_ENABLED='1';s.env.ALLOW_INSTANT_TIMING='1';
+  const album='cf-photo-album';
+  s.db.prepare("INSERT INTO events(id,title,format,environment,team_size,status) VALUES(?,?,?,'rehearsal',2,'draft')").run(album,'写真元','double_elimination');
+  s.env.REHEARSAL_SOURCE_EVENT_ID=album;
+  expect((await s.request('/api/participants?run='+album,'POST',s.input('portrait-src'))).status).toBe(201);
+  expect((await s.request('/api/participants?run='+album,'POST',s.input('portrait-src-2'))).status).toBe(201);
+  const config=await s.request('/api/rehearsal/config').then(r=>r.json()) as {allowInstant?:boolean};
+  expect(config.allowInstant).toBe(true);
+  const created=await s.request('/api/rehearsal/create','POST',{requestId:crypto.randomUUID(),format:'double_elimination',timingPreset:'instant',title:'LOGIC'});
+  expect(created.status).toBe(200);
+  const prepared=await s.request('/api/rehearsal/prepare-progression','POST',{requestId:crypto.randomUUID(),format:'double_elimination',title:'進行ロジック確認',teams:4,courts:2});
+  expect(prepared.status).toBe(200);
+  const body=await prepared.json() as {
+    eventId:string;scene:string;timingPreset:string;participants:unknown[];portraitSource:'database'|'synthetic';portraitTemplates:number;
+    flow:{courts:{count:number;boards:{stage:string;matchId:number|null}[]}|null;progressionDebug:{courtFillQueue:unknown[]}|null;nextWaitReason:string|null};
+  };
+  expect(body.portraitSource).toBe('database');
+  expect(body.portraitTemplates).toBeGreaterThanOrEqual(2);
+  expect(body.scene).toBe('interval');
+  expect(body.timingPreset).toBe('instant');
+  expect(body.participants).toHaveLength(8);
+  expect(body.flow.courts?.count).toBe(2);
+  expect(body.flow.courts?.boards.every(board=>board.stage==='call'&&board.matchId!=null)).toBe(true);
+  expect(body.flow.progressionDebug?.courtFillQueue.length).toBeGreaterThanOrEqual(0);
+  const suffix=`?run=${body.eventId}`;
+  expect((await s.request('/api/tournament/court-start'+suffix,'POST',{requestId:crypto.randomUUID(),expectedVersion:(await s.request('/api/draw/state'+suffix).then(r=>r.json()) as {version:number}).version,board:1})).status).toBe(200);
+  const afterStart=await s.request('/api/draw/state'+suffix).then(r=>r.json()) as {version:number;flow:{courts:{boards:{board:number;stage:string;showing:boolean}[]}}};
+  expect(afterStart.flow.courts.boards.find(b=>b.board===1)?.stage).toBe('live');
+  expect(afterStart.flow.courts.boards.find(b=>b.board===1)?.showing).toBe(false);
+  expect((await s.request('/api/tournament/court-winner'+suffix,'POST',{requestId:crypto.randomUUID(),expectedVersion:afterStart.version,board:1,winnerSlot:0})).status).toBe(200);
  });
 });

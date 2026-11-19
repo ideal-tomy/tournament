@@ -1,12 +1,11 @@
 import { useLayoutEffect, useRef } from 'react';
 import gsap from 'gsap';
 import type { StageData } from '../../bracket/layout';
-import { computeBracketLayout } from '../../bracket/layout';
 import BracketView from '../../bracket/BracketView';
 import {
   openingTourDurationSec,
-  fitTourAspect,
-  openingTourFrame,
+  openingCardFrames,
+  openingOverviewFrame,
   openingTourPhase,
   openingTourStops,
   openingTourViewAt,
@@ -54,11 +53,8 @@ export default function OpeningBracketTour({
     if (!root || !svg) return;
     const stage = dataRef.current;
     const stops = openingTourStops(stage);
-    const layout = computeBracketLayout(stage, undefined, 'winners');
-    const tight = stops[0] ? openingTourFrame(stage, stops[0].matchIds) : { x: 0, y: 0, w: layout.width, h: layout.height };
-    const aspect = tight.h > 0 ? tight.w / tight.h : 1;
-    const full = fitTourAspect({ x: 0, y: 0, w: layout.width, h: layout.height }, aspect);
-    const frames = stops.map((stop) => fitTourAspect(openingTourFrame(stage, stop.matchIds), aspect));
+    const full = openingOverviewFrame(stage);
+    const frames = openingCardFrames(stage);
     const state = cam.current;
     const write = (frame: OpeningTourFrame, elapsed: number) => {
       state.x = frame.x;

@@ -10,6 +10,9 @@ export function openingFromTheme(theme: string | null | undefined): OpeningImage
 export async function eventProfile(env: CheckinEnv) {
   const row = await env.DB.prepare('SELECT format,subtitle,theme FROM events WHERE id=?').bind(env.CHECKIN_EVENT_ID).first<{format:string;subtitle:string|null;theme:string|null}>();
   let timingPreset: RehearsalTimingPreset = 'show';
-  try { if (JSON.parse(row?.subtitle ?? '{}').rehearsalTiming === 'fast') timingPreset = 'fast'; } catch { /* older human-readable subtitles */ }
+  try {
+    const value = JSON.parse(row?.subtitle ?? '{}').rehearsalTiming;
+    if (value === 'fast' || value === 'instant') timingPreset = value;
+  } catch { /* older human-readable subtitles */ }
   return { format: row?.format ?? 'double_elimination', timingPreset, openingVersion: openingFromTheme(row?.theme)?.version ?? null };
 }

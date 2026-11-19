@@ -44,4 +44,8 @@
 .rehearsal-workspace>.card{max-width:1000px}
 .rehearsal-workspace>.card>.primary{width:100%}
 .automation{max-width:100%;background:#111d2c}
+.rehearsal-press .press-card{max-width:720px;margin:0 auto}
+.rehearsal-press .press-links,.rehearsal-press .press-actions{display:grid;gap:12px;margin:20px 0}
+.rehearsal-press .press-go{font-size:clamp(18px,2.5vw,22px);padding:18px 20px}
+.rehearsal-press .press-step{font-size:16px;color:#a5f3fc;min-height:1.5em}
 @media(max-width:600px){.progress-card dl{grid-template-columns:1fr;gap:2px}.progress-card dd{margin-bottom:10px}.shared-run .actions a{width:100%}.rehearsal-workspace>.card{padding:20px}}

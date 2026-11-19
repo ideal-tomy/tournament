@@ -31,8 +31,8 @@ function reviewMatch(state: DrawState): NonNullable<DrawState['flow']>['currentM
   const matches = [...(state.bracket?.match ?? [])].reverse();
   const final = matches.find(match => teamOf(match.opponent1?.id) && teamOf(match.opponent2?.id));
   if (final) {
-    return { id: Number(final.id), teamA: teamOf(final.opponent1?.id)!, teamB: teamOf(final.opponent2?.id)!, round: Number(final.round_id), roundName: 'FINAL', kind: 'grand_final', final: true };
+    return { id: Number(final.id), teamA: teamOf(final.opponent1?.id)!, teamB: teamOf(final.opponent2?.id)!, round: Number(final.round_id), roundName: 'REVIEW', kind: 'winner', final: false };
   }
   const [teamA, teamB] = state.teams;
-  return teamA && teamB ? { id: 0, teamA: teamA.id, teamB: teamB.id, round: 1, roundName: 'REVIEW', kind: 'review', final: true } : null;
+  return teamA && teamB ? { id: 0, teamA: teamA.id, teamB: teamB.id, round: 1, roundName: 'REVIEW', kind: 'winner', final: false } : null;
 }

@@ -317,6 +317,18 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
             </div>
           : <p className="op-note">まだ組める対戦がありません</p>}
         {f.nextWaitReason && <p className="op-hint">{f.nextWaitReason}</p>}
+        {f.progressionDebug && <details className="op-hint">
+          <summary>進行デバッグ</summary>
+          <p>待ち理由: {f.nextWaitReason ?? 'なし'}</p>
+          <p>休息で後回し: {f.progressionDebug.deferredRest ? 'あり' : 'なし'}</p>
+          <p>章の候補: {f.progressionDebug.chapterMatches.length
+            ? f.progressionDebug.chapterMatches.map(match => `${match.roundName} #${match.id}`).join(' / ')
+            : 'なし'}</p>
+          <p>台の候補: {f.progressionDebug.courtFillQueue.length
+            ? f.progressionDebug.courtFillQueue.map(match => `${match.roundName} #${match.id}`).join(' / ')
+            : 'なし'}</p>
+          <p>各台: {courts.boards.map(board => `台${board.board}=${board.stage}${board.matchId == null ? '' : ` m${board.matchId}`}`).join(' · ')}</p>
+        </details>}
       </section>
       <button className="op-link-button" disabled={busy || losersLeft > 0} onClick={() => void flow('courts-view', { show: !courts.showBracket })}>{courts.showBracket ? '会場を台の表示に戻す' : '会場にトーナメント表を出す'}</button>
       {courts.boards.map(board => <BoardCard key={board.board} state={state} board={board} busy={busy || losersLeft > 0}
@@ -378,6 +390,7 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
       <a className="button" href={scopedUrl('/display')} target="_blank" rel="noreferrer">会場モニターを開く</a>
       <a className="button" href={scopedUrl('/checkin')}>受付を開く</a>
       <a className="button" href={scopedUrl('/rehearsal')}>演出の確認</a>
+      <a className="button" href="/venue-check" target="_blank" rel="noreferrer">40人の表示確認</a>
       {replayable && <ArmedButton className="op-secondary" label="最初からやり直す（結果は消えます）" armedLabel="もう一度押すと最初に戻す" disabled={busy} onFire={() => void send('/api/tournament/replay', {})} />}
     </details>
     {bar}

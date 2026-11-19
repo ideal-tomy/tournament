@@ -10,5 +10,10 @@ export default function HomePage() {
       <strong>演出を確認する</strong>
       <span>演出の再生 · 自動の通し確認</span>
     </a>
+    <a className="home-door" href="/venue-check">
+      <span className="eyebrow">40人</span>
+      <strong>表示を確認する</strong>
+      <span>各演出を、仮の大会ですぐ開く</span>
+    </a>
   </section>;
 }

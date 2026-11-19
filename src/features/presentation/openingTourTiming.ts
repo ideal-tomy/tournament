@@ -1,15 +1,16 @@
 import type { BMMatch, StageData } from '../bracket/layout';
-import { computeBracketLayout, findFeederMatches, findParentMatch } from '../bracket/layout';
-import { getMatchBracketKind, getMatchRoundLabel } from '../progression/tiers';
+import { computeBracketLayout, findFeederMatches } from '../bracket/layout';
 
+/** 会場画面。全体も寄りもこの比に合わせ、左右の余白を足さない。 */
+export const SCREEN_ASPECT = 16 / 9;
 /** 最初の全体表示。 */
 export const BRACKET_TOUR_OVERVIEW_SEC = 2;
-/** 寄る時間と、引いて全体へ戻る時間。直線補間なので縦横比は変えない。 */
-export const BRACKET_TOUR_ZOOM_SEC = 2.8;
-/** 顔と対戦相手が読める位置で止める時間。 */
-export const BRACKET_TOUR_HOLD_SEC = 4;
-/** 左から右へ止める回数。下段はこの回数で等分する。 */
-export const BRACKET_TOUR_STOPS = 4;
+/** 左端の初戦へ寄る。最初は遅く、終わりにかけて加速する。 */
+export const BRACKET_TOUR_APPROACH_SEC = 2;
+/** 隣の初戦カードへ滑る時間。 */
+export const BRACKET_TOUR_CARD_SEC = 0.85;
+/** 右端から全体へ戻る時間。 */
+export const BRACKET_TOUR_RETURN_SEC = 3;
 
 export interface OpeningTourStop {
   matchIds: number[];
@@ -23,17 +24,6 @@ export interface OpeningTourFrame {
   h: number;
 }
 
-function winnerMatches(data: StageData): BMMatch[] {
-  return data.match
-    .filter((match) => getMatchBracketKind(data, match) === 'winner')
-    .sort(
-      (a, b) =>
-        getMatchRoundLabel(data, a) - getMatchRoundLabel(data, b) ||
-        a.number - b.number ||
-        a.id - b.id,
-    );
-}
-
 function teamKey(data: StageData, participantId: number | null | undefined): string | null {
   if (participantId == null) return null;
   return data.participant.find((row) => row.id === participantId)?.name ?? null;
@@ -45,26 +35,16 @@ function teamsInMatch(data: StageData, match: BMMatch): string[] {
     .filter((team): team is string => team != null);
 }
 
-/** 下段を左から4区画に分け、各区画を1回だけ寄る。 */
+/** 一番下に並ぶ初戦を左から右へ、1カードずつ。不戦勝同士の対戦も含む。 */
 export function openingTourStops(data: StageData): OpeningTourStop[] {
   const layout = computeBracketLayout(data, undefined, 'winners');
-  const leaves = winnerMatches(data)
-    .filter((match) => getMatchRoundLabel(data, match) === 1 && layout.byId[match.id])
-    .sort((a, b) => layout.byId[a.id].box.x - layout.byId[b.id].box.x || a.id - b.id);
-  const groups = Math.min(BRACKET_TOUR_STOPS, leaves.length);
-  if (!groups) return [];
-  const base = Math.floor(leaves.length / groups);
-  const extra = leaves.length % groups;
-  const stops: OpeningTourStop[] = [];
-  let index = 0;
-  for (let group = 0; group < groups; group += 1) {
-    const size = base + (group < extra ? 1 : 0);
-    const matches = leaves.slice(index, index + size);
-    index += size;
-    const teamIds = [...new Set(matches.flatMap((match) => teamsInMatch(data, match)))];
-    stops.push({ matchIds: matches.map((match) => match.id), teamIds });
-  }
-  return stops;
+  return layout.matches
+    .filter((match) => match.bracket === 'winner' && match.isLeafRound)
+    .sort((a, b) => a.box.x - b.box.x || a.matchId - b.matchId)
+    .map((match) => {
+      const source = data.match.find((row) => row.id === match.matchId);
+      return { matchIds: [match.matchId], teamIds: source ? teamsInMatch(data, source) : [] };
+    });
 }
 
 export function openingTourCaption(
@@ -103,10 +83,6 @@ function sideLabel(
   return '勝者';
 }
 
-function boxCenter(box: { x: number; y: number; w: number; h: number }) {
-  return { x: box.x + box.w / 2, y: box.y + box.h / 2 };
-}
-
 /** 中心を動かさず、画面と同じ縦横比まで広げる。 */
 export function fitTourAspect(frame: OpeningTourFrame, aspect: number): OpeningTourFrame {
   if (!(aspect > 0) || frame.h <= 0) return frame;
@@ -118,87 +94,112 @@ export function fitTourAspect(frame: OpeningTourFrame, aspect: number): OpeningT
   return { x: cx - w / 2, y: cy - h / 2, w, h };
 }
 
-/** 下段の区画を収め、2段目の中心が画面中央に来る範囲。 */
-export function openingTourFrame(data: StageData, matchIds: number[], aspect = 0): OpeningTourFrame {
+function lerpFrame(from: OpeningTourFrame, to: OpeningTourFrame, amount: number): OpeningTourFrame {
+  const cx = from.x + from.w / 2 + (to.x + to.w / 2 - (from.x + from.w / 2)) * amount;
+  const cy = from.y + from.h / 2 + (to.y + to.h / 2 - (from.y + from.h / 2)) * amount;
+  const w = from.w + (to.w - from.w) * amount;
+  const h = from.h + (to.h - from.h) * amount;
+  return { x: cx - w / 2, y: cy - h / 2, w, h };
+}
+
+/** 表の外接を会場の比率まで広げる。横長の表は左右を画面端まで使う。 */
+export function openingOverviewFrame(data: StageData): OpeningTourFrame {
   const layout = computeBracketLayout(data, undefined, 'winners');
-  const leaves = matchIds.map((id) => layout.byId[id]?.box).filter((box) => box != null);
-  if (!leaves.length) return { x: 0, y: 0, w: layout.width, h: layout.height };
-  const parents = [...new Set(matchIds.map((id) => findParentMatch(data, id)?.id).filter((id): id is number => id != null))]
-    .map((id) => layout.byId[id]?.box)
-    .filter((box) => box != null);
-  const grandparents = [...new Set(matchIds.map((id) => findParentMatch(data, id)?.id).filter((id): id is number => id != null))]
-    .map((id) => findParentMatch(data, id)?.id)
-    .filter((id): id is number => id != null);
-  const upper = [...new Set(grandparents)].map((id) => layout.byId[id]?.box).filter((box) => box != null);
-  const second = parents.length ? parents : leaves;
-  const center = second.reduce((sum, box) => {
-    const point = boxCenter(box);
-    return { x: sum.x + point.x / second.length, y: sum.y + point.y / second.length };
-  }, { x: 0, y: 0 });
-  const boxes = [...leaves, ...parents, ...upper];
-  const pad = 8;
+  const boxes = layout.matches.filter((match) => match.bracket === 'winner').map((match) => match.box);
+  if (!boxes.length) return fitTourAspect({ x: 0, y: 0, w: layout.width, h: layout.height }, SCREEN_ASPECT);
+  const pad = 16;
   const left = Math.min(...boxes.map((box) => box.x)) - pad;
   const right = Math.max(...boxes.map((box) => box.x + box.w)) + pad;
   const top = Math.min(...boxes.map((box) => box.y)) - pad;
   const bottom = Math.max(...boxes.map((box) => box.y + box.h)) + pad;
-  let halfW = Math.max(center.x - left, right - center.x);
-  let halfH = Math.max(center.y - top, bottom - center.y);
-  if (aspect > 0) {
-    if (halfW / halfH < aspect) halfW = halfH * aspect;
-    else halfH = halfW / aspect;
-  }
-  return { x: center.x - halfW, y: center.y - halfH, w: halfW * 2, h: halfH * 2 };
+  return fitTourAspect({ x: left, y: top, w: right - left, h: bottom - top }, SCREEN_ASPECT);
 }
 
-/** 縦横比を保ったまま、中心と幅だけを直線に補間する。 */
+/** 初戦カードを大きく収める。カードごとの枠サイズは揃える。 */
+export function openingCardFrames(data: StageData): OpeningTourFrame[] {
+  const layout = computeBracketLayout(data, undefined, 'winners');
+  const boxes = openingTourStops(data).map((stop) => layout.byId[stop.matchIds[0]]?.box).filter((box) => box != null);
+  if (!boxes.length) return [];
+  const tallest = Math.max(...boxes.map((box) => box.h));
+  const widest = Math.max(...boxes.map((box) => box.w));
+  let height = tallest / 0.62;
+  let width = height * SCREEN_ASPECT;
+  if (width < widest / 0.72) {
+    width = widest / 0.72;
+    height = width / SCREEN_ASPECT;
+  }
+  return boxes.map((box) => ({
+    x: box.x + box.w / 2 - width / 2,
+    y: box.y + box.h / 2 - height / 2,
+    w: width,
+    h: height,
+  }));
+}
+
+function easeIn(amount: number) {
+  return amount * amount * amount;
+}
+function easeOut(amount: number) {
+  const rest = 1 - amount;
+  return 1 - rest * rest * rest;
+}
+function easeInOut(amount: number) {
+  return amount < 0.5 ? 4 * amount * amount * amount : 1 - ((-2 * amount + 2) ** 3) / 2;
+}
+
+export function openingTourPanSec(cardCount: number) {
+  return Math.max(0, cardCount - 1) * BRACKET_TOUR_CARD_SEC;
+}
+
+/** 全体 → 加速して左端へ → 初戦を滑る → 全体へ戻る。 */
 export function openingTourViewAt(
   elapsed: number,
   full: OpeningTourFrame,
   frames: OpeningTourFrame[],
 ): OpeningTourFrame {
-  const lerp = (from: OpeningTourFrame, to: OpeningTourFrame, amount: number): OpeningTourFrame => {
-    const t = -(Math.cos(Math.PI * amount) - 1) / 2;
-    const cx = from.x + from.w / 2 + (to.x + to.w / 2 - (from.x + from.w / 2)) * t;
-    const cy = from.y + from.h / 2 + (to.y + to.h / 2 - (from.y + from.h / 2)) * t;
-    const w = from.w + (to.w - from.w) * t;
-    const h = from.h + (to.h - from.h) * t;
-    return { x: cx - w / 2, y: cy - h / 2, w, h };
-  };
   if (elapsed <= BRACKET_TOUR_OVERVIEW_SEC || !frames.length) return full;
-  const cycle = BRACKET_TOUR_ZOOM_SEC + BRACKET_TOUR_HOLD_SEC + BRACKET_TOUR_ZOOM_SEC;
-  const into = elapsed - BRACKET_TOUR_OVERVIEW_SEC;
-  if (into >= frames.length * cycle) return full;
-  const index = Math.min(frames.length - 1, Math.floor(into / cycle));
-  const local = into - index * cycle;
-  const target = frames[index];
-  if (local < BRACKET_TOUR_ZOOM_SEC) return lerp(full, target, local / BRACKET_TOUR_ZOOM_SEC);
-  if (local < BRACKET_TOUR_ZOOM_SEC + BRACKET_TOUR_HOLD_SEC) return target;
-  return lerp(target, full, (local - BRACKET_TOUR_ZOOM_SEC - BRACKET_TOUR_HOLD_SEC) / BRACKET_TOUR_ZOOM_SEC);
+  const approachEnd = BRACKET_TOUR_OVERVIEW_SEC + BRACKET_TOUR_APPROACH_SEC;
+  if (elapsed <= approachEnd) {
+    return lerpFrame(full, frames[0], easeIn((elapsed - BRACKET_TOUR_OVERVIEW_SEC) / BRACKET_TOUR_APPROACH_SEC));
+  }
+  const pan = openingTourPanSec(frames.length);
+  const panEnd = approachEnd + pan;
+  if (elapsed <= panEnd && frames.length > 1) {
+    const pos = easeInOut((elapsed - approachEnd) / pan) * (frames.length - 1);
+    const index = Math.min(frames.length - 2, Math.floor(pos));
+    return lerpFrame(frames[index], frames[index + 1], pos - index);
+  }
+  const back = elapsed - panEnd;
+  if (back >= BRACKET_TOUR_RETURN_SEC) return full;
+  return lerpFrame(frames[frames.length - 1], full, easeOut(back / BRACKET_TOUR_RETURN_SEC));
 }
 
 export function openingTourPhase(
   elapsed: number,
   stopCount: number,
-): 'overview' | 'in' | 'hold' | 'out' | 'done' {
+): 'overview' | 'in' | 'pan' | 'out' | 'done' {
   if (elapsed < BRACKET_TOUR_OVERVIEW_SEC) return 'overview';
-  const cycle = BRACKET_TOUR_ZOOM_SEC + BRACKET_TOUR_HOLD_SEC + BRACKET_TOUR_ZOOM_SEC;
-  const into = elapsed - BRACKET_TOUR_OVERVIEW_SEC;
-  if (into >= stopCount * cycle) return 'done';
-  const local = into % cycle;
-  if (local < BRACKET_TOUR_ZOOM_SEC) return 'in';
-  if (local < BRACKET_TOUR_ZOOM_SEC + BRACKET_TOUR_HOLD_SEC) return 'hold';
-  return 'out';
+  const approachEnd = BRACKET_TOUR_OVERVIEW_SEC + BRACKET_TOUR_APPROACH_SEC;
+  if (elapsed < approachEnd) return 'in';
+  const panEnd = approachEnd + openingTourPanSec(stopCount);
+  if (elapsed < panEnd) return 'pan';
+  if (elapsed < panEnd + BRACKET_TOUR_RETURN_SEC) return 'out';
+  return 'done';
 }
 
 export function openingTourCaptionIndex(elapsed: number, stopCount: number): number | null {
-  if (elapsed < BRACKET_TOUR_OVERVIEW_SEC || stopCount < 1) return null;
-  const cycle = BRACKET_TOUR_ZOOM_SEC + BRACKET_TOUR_HOLD_SEC + BRACKET_TOUR_ZOOM_SEC;
-  const index = Math.floor((elapsed - BRACKET_TOUR_OVERVIEW_SEC) / cycle);
-  return index >= 0 && index < stopCount ? index : null;
+  if (stopCount < 1 || elapsed < BRACKET_TOUR_OVERVIEW_SEC) return null;
+  const approachEnd = BRACKET_TOUR_OVERVIEW_SEC + BRACKET_TOUR_APPROACH_SEC;
+  const panEnd = approachEnd + openingTourPanSec(stopCount);
+  if (elapsed < approachEnd) return 0;
+  if (elapsed >= panEnd) return null;
+  if (stopCount === 1) return 0;
+  const pos = easeInOut((elapsed - approachEnd) / (panEnd - approachEnd)) * (stopCount - 1);
+  return Math.min(stopCount - 1, Math.round(pos));
 }
 
-/** 全体2秒のあと、対象ごとに寄る・止める・引く。最後は全体で止まる。 */
+/** 全体、寄り、初戦の移動、戻り。最後は全体で止まる。 */
 export function openingTourDurationSec(data: StageData): number {
-  const cycle = BRACKET_TOUR_ZOOM_SEC + BRACKET_TOUR_HOLD_SEC + BRACKET_TOUR_ZOOM_SEC;
-  return BRACKET_TOUR_OVERVIEW_SEC + openingTourStops(data).length * cycle;
+  const cards = openingTourStops(data).length;
+  return BRACKET_TOUR_OVERVIEW_SEC + BRACKET_TOUR_APPROACH_SEC + openingTourPanSec(cards) + BRACKET_TOUR_RETURN_SEC;
 }

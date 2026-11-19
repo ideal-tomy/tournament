@@ -92,7 +92,7 @@ describe('bracketTheme', () => {
 });
 
 describe('computeBracketLayout', () => {
-  it.each([4, 8, 16])('%i チームで WB/LB/GF を含むレイアウト', async (n) => {
+  it.each([4, 8, 16, 20])('%i チームで WB/LB/GF を含むレイアウト', async (n) => {
     const data = await buildSnapshotForTeamCount(n);
     assertLayout(data);
   });
@@ -122,6 +122,39 @@ describe('computeBracketLayout', () => {
     expect(lower && upper).toBeTruthy();
     if (!lower || !upper) return;
     expect(lower.box.y - (upper.box.y + upper.box.h)).toBeLessThanOrEqual(28);
+  });
+
+  it('不戦勝同士の初戦は一番下に置き、2段目を飛ばして次の段へつなぐ', async () => {
+    const raw = await buildSnapshotForTeamCount(20);
+    const data = toStageData(raw);
+    const L = computeBracketLayout(data, undefined, 'winners');
+    const winners = L.matches.filter((match) => match.bracket === 'winner');
+    const bottom = winners.filter((match) => match.isLeafRound);
+    const names = new Map(data.participant.map((person) => [person.id, person.name]));
+    const teams = bottom.flatMap((match) => {
+      const source = data.match.find((row) => row.id === match.matchId);
+      return [source?.opponent1?.id, source?.opponent2?.id]
+        .filter((id): id is number => id != null)
+        .map((id) => names.get(id));
+    });
+    expect(new Set(teams).size).toBe(20);
+    expect(bottom.every((match) => {
+      const source = data.match.find((row) => row.id === match.matchId);
+      return source?.opponent1?.id != null && source?.opponent2?.id != null;
+    })).toBe(true);
+    expect(new Set(bottom.map((match) => match.box.y)).size).toBe(1);
+
+    const promoted = bottom.filter((match) => match.round === 2);
+    const waiting = winners.filter((match) => match.round === 2 && !match.isLeafRound);
+    expect(promoted).toHaveLength(6);
+    expect(waiting).toHaveLength(2);
+    expect(Math.max(...waiting.map((match) => match.box.y))).toBeLessThan(bottom[0].box.y);
+    for (const card of promoted) {
+      const link = L.connectors.find((connector) => connector.fromMatchId === card.matchId && connector.kind === 'advance');
+      const target = link ? L.byId[link.toMatchId] : undefined;
+      expect(target?.round).toBe(3);
+      expect(target!.box.y).toBeLessThan(waiting[0].box.y);
+    }
   });
 
   it('2 回戦の試合は 1 回戦 2 試合の中央に配置される', async () => {

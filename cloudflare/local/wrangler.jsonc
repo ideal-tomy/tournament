@@ -14,6 +14,7 @@
   "vars": {
     "CHECKIN_EVENT_ID": "cf-local-control",
     "REHEARSAL_ENABLED": "1",
+    "ALLOW_INSTANT_TIMING": "1",
     "REHEARSAL_SOURCE_EVENT_ID": "cf-local-entry"
   }
 }

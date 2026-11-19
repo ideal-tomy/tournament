@@ -1,9 +1,12 @@
-import { ClientError, OFFICIAL_FIXED_EVENT_ID, requestId, readBody, response, participantDto, type CheckinEnv } from './domain';
-import { rows } from './lifecycle';
-import { readDrawState } from './draw';
+import { ClientError, OFFICIAL_FIXED_EVENT_ID, imageTypes, requestId, readBody, response, participantDto, validKey, type CheckinEnv } from './domain';
+import { mutate, rows, state, lifecycleRoute } from './lifecycle';
+import { readDrawState, drawRoute } from './draw';
+import { flowCommand } from './flow';
+import { sampleJpegDataUrl } from './samplePortrait';
 
 export const isRehearsalRun=(id:string)=>/^cf-through-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(id);
 const officialRun=(env:CheckinEnv)=>env.OFFICIAL_EVENT_ID&&isRehearsalRun(env.OFFICIAL_EVENT_ID)?env.OFFICIAL_EVENT_ID:null;
+const allowInstant=(env:CheckinEnv)=>env.ALLOW_INSTANT_TIMING==='1';
 /** Pre-registered tournaments. Each keeps its own participants, pairs and progress under its event_id. */
 export const FIXED_EVENTS=[
  {id:OFFICIAL_FIXED_EVENT_ID,label:'大会00000001'},
@@ -33,24 +36,136 @@ function eventTitle(value:unknown,id:string){
  if(!title||title.length>80||/[\u0000-\u001f\u007f]/.test(title))throw new ClientError('INVALID_TITLE',400);
  return title;
 }
+function bytesToBase64(bytes:Uint8Array){
+ let binary='';
+ for(let offset=0;offset<bytes.length;offset+=0x8000)binary+=String.fromCharCode(...bytes.subarray(offset,offset+0x8000));
+ return btoa(binary);
+}
+async function storedPortraitDataUrl(env:CheckinEnv,photoPath:string){
+ const object=await env.PORTRAITS.get(photoPath);
+ if(!object?.size||!object.body)return null;
+ const ext=photoPath.split('.').at(-1) as keyof typeof imageTypes|undefined;
+ const contentType=object.httpMetadata?.contentType??(ext?imageTypes[ext]:null);
+ if(!contentType?.startsWith('image/'))return null;
+ const bytes=new Uint8Array(await new Response(object.body).arrayBuffer());
+ if(bytes.length<64)return null;
+ return `data:${contentType};base64,${bytesToBase64(bytes)}`;
+}
+/** Prefer REHEARSAL_SOURCE_EVENT_ID, then any rehearsal entrant with R2 portraits. */
+async function progressionPortraitPool(env:CheckinEnv,count:number){
+ const prefer=env.REHEARSAL_SOURCE_EVENT_ID??'';
+ const found=await env.DB.prepare(`SELECT p.photo_path,p.event_id,p.id FROM participants p JOIN events e ON e.id=p.event_id
+  WHERE e.environment='rehearsal' AND p.note LIKE 'checkin-v1:%' AND p.status='entered' AND length(coalesce(p.photo_path,''))>0
+  ORDER BY CASE WHEN p.event_id=? THEN 0 ELSE 1 END,p.updated_at DESC LIMIT 32`).bind(prefer).all<{photo_path:string;event_id:string;id:string}>();
+ const pool:string[]=[];
+ for(const row of found.results){
+  if(!validKey(row.photo_path,row.event_id,row.id))continue;
+  const url=await storedPortraitDataUrl(env,row.photo_path);
+  if(url)pool.push(url);
+  if(pool.length>=count)break;
+ }
+ const photos=pool.length?Array.from({length:count},(_,index)=>pool[index%pool.length]):Array.from({length:count},()=>sampleJpegDataUrl());
+ return {photos,portraitSource:pool.length?('database' as const):('synthetic' as const),portraitTemplates:pool.length};
+}
+async function apiPost(env:CheckinEnv,path:string,body:Record<string,unknown>){
+ const request=new Request(`https://checkin.test${path}`,{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://checkin.test'},body:JSON.stringify(body)});
+ const viaLifecycle=await lifecycleRoute(request,env);
+ if(viaLifecycle)return viaLifecycle;
+ const viaDraw=await drawRoute(request,env);
+ if(viaDraw)return viaDraw;
+ throw new ClientError('NOT_FOUND',404);
+}
+async function ageScene(env:CheckinEnv){
+ await env.DB.prepare("UPDATE event_state SET scene_started_at=strftime('%Y-%m-%dT%H:%M:%fZ','now','-5 minutes') WHERE event_id=?").bind(env.CHECKIN_EVENT_ID).run();
+}
+function progressionHarness(body:Record<string,unknown>){
+ const teamsRaw=body.teams??40;
+ const courtsRaw=body.courts??2;
+ if(typeof teamsRaw!=='number'||!Number.isInteger(teamsRaw)||teamsRaw<2||teamsRaw>64)throw new ClientError('INVALID_PROGRESSION_SIZE',400);
+ const courts=Number(courtsRaw);
+ if(courts!==2&&courts!==3)throw new ClientError('INVALID_COURTS',400);
+ return {teams:teamsRaw,participants:teamsRaw*2,courts:courts as 2|3};
+}
+/** Local-only: N teams (2×team_size 名) → pairs → bracket → courts, with instant timing. */
+async function prepareProgression(env:CheckinEnv,body:Record<string,unknown>){
+ if(!allowInstant(env))throw new ClientError('NOT_FOUND',404);
+ const createId=requestId(body.requestId);
+ const eventId=`cf-through-${createId}`;
+ const format=body.format??'double_elimination';
+ if(!['single_elimination','double_elimination'].includes(String(format)))throw new ClientError('INVALID_REHEARSAL_PROFILE',400);
+ const harness=progressionHarness(body);
+ const title=eventTitle(body.title??'進行ロジック確認',eventId);
+ const subtitle=JSON.stringify({rehearsalTiming:'instant'});
+ await env.DB.prepare("INSERT OR IGNORE INTO events(id,title,subtitle,format,environment,team_size,status) VALUES(?,?,?,?,'rehearsal',2,'draft')").bind(eventId,title,subtitle,format).run();
+ const profile=await env.DB.prepare("SELECT title,format,subtitle FROM events WHERE id=? AND environment='rehearsal'").bind(eventId).first<{title:string;format:string;subtitle:string|null}>();
+ if(!profile)throw new ClientError('FORBIDDEN',403);
+ if(profile.format!==format||profile.subtitle!==subtitle)throw new ClientError('REQUEST_CONFLICT',409);
+ const run={...env,CHECKIN_EVENT_ID:eventId};
+ const existing=await rows(run);
+ if(existing.length>harness.participants)throw new ClientError('PREPARE_FAILED',500);
+ let portraitSource:'database'|'synthetic'='synthetic';
+ let portraitTemplates=0;
+ if(existing.length<harness.participants){
+  const pool=await progressionPortraitPool(env,harness.participants);
+  portraitSource=pool.portraitSource;
+  portraitTemplates=pool.portraitTemplates;
+  for(let i=existing.length;i<harness.participants;i+=1){
+   const created=await mutate(run,'create',null,{requestId:crypto.randomUUID(),name:`進行テスト ${String(i+1).padStart(3,'0')}`,rating:5+(i%26),photo:pool.photos[i]});
+   if(created.status!==201&&created.status!==200)throw new ClientError('PREPARE_FAILED',500);
+  }
+ }
+ const checkin=await state(run);
+ if(checkin.status==='open'){
+  const closed=await apiPost(run,'/api/checkin/close',{requestId:crypto.randomUUID(),expectedRevision:checkin.revision});
+  if(closed.status!==200)throw new ClientError('PREPARE_FAILED',500);
+ }
+ let view=await readDrawState(run);
+ if(!view.session){
+  const paired=await apiPost(run,'/api/draw/pairs',{requestId:crypto.randomUUID(),expectedVersion:view.version,mode:'auto'});
+  if(paired.status!==200)throw new ClientError('PREPARE_FAILED',500);
+  view=await readDrawState(run);
+ }
+ if(view.scene==='idle'){
+  const started=await apiPost(run,'/api/draw/start',{requestId:crypto.randomUUID(),expectedVersion:view.version});
+  if(started.status!==200)throw new ClientError('PREPARE_FAILED',500);
+  view=await readDrawState(run);
+ }
+ if(view.scene==='draw'){
+  await ageScene(run);
+  await flowCommand(run,'advance',{requestId:crypto.randomUUID(),expectedVersion:(await readDrawState(run)).version});
+  view=await readDrawState(run);
+ }
+ if(view.scene==='bracket'&&view.flow?.phase!=='bracket_update'&&!view.flow?.courts){
+  await ageScene(run);
+  view=await readDrawState(run);
+  await flowCommand(run,'courts-open',{requestId:crypto.randomUUID(),expectedVersion:view.version,count:harness.courts});
+  view=await readDrawState(run);
+ }
+ if(view.scene!=='interval'||!view.flow?.courts)throw new ClientError('PREPARE_FAILED',500);
+ return response({...view,eventId,portraitSource,portraitTemplates,teams:harness.teams,courts:harness.courts});
+}
 export async function rehearsalRoute(request:Request,env:CheckinEnv):Promise<Response|null>{
  const path=new URL(request.url).pathname;
  if(!path.startsWith('/api/rehearsal/'))return null;
  if(env.REHEARSAL_ENABLED!=='1')throw new ClientError('NOT_FOUND',404);
  if(path==='/api/rehearsal/config'&&request.method==='GET'){
   await registerFixedEvents(env);
-  return response({enabled:true,sourceEventId:env.REHEARSAL_SOURCE_EVENT_ID??null,officialEventId:officialRun(env),events:await savedEvents(env)});
+  return response({enabled:true,allowInstant:allowInstant(env),sourceEventId:env.REHEARSAL_SOURCE_EVENT_ID??null,officialEventId:officialRun(env),events:await savedEvents(env)});
  }
  if(path==='/api/rehearsal/create'&&request.method==='POST'){
   const body=await readBody(request,1024),id=`cf-through-${requestId(body.requestId)}`;
   const format=body.format??'double_elimination',preset=body.timingPreset??'show',title=eventTitle(body.title,id);
-  if(!['single_elimination','double_elimination'].includes(String(format))||!['show','fast'].includes(String(preset)))throw new ClientError('INVALID_REHEARSAL_PROFILE',400);
+  const presets=allowInstant(env)?['show','fast','instant']:['show','fast'];
+  if(!['single_elimination','double_elimination'].includes(String(format))||!presets.includes(String(preset)))throw new ClientError('INVALID_REHEARSAL_PROFILE',400);
   const subtitle=JSON.stringify({rehearsalTiming:preset});
   await env.DB.prepare("INSERT OR IGNORE INTO events(id,title,subtitle,format,environment,team_size,status) VALUES(?,?,?,?,'rehearsal',2,'draft')").bind(id,title,subtitle,format).run();
   const profile=await env.DB.prepare("SELECT title,format,subtitle FROM events WHERE id=? AND environment='rehearsal'").bind(id).first<{title:string;format:string;subtitle:string|null}>();
   if(!profile)throw new ClientError('FORBIDDEN',403);
   if(profile.format!==format||profile.subtitle!==subtitle||(body.title!=null&&body.title!==''&&profile.title!==title))throw new ClientError('REQUEST_CONFLICT',409);
   return response({eventId:id});
+ }
+ if(path==='/api/rehearsal/prepare-progression'&&request.method==='POST'){
+  return prepareProgression(env,await readBody(request,2048));
  }
  if(path==='/api/rehearsal/source'&&request.method==='GET'){
   if(!env.REHEARSAL_SOURCE_EVENT_ID)throw new ClientError('NOT_CONFIGURED',503);
@@ -75,9 +190,15 @@ export async function selectRehearsalRun(request:Request,env:CheckinEnv):Promise
  const url=new URL(request.url),portrait=/^\/api\/events\/([^/]+)\/participants\/checkin-[a-f0-9-]{36}\/portrait$/.exec(url.pathname);
  const requested=url.searchParams.get('run');
  if(portrait&&requested&&portrait[1]!==requested)throw new ClientError('NOT_FOUND',404);
+ const sourceAlbum=env.REHEARSAL_SOURCE_EVENT_ID;
  const id=portrait?.[1]??requested??officialRun(env);
  // The source event is exposed for portraits only, never for tournament commands.
- if(portrait&&request.method==='GET'&&id===env.REHEARSAL_SOURCE_EVENT_ID)return {...env,CHECKIN_EVENT_ID:id};
+ if(portrait&&request.method==='GET'&&id===sourceAlbum)return {...env,CHECKIN_EVENT_ID:id};
+ // Local portrait library: register to REHEARSAL_SOURCE_EVENT_ID / CHECKIN_EVENT_ID without cf-through run.
+ if(requested&&(requested===sourceAlbum||requested===env.CHECKIN_EVENT_ID)){
+  const owned=await env.DB.prepare("SELECT id FROM events WHERE id=? AND environment='rehearsal'").bind(requested).first();
+  if(owned)return {...env,CHECKIN_EVENT_ID:requested};
+ }
  if(!id||!isRehearsalRun(id))throw new ClientError('RUN_REQUIRED',409);
  const owned=await env.DB.prepare("SELECT id FROM events WHERE id=? AND environment='rehearsal'").bind(id).first();
  if(!owned)throw new ClientError('NOT_FOUND',404);

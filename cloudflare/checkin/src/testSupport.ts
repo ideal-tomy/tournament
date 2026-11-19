@@ -3,6 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import worker, { type CheckinEnv } from './index';
 import type { Statement } from './domain';
+import { sampleJpegDataUrl } from './samplePortrait';
 export function setup(){
  const db=new DatabaseSync(':memory:');db.exec('PRAGMA foreign_keys=ON');
  for(const file of ['0001_tournament.sql','0002_command_receipts.sql','0003_checkin_lifecycle.sql','0004_entry_teams.sql'])db.exec(readFileSync(`cloudflare/migrations/${file}`,'utf8'));
@@ -13,8 +14,7 @@ export function setup(){
  let cookie='';const origin='https://checkin.test';
  async function request(path:string,method='GET',body?:unknown,from=origin){return worker.fetch(new Request(origin+path,{method,headers:{Origin:from,Cookie:cookie,'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})}),env);}
  async function login(){const result=await request('/api/session','POST',{code:env.REHEARSAL_ACCESS_CODE});expect(result.status).toBe(200);expect(result.headers.get('set-cookie')).toContain('HttpOnly; Secure; SameSite=Strict');cookie=result.headers.get('set-cookie')!.split(';')[0];}
- const jpeg=new Uint8Array(80);jpeg.set([255,216,255]);jpeg.set([255,217],78);
- const input=(name='test')=>({requestId:crypto.randomUUID(),name,rating:null,photo:`data:image/jpeg;base64,${Buffer.from(jpeg).toString('base64')}`});
+ const input=(name='test')=>({requestId:crypto.randomUUID(),name,rating:null,photo:sampleJpegDataUrl()});
  async function create(name='test'){const body=input(name),response=await request('/api/participants','POST',body);expect(response.status).toBe(201);return {body,...await response.json() as {participant:{id:string;version:number;portraitUrl:string}}};}
  const count=()=>Number(db.prepare('SELECT COUNT(*) n FROM participants').get()!.n);
  async function pair(body:Record<string,unknown>={mode:'auto'},suffix=''){const state=await request('/api/draw/state'+suffix).then(r=>r.json()) as {version:number};return request('/api/draw/pairs'+suffix,'POST',{requestId:crypto.randomUUID(),expectedVersion:state.version,...body});}

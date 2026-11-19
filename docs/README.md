@@ -8,6 +8,8 @@
 
 ローカル起動・現行Cloudflare版のbuild／公開準備は [ルートREADME](../README.md) を入口とします。[2026-10-30の実装・検証結果](LOCAL_DEPLOY_READINESS.md) と [実行PLAN](../PLAN.md) を参照してください。旧Supabase版の手順とCloudflare版の手順を混用しないでください。
 
+試合進行とトーナメントの共通ルール文書は置かない。対象は20チームのダブルイリミネーションだけにする。
+
 最新の試合結果演出の実装・既存コード調査・公開確認は [MATCH_RESULT_PRESENTATION.md](MATCH_RESULT_PRESENTATION.md) を参照。
 
 このディレクトリでは、今後の判断に使う資料だけを管理する。
@@ -23,12 +25,6 @@
 ## 現行環境の運用資料
 
 - [THROUGH_REHEARSAL.md](./THROUGH_REHEARSAL.md): 最新。公開/rehearsalから受付→CHAMPIONを手動・自動で通す入口、サンプル準備・停止再開・初期化・完走結果。
-
-- [MATCH_PROGRESS_LOOP.md](./MATCH_PROGRESS_LOOP.md): 最新。第1試合開始→勝者保存→WINNER→更新済みBracket→第2試合自動VS→開始待ちの公開確認結果と運営手順。
-
-- [PAIR_ANNOUNCEMENT_FLOW.md](./PAIR_ANNOUNCEMENT_FLOW.md): 最新。受付終了で事前ペア保存、ペア発表開始、Bracket待機、ゲームスタート、第1試合VS後の待機。大会フロー再確認.mdへの対応。
-
-- [`TOURNAMENT_FLOW.md`](./TOURNAMENT_FLOW.md): 前段階の実装記録。受付からChampionまでの連続運営。次試合の自動選択、開始・勝者確定、公開7試合完走、通常大会の開始待ち。
 
 - [`DRAW_D1_REHEARSAL.md`](./DRAW_D1_REHEARSAL.md): 最新。登録参加者を既存Drawへ接続し、D1で確定ペアを保存してBracket表示。公開URL・E2E結果・操作手順。
 

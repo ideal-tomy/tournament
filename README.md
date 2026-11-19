@@ -10,6 +10,8 @@
 
 Node.js 22.14以上と、インストール済みの依存を使用します。Wranglerは `node_modules/wrangler/bin/wrangler.js` を使用し、自動ダウンロードしません。このPCの `node_modules` は別フォルダのjunctionです。共有先を変更するインストールは行わないでください。
 
+試合進行とトーナメントの共通ルール文書は置かない。対象は20チームのダブルイリミネーションだけにする。
+
 ```powershell
 Set-Location 'C:\Users\ryoji\00myapp\ai_demo_workspace\tournament-latest-review-20261024'
 npm run dev

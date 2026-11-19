@@ -19,6 +19,7 @@ export interface Courts {count:number;boards:Board[];showBracket?:boolean;spotli
 const spotlightEnd=(s:Spotlight)=>Date.parse(s.at)+s.durationSec*1000;
 const boardShowing=(courts:Courts,board:number,now:number)=>(courts.spotlights??[]).some(s=>s.board===board&&spotlightEnd(s)>now);
 function enqueueSpotlight(courts:Courts,item:Omit<Spotlight,'at'>,now:number){
+ if(item.durationSec<=0)return;
  const pending=(courts.spotlights??[]).filter(s=>spotlightEnd(s)>now);
  courts.spotlights=[...pending,{...item,at:new Date(Math.max(now,...pending.map(spotlightEnd))).toISOString()}];
 }
@@ -82,10 +83,18 @@ export async function flowView(env:CheckinEnv,projection?:Awaited<ReturnType<typ
  const spotlight=lit&&litMatch?{id:lit.id,kind:lit.kind,board:lit.board,match:describe(litMatch),elapsed:(now-Date.parse(lit.at))/1000,winnerSec:lit.winnerSec??0,winnerTeamId:lit.winnerTeamId??null,loserTeamId:lit.loserTeamId??null,resultPresentation:lit.resultPresentation??null}:null;
  const courts=court?{count:court.count,showBracket:!!court.showBracket,spotlight,boards:court.boards.map(b=>{const m=b.matchId==null?null:data.match.find(x=>x.id===b.matchId);return {...b,showing:boardShowing(court,b.board,now),match:m?describe(m):null};})}:null;
  const updatingBracket=scene.scene==='bracket'&&payload.lastMatchId!=null;
+ const profile=await eventProfile(env);
+ const losersIntroCap=profile.timingPreset==='instant'?0:LOSERS_INTRO_TOTAL_SEC;
  const losersIntroRemainingSec=scene.scene==='vs_card'&&payload.losersIntroPending
-  ?Math.max(0,LOSERS_INTRO_TOTAL_SEC-elapsed(scene))
+  ?Math.max(0,losersIntroCap-elapsed(scene))
   :losersGateRemaining(payload,now);
- return {phase:updatingBracket?'bracket_update':scene.scene,currentMatch,boardSide,losersIntroPlayed:!!payload.losersIntroPlayed,losersIntroPending:!!payload.losersIntroPending,losersIntroRemainingSec,courts,resultPresentation:payload.resultPresentation??null,nextMatch:upcoming?{id:upcoming.id,teamA:getSlotTeamUuid(data,upcoming,0),teamB:getSlotTeamUuid(data,upcoming,1)}:null,nextWaitReason,winnerTeamId:payload.winnerTeamId??null,loserTeamId:payload.loserTeamId??null,championTeamId:payload.championTeamId??null,lastMatchId:payload.lastMatchId??null,
+ const showProgressionDebug=env.ALLOW_INSTANT_TIMING==='1'||profile.timingPreset==='instant';
+ const progressionDebug=showProgressionDebug?{
+  chapterMatches:getChapterMatches(data,takenForPreview).slice(0,5).map(describe),
+  courtFillQueue:(courtQueue?.matches??getCourtFillMatches(data,takenForPreview,restingPreview).matches).slice(0,5).map(describe),
+  deferredRest:!!courtQueue?.deferredRest,
+ }:null;
+ return {phase:updatingBracket?'bracket_update':scene.scene,currentMatch,boardSide,losersIntroPlayed:!!payload.losersIntroPlayed,losersIntroPending:!!payload.losersIntroPending,losersIntroRemainingSec,courts,resultPresentation:payload.resultPresentation??null,nextMatch:upcoming?{id:upcoming.id,teamA:getSlotTeamUuid(data,upcoming,0),teamB:getSlotTeamUuid(data,upcoming,1)}:null,nextWaitReason,progressionDebug,winnerTeamId:payload.winnerTeamId??null,loserTeamId:payload.loserTeamId??null,championTeamId:payload.championTeamId??null,lastMatchId:payload.lastMatchId??null,
   ceremony:scene.scene==='award'?payload.ceremony??'champion':null,placements:payload.placements??(payload.championTeamId?{first:payload.championTeamId,second:[],third:[]}:null),
   canStart:scene.scene==='vs_card'&&elapsed(scene)>=(payload.durationSec??0)&&!!currentMatch?.teamA&&!!currentMatch?.teamB,
   canGameStart:scene.scene==='bracket'&&!updatingBracket&&elapsed(scene)>=(payload.durationSec??2),
@@ -119,7 +128,10 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
  const view=await flowView(env,loaded);
  let snapshot=loaded.snapshot,payload:Payload={...loaded.payload,flow:1},nextScene=currentScene.scene;
  let current=loaded.current,status:string|null=null;
- const timing=rehearsalTiming((await eventProfile(env)).timingPreset);
+ const timingPreset=(await eventProfile(env)).timingPreset;
+ const timing=rehearsalTiming(timingPreset);
+ const instant=timingPreset==='instant';
+ const losersIntroSec=instant?0:LOSERS_INTRO_TOTAL_SEC;
  const stepDuration=(step:CeremonyStep)=>step==='podium'?timing.podium:step==='champion'?timing.award:timing.winner;
  async function award(champion:string){
   const placements=await getFinalPlacements(createManagerFromSnapshot(snapshot))??{first:champion,second:[],third:[]};
@@ -137,7 +149,7 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
   const losersIntro=getMatchBracketKind(data,next)==='loser'&&!payload.losersIntroPlayed;
   if(losersIntro)payload={...payload,losersIntroPlayed:true,losersIntroPending:true};
   else payload={...payload,losersIntroPending:false};
-  payload={...payload,matchId:next.id,teamA:getSlotTeamUuid(data,next,0),teamB:getSlotTeamUuid(data,next,1),durationSec:timing.vsLead+(losersIntro?LOSERS_INTRO_TOTAL_SEC:0)};nextScene='vs_card';
+  payload={...payload,matchId:next.id,teamA:getSlotTeamUuid(data,next,0),teamB:getSlotTeamUuid(data,next,1),durationSec:timing.vsLead+(losersIntro?losersIntroSec:0)};nextScene='vs_card';
 }
  if(action==='announce'){
   if(!view?.canAnnounce)throw new ClientError('INVALID_FLOW_PHASE',409);
@@ -194,6 +206,12 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
      const winnerTeamId=getSlotTeamUuid(data,match,slot),loserTeamId=getSlotTeamUuid(data,match,slot===0?1:0);
      Object.assign(board,{stage:'result',startedAt:now,winnerTeamId,loserTeamId});status='running';
      enqueueSpotlight(courts,{id:commandId,board:board.board,kind:'winner',matchId:match.id,durationSec:timing.winner+timing.bracket,winnerSec:timing.winner,winnerTeamId,loserTeamId,resultPresentation:{beforeBracket,match:shown,winnerTeamId}},nowMs);
+     // instant: Display に「両台WINNERで止まる」時間を作らない（court-next を同一トランザクションで済ませる）
+     if(instant){
+      if(board.winnerTeamId)restingTeamIds.add(board.winnerTeamId);
+      if(board.loserTeamId)restingTeamIds.add(board.loserTeamId);
+      Object.assign(board,{matchId:null,stage:'idle',startedAt:null,winnerTeamId:null,loserTeamId:null});
+     }
     }else{
      if(board.stage!=='result'&&board.stage!=='idle')throw new ClientError('SCENE_NOT_FINISHED',409);
      if(boardShowing(courts,board.board,nowMs))throw new ClientError('SPOTLIGHT_PLAYING',409);
@@ -218,9 +236,10 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
   const wouldAssignLoser=!payload.losersIntroPlayed&&waiting.some(m=>getMatchBracketKind(data,m)==='loser');
   if(wouldAssignLoser){
    const firstLoser=waiting.find(m=>getMatchBracketKind(data,m)==='loser')!;
-   payload={...payload,losersIntroPlayed:true,losersIntroUntil:new Date(nowMs+LOSERS_INTRO_TOTAL_SEC*1000).toISOString()};
-   enqueueSpotlight(courts,{id:`${commandId}-losers-intro`,board:0,kind:'losers-intro',matchId:firstLoser.id,durationSec:LOSERS_INTRO_TOTAL_SEC},nowMs);
-  }else if(!losersGateActive(payload,nowMs)){
+   payload={...payload,losersIntroPlayed:true,losersIntroUntil:losersIntroSec>0?new Date(nowMs+losersIntroSec*1000).toISOString():null};
+   enqueueSpotlight(courts,{id:`${commandId}-losers-intro`,board:0,kind:'losers-intro',matchId:firstLoser.id,durationSec:losersIntroSec},nowMs);
+  }
+  if(!losersGateActive(payload,nowMs)){
    for(const b of courts.boards)if(b.matchId==null){const m=waiting.shift();if(m)Object.assign(b,{matchId:m.id,stage:'call',startedAt:now});}
   }
   courts.spotlights=(courts.spotlights??[]).filter(s=>spotlightEnd(s)>nowMs);
@@ -229,7 +248,7 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
   else{payload={...payload,durationSec:timing.bracket};delete payload.courts;delete payload.lastMatchId;nextScene='bracket';}
 }else{
   if(!view?.canAdvance)throw new ClientError('SCENE_NOT_FINISHED',409);
-  if(currentScene.scene==='draw'){nextScene='bracket';payload.durationSec=timing.bracketInitial+openingTourDurationSec(toStageData(snapshot));}
+  if(currentScene.scene==='draw'){nextScene='bracket';payload.durationSec=timing.bracketInitial+(instant?0:openingTourDurationSec(toStageData(snapshot)));}
   else if(currentScene.scene==='result'){
    const champion=payload.championTeamId??await getChampionTeamId(createManagerFromSnapshot(snapshot));
    if(champion)await award(champion);

@@ -370,6 +370,41 @@ function buildMatchLayout(
   };
 }
 
+function participantIds(match: BMMatch): number[] {
+  return [match.opponent1?.id, match.opponent2?.id].filter((id): id is number => id != null);
+}
+
+function parentMeta(meta: MatchMeta, metas: MatchMeta[]): MatchMeta | null {
+  if (meta.bracket === 'winner') return findMeta(metas, 'winner', meta.round + 1, wbAdvanceRow(meta.row));
+  if (meta.bracket === 'loser') return findMeta(metas, 'loser', meta.round + 1, lbAdvanceRow(meta.round, meta.row));
+  if (meta.bracket === 'grand_final') return findMeta(metas, 'grand_final', meta.round + 1, 0);
+  return null;
+}
+
+/** 相手のいない枠で、本人はすでに次の試合へ入っている。カードにはしない。 */
+function byePlaceholderIds(metas: MatchMeta[]): Set<number> {
+  const ids = new Set<number>();
+  for (const meta of metas) {
+    const players = participantIds(meta.match);
+    if (players.length !== 1) continue;
+    const parent = parentMeta(meta, metas);
+    if (!parent || !participantIds(parent.match).includes(players[0])) continue;
+    ids.add(meta.match.id);
+  }
+  return ids;
+}
+
+/** 表示する最初の対戦。不戦勝同士の試合も、1回戦と同じ一番下の段に置く。 */
+function baselineMatchIds(metas: MatchMeta[], hidden: Set<number>): Set<number> {
+  const ids = new Set<number>();
+  for (const meta of metas) {
+    if (hidden.has(meta.match.id)) continue;
+    const feeders = feedersForAdvance(meta, metas);
+    if (feeders.length === 0 || feeders.every((feeder) => hidden.has(feeder.match.id))) ids.add(meta.match.id);
+  }
+  return ids;
+}
+
 function placeTreeSection(
   items: MatchMeta[],
   allMetas: MatchMeta[],
@@ -377,6 +412,8 @@ function placeTreeSection(
   baseBottom: number,
   roundOffset: (round: number) => number,
   offsetX: number,
+  hidden: Set<number>,
+  baseline: Set<number>,
 ): MatchLayout[] {
   if (items.length === 0) return [];
 
@@ -393,11 +430,14 @@ function placeTreeSection(
   const layouts: MatchLayout[] = [];
 
   for (const meta of items) {
+    if (hidden.has(meta.match.id)) continue;
     const cx = centerXByMatchId.get(meta.match.id);
     if (cx == null) continue;
-    const isLeaf = meta.round === minRound;
-    const boxH = boxHFor(meta.round);
-    const bottom = tierBottomAt.get(roundOffset(meta.round)) ?? baseBottom;
+    const onBaseline = baseline.has(meta.match.id);
+    const isLeaf = onBaseline || meta.round === minRound;
+    const tierRound = onBaseline ? minRound : meta.round;
+    const boxH = isLeaf ? cfg.boxH : boxHFor(meta.round);
+    const bottom = tierBottomAt.get(roundOffset(tierRound)) ?? baseBottom;
     const boxY = bottom - boxH;
     layouts.push(buildMatchLayout(meta, cx, boxY, cfg, isLeaf));
   }
@@ -443,11 +483,13 @@ export function computeBracketLayout(
 
   const baseBottom =
     cfg.padding + (maxRound + gfMaxRound + 1) * (cfg.boxH + cfg.roundGap);
+  const hidden = byePlaceholderIds(metas);
+  const baseline = baselineMatchIds(metas, hidden);
 
   const matches: MatchLayout[] = [
-    ...placeTreeSection(wbMetas, metas, cfg, baseBottom, (r) => r, wbLeft),
-    ...placeTreeSection(lbMetas, metas, cfg, baseBottom, (r) => r, lbLeft),
-    ...placeTreeSection(gfMetas, metas, cfg, baseBottom, (r) => maxRound + r, wbLeft),
+    ...placeTreeSection(wbMetas, metas, cfg, baseBottom, (r) => r, wbLeft, hidden, baseline),
+    ...placeTreeSection(lbMetas, metas, cfg, baseBottom, (r) => r, lbLeft, hidden, baseline),
+    ...placeTreeSection(gfMetas, metas, cfg, baseBottom, (r) => maxRound + r, wbLeft, hidden, baseline),
   ];
 
   const byId: Record<number, MatchLayout> = {};
