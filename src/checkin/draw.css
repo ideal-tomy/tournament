@@ -19,7 +19,7 @@
 .draw-team-nameplate{flex:none;width:100%;max-width:360px;margin:10px auto 0}
 .persisted-bracket-body>.losers-viewport,.audience-advance .losers-viewport{flex:1;width:100%;height:100%;min-height:0}
 .losers-viewport{height:100%;width:100%;overflow:hidden}
-.losers-track{--losers-head:1.5rem;position:relative;display:flex;align-items:stretch;height:100%;width:max-content;transform-origin:top left;transition:transform .8s ease}
+.losers-track{--losers-head:1.5rem;position:relative;display:flex;align-items:stretch;height:100%;width:max-content;transform-origin:top left;transition:none}
 .losers-round{display:flex;align-items:stretch;height:100%;min-height:0}
 .losers-col{flex:0 0 23rem;height:100%;min-height:0;display:flex;flex-direction:column}
 .losers-col h3{flex:none;height:var(--losers-head);margin:0;line-height:var(--losers-head);text-align:center;color:#fff;font-size:.95rem;font-weight:800;letter-spacing:.06em;word-break:keep-all}
@@ -59,12 +59,26 @@
 .losers-bracket-fade{animation:losers-bracket-in .4s ease-out both}
 @keyframes losers-bracket-in{from{opacity:0}to{opacity:1}}
 @media(prefers-reduced-motion:reduce){.losers-bracket-fade{animation:none}}
-.bracket-match-current rect{animation:bracket-frame-blink 1s ease-in-out infinite}
-@keyframes bracket-frame-blink{
-  0%,100%{stroke:#ca8a04;stroke-width:2.5;filter:none}
-  50%{stroke:#fffef0;stroke-width:4;filter:url(#bracket-glow-strong)}
+.bracket-match-current:not([data-bracket="winner"]) .bracket-frame-line{animation:bracket-frame-line 2.4s ease-in-out infinite}
+.bracket-match-current[data-bracket="winner"] .bracket-frame-line{animation:bracket-frame-line-blue 2.4s ease-in-out infinite}
+.bracket-match-current .bracket-frame-halo{animation:bracket-frame-halo 2.4s ease-in-out infinite}
+@keyframes bracket-frame-line{
+  0%,100%{stroke:#ca8a04;stroke-width:2.5}
+  50%{stroke:#fffef0;stroke-width:4}
 }
-@media(prefers-reduced-motion:reduce){.bracket-match-current rect{animation:none;stroke:#fffef0;stroke-width:4}}
+@keyframes bracket-frame-line-blue{
+  0%,100%{stroke:#0891b2;stroke-width:2.5}
+  50%{stroke:#67e8f9;stroke-width:4}
+}
+@keyframes bracket-frame-halo{
+  0%,100%{stroke-opacity:.2}
+  50%{stroke-opacity:.95}
+}
+@media(prefers-reduced-motion:reduce){
+  .bracket-match-current:not([data-bracket="winner"]) .bracket-frame-line{animation:none;stroke:#fffef0;stroke-width:4}
+  .bracket-match-current[data-bracket="winner"] .bracket-frame-line{animation:none;stroke:#22d3ee;stroke-width:4}
+  .bracket-match-current .bracket-frame-halo{animation:none;stroke-opacity:.7}
+}
 .audience-advance{position:relative;width:100%;height:100%;min-height:0}
 .audience-advance>.advance-before,.audience-advance>.advance-after,.audience-advance>.advance-stage,.audience-advance>.advance-full,.audience-advance>.advance-board,.audience-advance>.advance-overlay,.audience-advance>.advance-winner-out{position:absolute;inset:0}
 .audience-advance>.advance-full{opacity:0}

@@ -54,7 +54,6 @@ export default function DisplayPage({ onAuthRequired, sessionVersion, administra
               <h2>{participant.name}</h2>
               {participant.rating !== null && <p>rating {participant.rating}</p>}
               <p className="participant-id">{participant.id}</p>
-              <a className="button" href={scopedUrl(`/show-preview?participant=${encodeURIComponent(participant.id)}`)}>この参加者で演出確認</a>
             </div>
           </article>
         ))}</div>

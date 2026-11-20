@@ -5,4 +5,5 @@
 .court-tag{position:absolute;top:24px;left:50%;z-index:5;margin:0;padding:6px 22px;transform:translateX(-50%);border-radius:999px;background:rgba(5,7,12,.82);border:1px solid rgba(253,230,138,.6);color:#fde68a;font-size:clamp(18px,2.2vw,34px);font-weight:900;letter-spacing:.12em;white-space:nowrap}
 .court-progress{position:absolute;top:24px;left:18px;z-index:5;margin:0;max-width:min(46%,280px);padding:8px 14px;border-radius:12px;background:rgba(5,7,12,.88);border:1px solid rgba(103,232,249,.55);color:#a5f3fc;font-size:clamp(14px,1.6vw,24px);font-weight:900;letter-spacing:.04em;line-height:1.25;word-break:keep-all}
 .court-progress.is-losers{border-color:rgba(251,146,60,.7);color:#fdba74}
-.court-idle{position:absolute;inset:0;display:grid;place-items:center;color:#94a3b8;font-size:clamp(18px,2vw,30px);font-weight:800}
+.court-idle{position:absolute;inset:0;display:grid;place-items:center;padding:32px;color:#e2e8f0}
+.court-idle p{margin:0;max-width:12em;font-size:clamp(32px,4.6vw,72px);font-weight:900;line-height:1.35;text-align:center;word-break:keep-all}

@@ -199,8 +199,9 @@ export function selectTwenty(input: TwentyInput): TwentyView {
   const ranked: Ranked[] = [];
   for (const match of input.data.match) {
     const teams = bothTeams(input.data, match);
+    const courtMatch = getMatchBracketKind(input.data, match) !== 'grand_final';
     if (!teams) {
-      if (match.status < Status.Completed && match.opponent1?.id == null && match.opponent2?.id == null) pending = true;
+      if (courtMatch && match.status < Status.Completed && match.opponent1?.id == null && match.opponent2?.id == null) pending = true;
       continue;
     }
     if (match.status >= Status.Completed) continue;
@@ -208,7 +209,7 @@ export function selectTwenty(input: TwentyInput): TwentyView {
     const blocked = !allowed(input.data, match, phase);
     const reserved = input.reservedMatchIds.has(match.id) || teams.some((id) => reservedTeams.has(id));
     if (!startable) {
-      pending = true;
+      if (courtMatch) pending = true;
       continue;
     }
     if (blocked) {

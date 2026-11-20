@@ -150,23 +150,6 @@ export default function BracketView({
       role="img"
       aria-label="トーナメント表"
     >
-      <defs>
-        <filter id="bracket-glow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="3" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-        <filter id="bracket-glow-strong" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="5" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-      </defs>
-
       {sectionLabels.map((s) => {
         const t = themeForBracket(s.kind);
         return (
@@ -214,7 +197,6 @@ export default function BracketView({
             strokeOpacity={opacity}
             strokeWidth={width}
             strokeDasharray={isDrop ? bracketTheme.drop.dash : undefined}
-            filter={lit ? 'url(#bracket-glow)' : undefined}
           />
         );
       })}
@@ -236,17 +218,30 @@ export default function BracketView({
             className={isPulse ? bracketTheme.current.pulseClass : undefined}
             opacity={omitCompleted ? undefined : isDone ? 0.45 : undefined}
           >
+            {isPulse && (
+              <rect
+                className="bracket-frame-halo"
+                x={m.box.x}
+                y={m.box.y}
+                width={m.box.w}
+                height={m.box.h}
+                fill="none"
+                stroke={m.bracket === 'winner' ? theme.glow : '#fef9c3'}
+                strokeWidth={7}
+                rx={4}
+              />
+            )}
             <rect
+              className={isPulse ? 'bracket-frame-line' : undefined}
               x={m.box.x}
               y={m.box.y}
               width={m.box.w}
               height={m.box.h}
               fill={theme.fill}
               fillOpacity={isDone ? 0.9 : 0.75}
-              stroke={isPulse ? bracketTheme.current.stroke : theme.stroke}
+              stroke={isPulse && m.bracket !== 'winner' ? bracketTheme.current.stroke : theme.stroke}
               strokeWidth={isPulse ? 3.5 : 1.5}
               rx={3}
-              filter={isPulse ? 'url(#bracket-glow-strong)' : undefined}
             />
             <line
               x1={m.box.x + m.box.w / 2}

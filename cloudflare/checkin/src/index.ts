@@ -43,7 +43,7 @@ async function route(request: Request, env: CheckinEnv): Promise<Response> {
   if (!url.pathname.startsWith('/api/')) {
     if (!['GET', 'HEAD'].includes(request.method)) return response({ error: 'METHOD_NOT_ALLOWED' }, 405);
     if (url.pathname === '/' && env.REHEARSAL_ENABLED !== '1') return Response.redirect(url.origin + '/checkin', 302);
-    if (['/', '/start', '/checkin', '/display', '/admin', '/show-preview','/rehearsal','/rehearsal-press','/match-transition','/cloudflare-check','/venue-check'].includes(url.pathname)) return env.ASSETS.fetch(new Request(url.origin + '/index.html', { method: request.method }));
+    if (['/', '/start', '/checkin', '/display', '/admin', '/venue-check'].includes(url.pathname)) return env.ASSETS.fetch(new Request(url.origin + '/index.html', { method: request.method }));
     if (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/tournament-effects/')) return env.ASSETS.fetch(request);
     return response({ error: 'NOT_FOUND' }, 404);
   }

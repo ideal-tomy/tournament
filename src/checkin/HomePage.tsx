@@ -5,11 +5,6 @@ export default function HomePage() {
       <strong>大会を始める</strong>
       <span>受付 · 運営 · 会場モニター</span>
     </a>
-    <a className="home-door" href="/rehearsal">
-      <span className="eyebrow">確認用</span>
-      <strong>演出を確認する</strong>
-      <span>演出の再生 · 自動の通し確認</span>
-    </a>
     <a className="home-door" href="/venue-check">
       <span className="eyebrow">40人</span>
       <strong>表示を確認する</strong>

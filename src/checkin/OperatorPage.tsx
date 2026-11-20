@@ -5,6 +5,7 @@ import { useTournamentState } from './useTournamentState';
 import { makeBalancedTeams } from '../features/draw/draw';
 import { generatedTeamName, VENUE_TEAM_NAME_MAX } from '../features/draw/teamName';
 import { formatLabel } from './eventFormat';
+import { courtStandbyLabel } from './courtStandby';
 import { bracketSize, mountainCount } from '../features/bracket/slotPlacement';
 
 type Command = { path: string; body: Record<string, unknown> };
@@ -176,19 +177,23 @@ function BoardCard({ state, board, busy, pick, fillable, blockedLabel, choices, 
   const match = board.match;
   const teamName = (id: string | null | undefined) => state.teams.find(team => team.id === id)?.name ?? '';
   const settled = board.stage === 'result' && match ? (board.winnerTeamId === match.teamA ? 0 : 1) : null;
+  const standby = !fillable && (board.stage === 'idle' || board.stage === 'result') && !board.showing
+    ? courtStandbyLabel(blockedLabel)
+    : null;
   return <section className={`op-board is-${board.stage}`} aria-label={`台 ${board.board}`}>
     <header className="op-board-head"><strong>台 {board.board}</strong><span>{boardStage[board.stage]}</span></header>
+    {standby && <p className="op-standby" role="status">{standby}</p>}
     {match
       ? <MatchCard state={state} match={match} chosen={board.stage === 'live' ? pick ?? null : settled} choose={board.stage === 'live' ? onPick : undefined} />
       : <p className="op-note">組める試合が決まると、ここに入ります</p>}
     {board.board === 1 && (board.stage === 'idle' || board.stage === 'result') && !board.showing && !state.flow?.championTeamId && (
       fillable
         ? <p className="op-hint">次の試合は自動で入ります</p>
-        : <button className="primary op-wait" disabled>{blockedLabel ?? 'まだ組める対戦がありません'}</button>
+        : <button className="primary op-wait" disabled>{courtStandbyLabel(blockedLabel)}</button>
     )}
     {board.board !== 1 && board.stage === 'idle' && !match && !state.flow?.championTeamId && (fillable
       ? <button className="primary" disabled={busy} onClick={() => onCommand('court-next')}>次の試合を入れる</button>
-      : <button className="primary op-wait" disabled>{blockedLabel ?? 'まだ組める対戦がありません'}</button>)}
+      : <button className="primary op-wait" disabled>{courtStandbyLabel(blockedLabel)}</button>)}
     {board.stage === 'call' && <button className="primary" disabled={busy} onClick={() => onCommand('court-start')}>試合開始</button>}
     {board.stage === 'live' && match && (board.showing
       ? <button className="primary" disabled>会場でVS演出中…</button>
@@ -199,7 +204,7 @@ function BoardCard({ state, board, busy, pick, fillable, blockedLabel, choices, 
       ? <button className="primary" disabled>会場で勝者演出中…</button>
       : fillable
         ? <button className="primary" disabled={busy} onClick={() => onCommand('court-next')}>この台に次の試合</button>
-        : <button className="primary op-wait" disabled>{blockedLabel ?? 'まだ組める対戦がありません'}</button>)}
+        : <button className="primary op-wait" disabled>{courtStandbyLabel(blockedLabel)}</button>)}
     {board.board === 1 && board.stage === 'result' && board.showing && <button className="primary" disabled>会場で勝者演出中…</button>}
     {state.flow?.championTeamId && board.stage === 'result' && !board.showing && (
       <button className="primary" disabled={busy} onClick={() => onCommand('court-next')}>表彰へ</button>
@@ -340,7 +345,7 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
               <span className="op-vs">VS</span>
               <div className="op-side"><span className="op-side-names">{nextSides[1]?.name ?? '未定'}</span></div>
             </div>
-          : <p className="op-note">まだ組める対戦がありません</p>}
+          : <p className="op-standby" role="status">{courtStandbyLabel(f.nextWaitReason)}</p>}
         {f.twenty?.priorityReason && <p className="op-hint">{f.twenty.priorityReason}</p>}
         {f.nextWaitReason && <p className="op-hint">{f.nextWaitReason}</p>}
         {!f.twenty && f.progressionDebug && <details className="op-hint">
@@ -417,7 +422,6 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
     <details className="op-more"><summary>その他</summary>
       <a className="button" href={scopedUrl('/display')} target="_blank" rel="noreferrer">会場モニターを開く</a>
       <a className="button" href={scopedUrl('/checkin')}>受付を開く</a>
-      <a className="button" href={scopedUrl('/rehearsal')}>演出の確認</a>
       <a className="button" href="/venue-check" target="_blank" rel="noreferrer">40人の表示確認</a>
       {replayable && <ArmedButton className="op-secondary" label="最初からやり直す（結果は消えます）" armedLabel="もう一度押すと最初に戻す" disabled={busy} onFire={() => void send('/api/tournament/replay', {})} />}
     </details>

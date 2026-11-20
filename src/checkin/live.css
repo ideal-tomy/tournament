@@ -113,6 +113,7 @@ button.op-side{justify-content:flex-start;min-height:150px}
 .op-board-head{display:flex;align-items:baseline;justify-content:space-between}
 .op-board-head strong{font-size:22px;font-weight:900}
 .op-board-head span{font-size:14px;font-weight:700;color:#a6b9cd}
+.op-standby{margin:0;padding:12px 14px;border-radius:12px;background:#082033;color:#e0f2fe;font-size:20px;font-weight:900;line-height:1.4;text-align:center;word-break:keep-all}
 .op-board>button{width:100%;min-height:52px;font-size:17px}
 .op-board .op-note{padding:16px 0}
 .op-wait{white-space:normal;word-break:keep-all;line-height:1.4}

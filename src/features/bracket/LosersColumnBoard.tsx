@@ -99,48 +99,63 @@ function formatTransform(tx: number, ty: number, scale: number) {
   return `translate(${tx.toFixed(2)}px, ${ty.toFixed(2)}px) scale(${scale.toFixed(4)})`;
 }
 
-/** 計測のために transform を外すが、その瞬間は transition も止めて画面に出さない。 */
-function computeFit(
-  track: HTMLElement,
-  viewW: number,
-  viewH: number,
-  nodes: HTMLElement[],
-  pad = 16,
-): string | null {
-  if (!nodes.length) return null;
+function unionBox(root: DOMRect, nodes: HTMLElement[], pad: number) {
+  const boxes = nodes.map((node) => boxOf(root, node));
+  const left = Math.min(...boxes.map((box) => box.x)) - pad;
+  const top = Math.min(...boxes.map((box) => box.y)) - pad;
+  const right = Math.max(...boxes.map((box) => box.x + box.w)) + pad;
+  const bottom = Math.max(...boxes.map((box) => box.y + box.h)) + pad;
+  return { x: left, y: top, w: Math.max(1, right - left), h: Math.max(1, bottom - top) };
+}
+
+function clampPan(desired: number, view: number, scaled: number) {
+  if (scaled <= view) return (view - scaled) / 2;
+  return Math.min(0, Math.max(view - scaled, desired));
+}
+
+/**
+ * 倍率は「隣り合う2列が入る大きさ」で固定する。
+ * 試合が進んでも拡大せず、映す列の位置だけを変える。
+ */
+function computeCamera(track: HTMLElement, viewW: number, viewH: number, focusNodes: HTMLElement[]): string | null {
   const previousTransform = track.style.transform;
   const previousTransition = track.style.transition;
   track.style.transition = 'none';
   track.style.transform = 'none';
   void track.offsetWidth;
   try {
+    const naturalW = track.scrollWidth;
+    const naturalH = track.scrollHeight;
+    if (!naturalW || !naturalH) return null;
     const root = track.getBoundingClientRect();
-    const boxes = nodes.map((node) => boxOf(root, node));
-    const left = Math.min(...boxes.map((box) => box.x)) - pad;
-    const top = Math.min(...boxes.map((box) => box.y)) - pad;
-    const right = Math.max(...boxes.map((box) => box.x + box.w)) + pad;
-    const bottom = Math.max(...boxes.map((box) => box.y + box.h)) + pad;
-    const width = Math.max(1, right - left);
-    const height = Math.max(1, bottom - top);
-    const scale = Math.min(viewW / width, viewH / height);
-    return formatTransform(viewW / 2 - (left + width / 2) * scale, viewH / 2 - (top + height / 2) * scale, scale);
+    const rounds = [...track.querySelectorAll<HTMLElement>('.losers-round')];
+    const windows = rounds.length <= 1
+      ? [rounds]
+      : rounds.slice(0, -1).map((node, index) => [node, rounds[index + 1]]);
+    const windowFits = windows
+      .filter((nodes) => nodes.length > 0)
+      .map((nodes) => {
+        const box = unionBox(root, nodes, 12);
+        return Math.min(viewW / box.w, viewH / box.h);
+      });
+    const rawScale = windowFits.length ? Math.min(...windowFits) : Math.min(viewW / naturalW, viewH / naturalH);
+    const scale = Math.round(rawScale * 10000) / 10000;
+    const focus = focusNodes.length
+      ? unionBox(root, focusNodes, 12)
+      : { x: 0, y: 0, w: naturalW, h: naturalH };
+    const tx = clampPan(viewW / 2 - (focus.x + focus.w / 2) * scale, viewW, naturalW * scale);
+    const ty = clampPan(viewH / 2 - (focus.y + focus.h / 2) * scale, viewH, naturalH * scale);
+    return formatTransform(tx, ty, scale);
   } finally {
     track.style.transform = previousTransform;
     track.style.transition = previousTransition;
   }
 }
 
-function applyTrackTransform(track: HTMLElement, next: string, animate: boolean, applied: { current: string }) {
+function applyTrackTransform(track: HTMLElement, next: string, applied: { current: string }) {
   if (applied.current === next) return;
-  if (!animate || !applied.current) {
-    track.style.transition = 'none';
-    track.style.transform = next;
-    void track.offsetWidth;
-    track.style.transition = '';
-  } else {
-    track.style.transition = '';
-    track.style.transform = next;
-  }
+  track.style.transition = 'none';
+  track.style.transform = next;
   applied.current = next;
 }
 
@@ -166,7 +181,7 @@ export default function LosersColumnBoard({
   calledMatchId?: number | null;
   calledMatchIds?: number[];
   highlightMatchId?: number | null;
-  /** この試合と、次の枠までの線だけを画面いっぱいに出す */
+  /** この試合の列へ移動する。拡大はしない */
   frameMatchId?: number | null;
   /** 進行中の試合、または勝利確定後の次の枠 */
   pulseMatchIds?: number[];
@@ -201,46 +216,27 @@ export default function LosersColumnBoard({
     const track = trackRef.current;
     if (!viewport || !track) return;
     const rounds = cameraRoundsKey.split(',').map(Number).filter((round) => Number.isFinite(round));
-    const targetChanged = cameraKeyRef.current !== cameraKey;
     cameraKeyRef.current = cameraKey;
-    const place = (reason: 'target' | 'resize') => {
+    const place = () => {
       const viewW = viewport.clientWidth;
       const viewH = viewport.clientHeight;
       if (!viewW || !viewH) return;
-      let next: string | null = null;
-      if (frameMatchId != null) {
-        const source = track.querySelector<HTMLElement>(`[data-match-id="${frameMatchId}"]`);
-        const round = source?.closest<HTMLElement>('.losers-round');
-        const link = round?.querySelector<HTMLElement>('.losers-link');
-        const target = frameNextId == null ? null : track.querySelector<HTMLElement>(`[data-match-id="${frameNextId}"]`);
-        const cards = [source, target].filter((node): node is HTMLElement => node != null);
-        const extras = [
-          ...cards.flatMap((card) => {
-            const vs = card.querySelector<HTMLElement>('.losers-vs');
-            return vs ? [vs] : [];
-          }),
-          ...(link ? [link] : []),
-        ];
-        next = computeFit(track, viewW, viewH, [...cards, ...extras]);
-      }
-      if (!next) {
-        const roundNodes = rounds
-          .map((round) => track.querySelector<HTMLElement>(`.losers-round[data-round="${round}"]`))
+      const framed = frameMatchId == null
+        ? []
+        : [frameMatchId, frameNextId]
+          .filter((id): id is number => id != null)
+          .map((id) => track.querySelector<HTMLElement>(`[data-match-id="${id}"]`))
           .filter((node): node is HTMLElement => node != null);
-        next = roundNodes.length ? computeFit(track, viewW, viewH, roundNodes, 12) : null;
-      }
-      if (!next) {
-        const naturalW = track.scrollWidth;
-        const naturalH = track.scrollHeight;
-        if (!naturalW || !naturalH) return;
-        next = formatTransform(0, 0, Math.min(viewW / naturalW, viewH / naturalH));
-      }
-      const animate = reason === 'target' && targetChanged && appliedTransform.current !== '';
+      const roundNodes = rounds
+        .map((round) => track.querySelector<HTMLElement>(`.losers-round[data-round="${round}"]`))
+        .filter((node): node is HTMLElement => node != null);
+      const next = computeCamera(track, viewW, viewH, framed.length ? framed : roundNodes);
+      if (!next) return;
       track.style.transformOrigin = '0 0';
-      applyTrackTransform(track, next, animate, appliedTransform);
+      applyTrackTransform(track, next, appliedTransform);
     };
-    place('target');
-    const observer = new ResizeObserver(() => place('resize'));
+    place();
+    const observer = new ResizeObserver(() => place());
     observer.observe(viewport);
     return () => observer.disconnect();
   }, [cameraKey, cameraRoundsKey, frameMatchId, frameNextId]);
