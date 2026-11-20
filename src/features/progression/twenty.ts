@@ -1,7 +1,6 @@
 import { Status } from 'brackets-model';
 import type { BMMatch, StageData } from '../bracket/layout';
 import { getMatchBracketKind, getMatchRoundLabel } from './tiers';
-import { getActiveWinnersTeamIds } from './winnersAlive';
 
 export type TwentyPhase = 'A' | 'B' | 'C';
 
@@ -112,23 +111,18 @@ function lastEnds(data: StageData, endedAt: ReadonlyMap<number, number>): Map<st
   return last;
 }
 
-function fieldOpen(data: StageData): boolean {
-  const cut = winnersFieldRound(data);
-  return data.match.some(
-    (match) =>
-      getMatchBracketKind(data, match) === 'winner' &&
-      getMatchRoundLabel(data, match) <= cut &&
-      real(match) &&
-      match.status < Status.Completed,
-  );
+/** 全チームが不戦勝を除く実試合を1以上終えているか。手動解禁と同じ条件。 */
+export function allTeamsPlayedOnce(data: StageData): boolean {
+  const counts = playedCounts(data);
+  const teamIds = data.participant.map((row) => String(row.name)).filter((id) => id.length > 0);
+  return teamIds.length > 0 && teamIds.every((id) => (counts.get(id) ?? 0) >= 1);
 }
 
 export function effectivePhase(data: StageData, stored: TwentyPhase): TwentyPhase {
   if (stored === 'C') return 'C';
-  const alive = getActiveWinnersTeamIds(data).length;
-  const opened = alive > 4 || fieldOpen(data);
+  if (allTeamsPlayedOnce(data)) return 'C';
   if (stored === 'B') return 'B';
-  return opened ? 'A' : 'B';
+  return 'A';
 }
 
 function allowed(data: StageData, match: BMMatch, phase: TwentyPhase): boolean {
@@ -176,8 +170,7 @@ export function selectTwenty(input: TwentyInput): TwentyView {
   const phase = effectivePhase(input.data, input.storedPhase);
   const counts = playedCounts(input.data);
   const ends = lastEnds(input.data, input.endedAt);
-  const teamIds = input.data.participant.map((row) => String(row.name)).filter((id) => id.length > 0);
-  const manual = teamIds.length > 0 && teamIds.every((id) => (counts.get(id) ?? 0) >= 1);
+  const manual = allTeamsPlayedOnce(input.data);
   const latest = Math.max(0, ...input.endedAt.values());
   const justFinished = new Set<string>();
   if (latest > 0) {

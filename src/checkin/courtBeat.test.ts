@@ -21,9 +21,9 @@ function state(spot: Partial<CourtSpotlight> | null): DrawState {
 }
 
 describe('courtBeat', () => {
-  it('ルーザーズ告知は5秒で表へ切り替える', () => {
-    expect(courtBeat(state({ elapsed: 4.9 }))).toContain('beat:losers-intro');
-    expect(courtBeat(state({ elapsed: 5 }))).toContain('beat:bracket');
+  it('ルーザーズ導入は最初から表として扱う', () => {
+    expect(courtBeat(state({ elapsed: 0 }))).toContain('beat:bracket');
+    expect(courtBeat(state({ elapsed: 4.9 }))).toContain('beat:bracket');
   });
 
   it('隣の台が動いていても、勝者演出のあと表の段階に進む', () => {

@@ -13,9 +13,8 @@ import WinnerBoard from '../features/presentation/ceremony/WinnerBoard';
 import ChampionBoard from '../features/presentation/ceremony/ChampionBoard';
 import PodiumBoard from '../features/presentation/ceremony/PodiumBoard';
 import ThanksBoard from '../features/presentation/ceremony/ThanksBoard';
-import LosersIntro from '../features/presentation/scenes/LosersIntro';
 import OpeningBracketTour from '../features/presentation/scenes/OpeningBracketTour';
-import { LOSERS_INTRO_TITLE_SEC, LOSERS_INTRO_TOTAL_SEC } from '../features/presentation/losersIntroTiming';
+import { LOSERS_INTRO_BRACKET_SEC } from '../features/presentation/losersIntroTiming';
 import { getActiveWinnersTeamIds } from '../features/progression/winnersAlive';
 import type { BracketBoardSide } from '../features/bracket/layout';
 import CourtBoards from './CourtBoards';
@@ -201,9 +200,6 @@ function existingTeam(state: DrawState, id: string | null | undefined) {
 /** A board's start or result, played full screen with the same scenes as a single board. */
 function CourtSpotlightView({ state, spot }: { state: DrawState; spot: CourtSpotlight }) {
   if (spot.kind === 'losers-intro') {
-    if (spot.elapsed < LOSERS_INTRO_TITLE_SEC) {
-      return <LosersIntro key={`${spot.id}-title`} startAt={spot.elapsed} audioEnabled durationSec={LOSERS_INTRO_TITLE_SEC} />;
-    }
     return (
       <div key={`${spot.id}-bracket`} className="losers-bracket-fade relative h-full min-h-[60vh]">
         <SavedBracket omitCompleted state={{ ...state, flow: { ...state.flow!, boardSide: 'losers' } }} />
@@ -367,10 +363,7 @@ export default function FlowPresentation({ state, controlledTime }: { state: Dra
     }
     if (state.scene === 'vs_card' || state.scene === 'match_live') {
       const elapsed = controlledTime ?? state.elapsedSeconds;
-      if (state.scene === 'vs_card' && state.flow?.losersIntroPending && elapsed < LOSERS_INTRO_TOTAL_SEC) {
-        if (elapsed < LOSERS_INTRO_TITLE_SEC) {
-          return <LosersIntro key={`losers-intro-${state.sceneSeq}`} startAt={elapsed} audioEnabled={controlledTime == null} durationSec={LOSERS_INTRO_TITLE_SEC} />;
-        }
+      if (state.scene === 'vs_card' && state.flow?.losersIntroPending && elapsed < LOSERS_INTRO_BRACKET_SEC) {
         return (
           <div key={`losers-bracket-${state.sceneSeq}`} className="losers-bracket-fade relative h-full min-h-[60vh]">
             <SavedBracket omitCompleted state={{ ...state, flow: { ...state.flow!, boardSide: 'losers' } }} />
@@ -387,7 +380,7 @@ export default function FlowPresentation({ state, controlledTime }: { state: Dra
         .join(' · ');
       const vsStart =
         state.scene === 'vs_card' && state.flow?.losersIntroPending
-          ? Math.max(0, elapsed - LOSERS_INTRO_TOTAL_SEC)
+          ? Math.max(0, elapsed - LOSERS_INTRO_BRACKET_SEC)
           : elapsed;
       return (
         <VsBoard

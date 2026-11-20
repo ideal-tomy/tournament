@@ -72,7 +72,7 @@ async function finish(
   let manualAt: number | null = null;
   let manualCount = 0;
   let swapped = false;
-  let sawSwitchWhileLosersRemain = false;
+  let parallelAfterManual = false;
   const active = new Map<number, Set<string>>();
 
   const view = (): TwentyView => {
@@ -89,9 +89,16 @@ async function finish(
       manualAt = now;
       manualCount = [...played(data).values()].reduce((sum, count) => sum + count, 0) / 2;
       expect(teamsOf(data).every((id) => (played(data).get(id) ?? 0) >= 1)).toBe(true);
+      expect(current.phase).toBe('C');
+      expect(current.canSwitch).toBe(false);
     }
-    if (current.phase === 'B' && current.canSwitch && current.candidates.some((row) => getMatchBracketKind(data, row.match) === 'loser')) {
-      sawSwitchWhileLosersRemain = true;
+    if (
+      current.manual &&
+      current.phase === 'C' &&
+      current.candidates.some((row) => getMatchBracketKind(data, row.match) === 'loser') &&
+      current.candidates.some((row) => getMatchBracketKind(data, row.match) === 'winner')
+    ) {
+      parallelAfterManual = true;
     }
     if (options.manual && current.manual && !swapped) {
       const board = boards.find((row) => row.matchId != null);
@@ -174,13 +181,8 @@ async function finish(
     }
 
     if (!boards.some((board) => board.matchId != null)) {
-      if (current.phase === 'B' && current.promptSwitch) {
-        stored = 'C';
-        continue;
-      }
       if (current.wait === TWENTY_WAIT.finished || current.wait === TWENTY_WAIT.opponent || current.wait === TWENTY_WAIT.phase) break;
       throw new Error(current.wait ?? '候補があるのに割り当てられていません');
-      break;
     }
     if (!assigned && boards.every((board) => board.matchId == null)) break;
 
@@ -203,7 +205,7 @@ async function finish(
   }
 
   const champion = await getChampionTeamId(createManagerFromSnapshot(snapshotNow));
-  return { log, idle, champion, manualAt, manualCount, swapped, sawSwitchWhileLosersRemain, snapshot: snapshotNow };
+  return { log, idle, champion, manualAt, manualCount, swapped, parallelAfterManual, snapshot: snapshotNow };
 }
 
 describe('20チーム・2台の進行', () => {
@@ -235,7 +237,9 @@ describe('20チーム・2台の進行', () => {
     });
     expect(result.champion).toMatch(/^team-/);
     expect(result.swapped).toBe(true);
-    expect(result.sawSwitchWhileLosersRemain).toBe(true);
+    expect(result.parallelAfterManual).toBe(true);
+    expect(result.log.some((row) => row.kind === 'loser')).toBe(true);
+    expect(result.log.some((row) => row.kind === 'winner' && row.t >= (result.manualAt ?? 0))).toBe(true);
     expect(result.manualCount).toBe(10);
     expect(result.log.some((row) => row.kind === 'grand_final')).toBe(true);
     expect(result.log.filter((row) => row.kind === 'grand_final')).toHaveLength(1);
@@ -269,6 +273,7 @@ describe('20チーム・2台の進行', () => {
     expect(result.manualAt).not.toBeNull();
     const at = toStageData(result.snapshot);
     expect(teamsOf(at).every((id) => (played(at).get(id) ?? 0) >= 1)).toBe(true);
-    expect(result.sawSwitchWhileLosersRemain).toBe(true);
+    expect(result.parallelAfterManual).toBe(true);
+    expect(result.log.some((row) => row.kind === 'loser')).toBe(true);
   });
 });

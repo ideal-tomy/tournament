@@ -95,27 +95,53 @@ function boxOf(root: DOMRect, node: HTMLElement) {
   return { x: rect.left - root.left, y: rect.top - root.top, w: rect.width, h: rect.height };
 }
 
-function fitBoxes(
+function formatTransform(tx: number, ty: number, scale: number) {
+  return `translate(${tx.toFixed(2)}px, ${ty.toFixed(2)}px) scale(${scale.toFixed(4)})`;
+}
+
+/** 計測のために transform を外すが、その瞬間は transition も止めて画面に出さない。 */
+function computeFit(
   track: HTMLElement,
   viewW: number,
   viewH: number,
   nodes: HTMLElement[],
   pad = 16,
-) {
+): string | null {
+  if (!nodes.length) return null;
+  const previousTransform = track.style.transform;
+  const previousTransition = track.style.transition;
+  track.style.transition = 'none';
   track.style.transform = 'none';
-  const root = track.getBoundingClientRect();
-  const boxes = nodes.map((node) => boxOf(root, node));
-  if (!boxes.length) return false;
-  const left = Math.min(...boxes.map((box) => box.x)) - pad;
-  const top = Math.min(...boxes.map((box) => box.y)) - pad;
-  const right = Math.max(...boxes.map((box) => box.x + box.w)) + pad;
-  const bottom = Math.max(...boxes.map((box) => box.y + box.h)) + pad;
-  const width = Math.max(1, right - left);
-  const height = Math.max(1, bottom - top);
-  const scale = Math.min(viewW / width, viewH / height);
-  track.style.transformOrigin = '0 0';
-  track.style.transform = `translate(${viewW / 2 - (left + width / 2) * scale}px, ${viewH / 2 - (top + height / 2) * scale}px) scale(${scale})`;
-  return true;
+  void track.offsetWidth;
+  try {
+    const root = track.getBoundingClientRect();
+    const boxes = nodes.map((node) => boxOf(root, node));
+    const left = Math.min(...boxes.map((box) => box.x)) - pad;
+    const top = Math.min(...boxes.map((box) => box.y)) - pad;
+    const right = Math.max(...boxes.map((box) => box.x + box.w)) + pad;
+    const bottom = Math.max(...boxes.map((box) => box.y + box.h)) + pad;
+    const width = Math.max(1, right - left);
+    const height = Math.max(1, bottom - top);
+    const scale = Math.min(viewW / width, viewH / height);
+    return formatTransform(viewW / 2 - (left + width / 2) * scale, viewH / 2 - (top + height / 2) * scale, scale);
+  } finally {
+    track.style.transform = previousTransform;
+    track.style.transition = previousTransition;
+  }
+}
+
+function applyTrackTransform(track: HTMLElement, next: string, animate: boolean, applied: { current: string }) {
+  if (applied.current === next) return;
+  if (!animate || !applied.current) {
+    track.style.transition = 'none';
+    track.style.transform = next;
+    void track.offsetWidth;
+    track.style.transition = '';
+  } else {
+    track.style.transition = '';
+    track.style.transform = next;
+  }
+  applied.current = next;
 }
 
 /** ルーザーズだけ、回戦の列と接続線で出す。ウィナーズの樹とは別の画面。 */
@@ -161,23 +187,32 @@ export default function LosersColumnBoard({
   });
   const cameraRoundList = venueCameraRounds(focusRound, columns[columns.length - 1]?.round ?? focusRound);
   const cameraRoundsKey = cameraRoundList.join(',');
+  const frameNextId =
+    frameMatchId == null
+      ? null
+      : columns.flatMap((column) => column.matches).find((match) => match.id === frameMatchId)?.nextId ?? null;
+  const cameraKey = `${cameraRoundsKey}|${focusRound}|${focusId ?? ''}|${frameMatchId ?? ''}|${frameNextId ?? ''}`;
   const viewportRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
+  const appliedTransform = useRef('');
+  const cameraKeyRef = useRef(cameraKey);
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
     const track = trackRef.current;
     if (!viewport || !track) return;
     const rounds = cameraRoundsKey.split(',').map(Number).filter((round) => Number.isFinite(round));
-    const place = () => {
+    const targetChanged = cameraKeyRef.current !== cameraKey;
+    cameraKeyRef.current = cameraKey;
+    const place = (reason: 'target' | 'resize') => {
       const viewW = viewport.clientWidth;
       const viewH = viewport.clientHeight;
       if (!viewW || !viewH) return;
+      let next: string | null = null;
       if (frameMatchId != null) {
         const source = track.querySelector<HTMLElement>(`[data-match-id="${frameMatchId}"]`);
         const round = source?.closest<HTMLElement>('.losers-round');
         const link = round?.querySelector<HTMLElement>('.losers-link');
-        const nextId = columns.flatMap((column) => column.matches).find((match) => match.id === frameMatchId)?.nextId;
-        const target = nextId == null ? null : track.querySelector<HTMLElement>(`[data-match-id="${nextId}"]`);
+        const target = frameNextId == null ? null : track.querySelector<HTMLElement>(`[data-match-id="${frameNextId}"]`);
         const cards = [source, target].filter((node): node is HTMLElement => node != null);
         const extras = [
           ...cards.flatMap((card) => {
@@ -186,24 +221,29 @@ export default function LosersColumnBoard({
           }),
           ...(link ? [link] : []),
         ];
-        if (fitBoxes(track, viewW, viewH, [...cards, ...extras])) return;
+        next = computeFit(track, viewW, viewH, [...cards, ...extras]);
       }
-      const roundNodes = rounds
-        .map((round) => track.querySelector<HTMLElement>(`.losers-round[data-round="${round}"]`))
-        .filter((node): node is HTMLElement => node != null);
-      if (roundNodes.length && fitBoxes(track, viewW, viewH, roundNodes, 12)) return;
-      const naturalW = track.scrollWidth;
-      const naturalH = track.scrollHeight;
-      if (!naturalW || !naturalH) return;
-      const scale = Math.min(viewW / naturalW, viewH / naturalH);
+      if (!next) {
+        const roundNodes = rounds
+          .map((round) => track.querySelector<HTMLElement>(`.losers-round[data-round="${round}"]`))
+          .filter((node): node is HTMLElement => node != null);
+        next = roundNodes.length ? computeFit(track, viewW, viewH, roundNodes, 12) : null;
+      }
+      if (!next) {
+        const naturalW = track.scrollWidth;
+        const naturalH = track.scrollHeight;
+        if (!naturalW || !naturalH) return;
+        next = formatTransform(0, 0, Math.min(viewW / naturalW, viewH / naturalH));
+      }
+      const animate = reason === 'target' && targetChanged && appliedTransform.current !== '';
       track.style.transformOrigin = '0 0';
-      track.style.transform = `translateX(0px) scale(${scale})`;
+      applyTrackTransform(track, next, animate, appliedTransform);
     };
-    place();
-    const observer = new ResizeObserver(place);
+    place('target');
+    const observer = new ResizeObserver(() => place('resize'));
     observer.observe(viewport);
     return () => observer.disconnect();
-  }, [cameraRoundsKey, columns, focusId, focusRound, frameMatchId]);
+  }, [cameraKey, cameraRoundsKey, frameMatchId, frameNextId]);
   return (
     <div ref={viewportRef} className="losers-viewport" aria-label="ルーザーズ">
       <div ref={trackRef} className={`losers-track${frameMatchId == null ? '' : ' is-framed'}`}>

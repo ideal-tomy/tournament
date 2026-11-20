@@ -4,13 +4,11 @@ import type { DrawState } from './DrawControl';
 import { ceremonyAutoStart } from './ceremonyAutoStart';
 import { firstBoardAutoFill } from './firstBoardAutoFill';
 import { preparePortraits } from './portraitCache';
-import { LOSERS_INTRO_TITLE_SEC } from '../features/presentation/losersIntroTiming';
-
 /** Which board beat is on screen, and which boards still wait for theirs. Advances with time, not version. */
 export function courtBeat(state: DrawState) {
   const courts = state.flow?.courts, spot = courts?.spotlight;
   const beat = !spot ? ''
-    : spot.kind === 'losers-intro' && spot.elapsed >= LOSERS_INTRO_TITLE_SEC ? 'bracket'
+    : spot.kind === 'losers-intro' ? 'bracket'
     : spot.kind === 'winner' && spot.elapsed >= spot.winnerSec ? 'bracket'
     : spot.kind;
   const phase = spot ? `${spot.id}:${beat}` : '';

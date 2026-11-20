@@ -17,6 +17,7 @@ export {
   type BoardSide,
 } from './tiers';
 export {
+  allTeamsPlayedOnce,
   isTwentyDe,
   reassignCall,
   selectTwenty,

@@ -3,7 +3,7 @@ import { createManagerFromSnapshot, exportSnapshot, toStageData, type BracketSna
 import { applyResult, explainCourtFillWait, getBoardSide, getChapterMatches, getCourtFillMatches, getChampionTeamId, getFinalPlacements, getNextMatch, getSlotTeamUuid, getMatchBracketKind, getMatchRoundLabel, isTwentyDe, reassignCall, selectTwenty, type BoardSide, type FinalPlacements, type TwentyCandidate, type TwentyPhase } from '../../../src/features/progression/progression';
 import type { BMMatch } from '../../../src/features/bracket/layout';
 import { openingTourDurationSec } from '../../../src/features/presentation/openingTourTiming';
-import { LOSERS_INTRO_TOTAL_SEC } from '../../../src/features/presentation/losersIntroTiming';
+import { LOSERS_INTRO_BRACKET_SEC } from '../../../src/features/presentation/losersIntroTiming';
 import { calloutForRound } from '../../../src/features/presentation/vsBoard/callout';
 import { rehearsalTiming } from '../../../src/lib/rehearsalTiming';
 import { eventProfile } from './profile';
@@ -42,11 +42,6 @@ const twentyClock=(payload:Payload,data:ReturnType<typeof toStageData>,reserved:
  openedAt:payload.twenty?Date.parse(payload.twenty.openedAt):nowMs,now:nowMs,
 });
 const activeBoardIds=(courts:Courts)=>new Set(courts.boards.flatMap(b=>(b.stage==='call'||b.stage==='live')&&b.matchId!=null?[b.matchId]:[]));
-const losersGateRemaining=(payload:Payload,now=Date.now())=>{
- if(!payload.losersIntroUntil)return 0;
- return Math.max(0,(Date.parse(payload.losersIntroUntil)-now)/1000);
-};
-const losersGateActive=(payload:Payload,now=Date.now())=>losersGateRemaining(payload,now)>0;
 async function load(env:CheckinEnv){
  const row=await env.DB.prepare("SELECT s.*,e.bracket_snapshot,e.bm_current_match_id FROM event_state s JOIN events e ON e.id=s.event_id WHERE s.event_id=? AND e.environment='rehearsal'").bind(env.CHECKIN_EVENT_ID).first<Scene&{bracket_snapshot:string|null;bm_current_match_id:number|null}>();
  if(!row?.bracket_snapshot)throw new ClientError('DRAW_REQUIRED',409);
@@ -94,10 +89,10 @@ export async function flowView(env:CheckinEnv,projection?:Awaited<ReturnType<typ
  const courts=court?{count:court.count,showBracket:!!court.showBracket,spotlight,boards:court.boards.map(b=>{const m=b.matchId==null?null:data.match.find(x=>x.id===b.matchId);return {...b,showing:boardShowing(court,b.board,now),match:m?describe(m):null};})}:null;
  const updatingBracket=scene.scene==='bracket'&&payload.lastMatchId!=null;
  const profile=await eventProfile(env);
- const losersIntroCap=profile.timingPreset==='instant'?0:LOSERS_INTRO_TOTAL_SEC;
+ const losersIntroCap=profile.timingPreset==='instant'?0:LOSERS_INTRO_BRACKET_SEC;
  const losersIntroRemainingSec=scene.scene==='vs_card'&&payload.losersIntroPending
   ?Math.max(0,losersIntroCap-elapsed(scene))
-  :losersGateRemaining(payload,now);
+  :0;
  const twentyOn=!!payload.courts&&payload.courts.count===2&&isTwentyDe(data)&&scene.scene==='interval';
  let nextMatch=upcoming?{id:upcoming.id,teamA:getSlotTeamUuid(data,upcoming,0),teamB:getSlotTeamUuid(data,upcoming,1)}:null;
  let waitReason=nextWaitReason;
@@ -161,7 +156,7 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
  const timingPreset=(await eventProfile(env)).timingPreset;
  const timing=rehearsalTiming(timingPreset);
  const instant=timingPreset==='instant';
- const losersIntroSec=instant?0:LOSERS_INTRO_TOTAL_SEC;
+ const losersBracketSec=instant?0:LOSERS_INTRO_BRACKET_SEC;
  const stepDuration=(step:CeremonyStep)=>step==='podium'?timing.podium:step==='champion'?timing.award:timing.winner;
  async function award(champion:string){
   const placements=await getFinalPlacements(createManagerFromSnapshot(snapshot))??{first:champion,second:[],third:[]};
@@ -179,7 +174,7 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
   const losersIntro=getMatchBracketKind(data,next)==='loser'&&!payload.losersIntroPlayed;
   if(losersIntro)payload={...payload,losersIntroPlayed:true,losersIntroPending:true};
   else payload={...payload,losersIntroPending:false};
-  payload={...payload,matchId:next.id,teamA:getSlotTeamUuid(data,next,0),teamB:getSlotTeamUuid(data,next,1),durationSec:timing.vsLead+(losersIntro?losersIntroSec:0)};nextScene='vs_card';
+  payload={...payload,matchId:next.id,teamA:getSlotTeamUuid(data,next,0),teamB:getSlotTeamUuid(data,next,1),durationSec:timing.vsLead+(losersIntro?losersBracketSec:0)};nextScene='vs_card';
 }
  if(action==='announce'){
   if(!view?.canAnnounce)throw new ClientError('INVALID_FLOW_PHASE',409);
@@ -224,7 +219,6 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
     payload.twenty={...payload.twenty,phase:'C'};
    }else if(action==='court-pick'){
     if(!payload.twenty)throw new ClientError('INVALID_FLOW_PHASE',409);
-    if(losersGateActive(payload,nowMs))throw new ClientError('LOSERS_INTRO_PLAYING',409);
     const board=courts.boards.find(b=>b.board===body.board);
     if(!board)throw new ClientError('INVALID_BOARD',400);
     if(board.stage!=='idle'&&board.stage!=='call')throw new ClientError('SCENE_NOT_FINISHED',409);
@@ -233,13 +227,8 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
     const picked=toStageData(snapshot);
     const accepted=reassignCall(twentyClock(payload,picked,activeBoardIds(courts),nowMs),board.matchId,body.matchId);
     if(accepted==null)throw new ClientError('MATCH_NOT_READY',409);
-    const chosen=picked.match.find(m=>m.id===accepted);
-    if(chosen&&getMatchBracketKind(picked,chosen)==='loser'&&!payload.losersIntroPlayed){
-     payload={...payload,losersIntroPlayed:true,losersIntroUntil:losersIntroSec>0?new Date(nowMs+losersIntroSec*1000).toISOString():null};
-     enqueueSpotlight(courts,{id:`${commandId}-losers-intro`,board:0,kind:'losers-intro',matchId:chosen.id,durationSec:losersIntroSec},nowMs);
-    }else Object.assign(board,{matchId:accepted,stage:'call',startedAt:now,winnerTeamId:null,loserTeamId:null});
+    Object.assign(board,{matchId:accepted,stage:'call',startedAt:now,winnerTeamId:null,loserTeamId:null});
    }else{
-    if(losersGateActive(payload,nowMs))throw new ClientError('LOSERS_INTRO_PLAYING',409);
     const board=courts.boards.find(b=>b.board===body.board);
     if(!board)throw new ClientError('INVALID_BOARD',400);
     const data=toStageData(snapshot),match=board.matchId==null?null:data.match.find(m=>m.id===board.matchId);
@@ -248,6 +237,10 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
      const manager=createManagerFromSnapshot(snapshot);
      await manager.update.match({id:match.id,status:Status.Running});snapshot=await exportSnapshot(manager);
      Object.assign(board,{stage:'live',startedAt:now});status='running';
+     if(getMatchBracketKind(data,match)==='loser'&&!payload.losersIntroPlayed){
+      payload={...payload,losersIntroPlayed:true};
+      enqueueSpotlight(courts,{id:`${commandId}-losers-intro`,board:0,kind:'losers-intro',matchId:match.id,durationSec:losersBracketSec},nowMs);
+     }
      enqueueSpotlight(courts,{id:commandId,board:board.board,kind:'vs',matchId:match.id,durationSec:timing.vsLead+timing.vsHold},nowMs);
     }else if(action==='court-winner'){
      if(board.stage!=='live'||!match||match.status!==Status.Running)throw new ClientError('MATCH_NOT_LIVE',409);
@@ -286,13 +279,10 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
   if(twentyOn){
    if(assignBoard!=null&&!payload.championTeamId){
     const board=courts.boards.find(b=>b.board===assignBoard);
-    if(board&&board.matchId==null&&!losersGateActive(payload,nowMs)){
+    if(board&&board.matchId==null){
      const pick=selectTwenty(twentyClock(payload,data,activeBoardIds(courts),nowMs));
      const next=pick.priority?.match??null;
-     if(next&&getMatchBracketKind(data,next)==='loser'&&!payload.losersIntroPlayed){
-      payload={...payload,losersIntroPlayed:true,losersIntroUntil:losersIntroSec>0?new Date(nowMs+losersIntroSec*1000).toISOString():null};
-      enqueueSpotlight(courts,{id:`${commandId}-losers-intro`,board:0,kind:'losers-intro',matchId:next.id,durationSec:losersIntroSec},nowMs);
-     }else if(next)Object.assign(board,{matchId:next.id,stage:'call',startedAt:now});
+     if(next)Object.assign(board,{matchId:next.id,stage:'call',startedAt:now});
      else if(action==='court-next')throw new ClientError('NO_PLAYABLE_MATCH',409);
     }
    }
@@ -302,7 +292,7 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
    const celebration=(courts.spotlights??[]).some(s=>spotlightBlocks(s,nowMs));
    const playing=courts.boards.some(b=>b.stage==='call'||b.stage==='live');
    // 優勝確定後は台を空きに戻さなくても、演出が終われば表彰へ進む（result のまま「大会終了」で止まらない）
-   if(payload.championTeamId&&!playing&&!losersGateActive(payload,nowMs)&&!celebration){delete payload.courts;await award(payload.championTeamId);}
+   if(payload.championTeamId&&!playing&&!celebration){delete payload.courts;await award(payload.championTeamId);}
    else {payload={...payload,courts,durationSec:0};nextScene='interval';}
   }else{
   for(const board of courts.boards){
@@ -316,17 +306,9 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
   }
   const fill=getCourtFillMatches(data,taken,restingTeamIds);
   const waiting=fill.matches.filter(m=>!isFinalMatch(snapshot,m));
-  const wouldAssignLoser=!payload.losersIntroPlayed&&waiting.some(m=>getMatchBracketKind(data,m)==='loser');
-  if(wouldAssignLoser){
-   const firstLoser=waiting.find(m=>getMatchBracketKind(data,m)==='loser')!;
-   payload={...payload,losersIntroPlayed:true,losersIntroUntil:losersIntroSec>0?new Date(nowMs+losersIntroSec*1000).toISOString():null};
-   enqueueSpotlight(courts,{id:`${commandId}-losers-intro`,board:0,kind:'losers-intro',matchId:firstLoser.id,durationSec:losersIntroSec},nowMs);
-  }
-  if(!losersGateActive(payload,nowMs)){
-   for(const b of courts.boards)if(b.matchId==null){const m=waiting.shift();if(m)Object.assign(b,{matchId:m.id,stage:'call',startedAt:now});}
-  }
+  for(const b of courts.boards)if(b.matchId==null){const m=waiting.shift();if(m)Object.assign(b,{matchId:m.id,stage:'call',startedAt:now});}
   courts.spotlights=(courts.spotlights??[]).filter(s=>spotlightEnd(s)>nowMs);
-  if(courts.boards.some(b=>b.matchId!=null)||losersGateActive(payload,nowMs)){payload={...payload,courts,durationSec:0};nextScene='interval';}
+  if(courts.boards.some(b=>b.matchId!=null)){payload={...payload,courts,durationSec:0};nextScene='interval';}
   else if(action==='courts-open')throw new ClientError('NO_PLAYABLE_MATCH',409);
   else{payload={...payload,durationSec:timing.bracket};delete payload.courts;delete payload.lastMatchId;nextScene='bracket';}
   }

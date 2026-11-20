@@ -17,10 +17,8 @@ import type { CeremonyTeam } from '../features/presentation/ceremony/CeremonyFra
 import PodiumBoard from '../features/presentation/ceremony/PodiumBoard';
 import ThanksBoard from '../features/presentation/ceremony/ThanksBoard';
 import WinnerBoard from '../features/presentation/ceremony/WinnerBoard';
-import LosersIntro from '../features/presentation/scenes/LosersIntro';
 import {
-  LOSERS_INTRO_TITLE_SEC,
-  LOSERS_INTRO_TOTAL_SEC,
+  LOSERS_INTRO_BRACKET_SEC,
 } from '../features/presentation/losersIntroTiming';
 import OpeningBracketTour from '../features/presentation/scenes/OpeningBracketTour';
 import PairConfirmed from '../features/presentation/scenes/PairConfirmed';
@@ -45,7 +43,7 @@ const VIEWS = [
   ['semi', 'セミファイナル'],
   ['final', 'ファイナル'],
   ['again', 'ファイナルアゲイン'],
-  ['losers-intro', 'ルーザーズ導入（5秒＋表5秒）'],
+  ['losers-intro', 'ルーザーズ導入（表5秒）'],
   ['bracket-focus', '表の寄り（消化後）'],
   ['winner', 'WINNER'],
   ['champion', '優勝'],
@@ -145,15 +143,12 @@ function LosersIntroSequence({ teams, replay }: { teams: FixtureTeam[]; replay: 
     const tick = () => {
       const next = (performance.now() - started) / 1000;
       setElapsed(next);
-      if (next < LOSERS_INTRO_TOTAL_SEC + 1) frame = requestAnimationFrame(tick);
+      if (next < LOSERS_INTRO_BRACKET_SEC + 1) frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
   }, [replay]);
-  if (elapsed < LOSERS_INTRO_TITLE_SEC) {
-    return <LosersIntro startAt={elapsed} audioEnabled={false} durationSec={LOSERS_INTRO_TITLE_SEC} />;
-  }
-  if (elapsed < LOSERS_INTRO_TOTAL_SEC) {
+  if (elapsed < LOSERS_INTRO_BRACKET_SEC) {
     if (!data) return <p role="status">ルーザーズに入った組を組んでいます…</p>;
     return (
       <div className="losers-bracket-fade relative h-full min-h-[60vh]">
@@ -163,7 +158,7 @@ function LosersIntroSequence({ teams, replay }: { teams: FixtureTeam[]; replay: 
   }
   return (
     <p className="m-6 text-slate-200">
-      本番では {LOSERS_INTRO_TOTAL_SEC} 秒経過後に VS へ切り替わります。もう一度で最初から再生します。
+      本番では初回のルーザーズ試合開始のあと、表を {LOSERS_INTRO_BRACKET_SEC} 秒出してから VS へ切り替わります。もう一度で最初から再生します。
     </p>
   );
 }

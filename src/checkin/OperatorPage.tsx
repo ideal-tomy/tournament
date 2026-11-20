@@ -327,13 +327,11 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
     </ActionBar>;
   } else if (state.scene === 'interval' && f?.courts) {
     const courts = f.courts;
-    const losersLeft = Math.ceil(f.losersIntroRemainingSec ?? 0);
     const next = f.nextMatch;
     const nextSides = next
       ? [state.teams.find(team => team.id === next.teamA), state.teams.find(team => team.id === next.teamB)]
       : null;
     body = <div className="op-boards">
-      {losersLeft > 0 && <p className="op-hint" role="status">ルーザーズ開始の確認中 · 残り {losersLeft}秒。このあいだは試合開始と台の割当を止めます。</p>}
       <section className="op-match" aria-label="次の試合">
         <p className="op-match-round">次の試合</p>
         {nextSides
@@ -345,10 +343,6 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
           : <p className="op-note">まだ組める対戦がありません</p>}
         {f.twenty?.priorityReason && <p className="op-hint">{f.twenty.priorityReason}</p>}
         {f.nextWaitReason && <p className="op-hint">{f.nextWaitReason}</p>}
-        {f.twenty?.canSwitch && <>
-          {f.twenty.promptSwitch && <p className="op-hint">出せるルーザーズが尽きました。ウィナーズも同時に進められます。</p>}
-          <button className={f.twenty.promptSwitch ? 'primary' : 'op-link-button'} disabled={busy || losersLeft > 0} onClick={() => void flow('courts-parallel')}>ウィナーズも同時に進める</button>
-        </>}
         {!f.twenty && f.progressionDebug && <details className="op-hint">
           <summary>進行デバッグ</summary>
           <p>待ち理由: {f.nextWaitReason ?? 'なし'}</p>
@@ -362,8 +356,8 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
           <p>各台: {courts.boards.map(board => `台${board.board}=${board.stage}${board.matchId == null ? '' : ` m${board.matchId}`}`).join(' · ')}</p>
         </details>}
       </section>
-      <button className="op-link-button" disabled={busy || losersLeft > 0} onClick={() => void flow('courts-view', { show: !courts.showBracket })}>{courts.showBracket ? '会場を台の表示に戻す' : '会場にトーナメント表を出す'}</button>
-      {courts.boards.map(board => <BoardCard key={board.board} state={state} board={board} busy={busy || losersLeft > 0}
+      <button className="op-link-button" disabled={busy} onClick={() => void flow('courts-view', { show: !courts.showBracket })}>{courts.showBracket ? '会場を台の表示に戻す' : '会場にトーナメント表を出す'}</button>
+      {courts.boards.map(board => <BoardCard key={board.board} state={state} board={board} busy={busy}
         fillable={Boolean(next)} blockedLabel={f.nextWaitReason ?? null}
         choices={f.twenty?.manual ? f.twenty.choices.find(choice => choice.board === board.board)?.matches ?? [] : []}
         pick={board.match ? picks[board.match.id] : undefined}
@@ -377,10 +371,10 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
   } else if (state.scene === 'vs_card' && f?.currentMatch) {
     const losersLeft = Math.ceil(f.losersIntroRemainingSec ?? 0);
     body = <>
-      {losersLeft > 0 && <p className="op-hint" role="status">ルーザーズ開始の確認中 · 残り {losersLeft}秒</p>}
+      {losersLeft > 0 && <p className="op-hint" role="status">ルーザーズ表を表示中 · 残り {losersLeft}秒</p>}
       <MatchCard state={state} />
     </>;
-    bar = gate(f.canStart, '試合開始', losersLeft > 0 ? `ルーザーズ確認中 · 残り ${losersLeft}秒` : 'VS演出中 · まもなく押せます', () => void flow('start'));
+    bar = gate(f.canStart, '試合開始', losersLeft > 0 ? `ルーザーズ表 · 残り ${losersLeft}秒` : 'VS演出中 · まもなく押せます', () => void flow('start'));
   } else if (state.scene === 'match_live' && f?.currentMatch) {
     body = <><p className="op-hint">勝ったチームをタップ</p><MatchCard state={state} chosen={winner} choose={slot => setWinner(value => value === slot ? null : slot)} /></>;
     const chosenId = winner == null ? null : winner === 0 ? f.currentMatch.teamA : f.currentMatch.teamB;
