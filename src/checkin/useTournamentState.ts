@@ -1,12 +1,18 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from './api';
 import type { DrawState } from './DrawControl';
+import { firstBoardAutoFill } from './firstBoardAutoFill';
 import { preparePortraits } from './portraitCache';
+import { LOSERS_INTRO_TITLE_SEC } from '../features/presentation/losersIntroTiming';
 
 /** Which board beat is on screen, and which boards still wait for theirs. Advances with time, not version. */
-function courtBeat(state: DrawState) {
+export function courtBeat(state: DrawState) {
   const courts = state.flow?.courts, spot = courts?.spotlight;
-  const phase = spot ? `${spot.id}:${spot.kind === 'winner' && spot.elapsed >= spot.winnerSec ? 'bracket' : spot.kind}` : '';
+  const beat = !spot ? ''
+    : spot.kind === 'losers-intro' && spot.elapsed >= LOSERS_INTRO_TITLE_SEC ? 'bracket'
+    : spot.kind === 'winner' && spot.elapsed >= spot.winnerSec ? 'bracket'
+    : spot.kind;
+  const phase = spot ? `${spot.id}:${beat}` : '';
   return `${phase}|${courts?.boards.map(b => b.showing ? 1 : 0).join('') ?? ''}`;
 }
 
@@ -22,6 +28,7 @@ function same(previous: DrawState, next: DrawState) {
 export function useTournamentState(onAuthRequired: () => void, sessionVersion: number, { automaticAdvance = false, portraits = true }: { automaticAdvance?: boolean; portraits?: boolean } = {}) {
   const [state, setState] = useState<DrawState | null>(null), [error, setError] = useState('');
   const [revision, setRevision] = useState(0);
+  const filled = useRef<number | null>(null);
   useEffect(() => {
     let cancelled = false, inFlight: AbortController | null = null;
     const lifetime = new AbortController();
@@ -34,6 +41,17 @@ export function useTournamentState(onAuthRequired: () => void, sessionVersion: n
       lifetime.signal.addEventListener('abort', abort, { once: true });
       try {
         let next = await api<DrawState>('/api/draw/state', { signal: controller.signal });
+        if (firstBoardAutoFill(next) && filled.current !== next.version) {
+          try {
+            next = await api<DrawState>('/api/tournament/court-next', { method: 'POST', body: JSON.stringify({ requestId: crypto.randomUUID(), expectedVersion: next.version, board: 1 }), signal: controller.signal });
+            filled.current = null;
+          } catch (reason) {
+            if (!(reason instanceof ApiError) || !['VERSION_CONFLICT', 'SPOTLIGHT_PLAYING', 'LOSERS_INTRO_PLAYING'].includes(reason.code)) {
+              if (reason instanceof ApiError && reason.code === 'NO_PLAYABLE_MATCH') filled.current = next.version;
+              else throw reason;
+            }
+          }
+        }
         if (automaticAdvance && next.flow?.canAdvance) next = await api<DrawState>('/api/tournament/advance', { method: 'POST', body: JSON.stringify({ requestId: crypto.randomUUID(), expectedVersion: next.version }), signal: controller.signal });
         if (portraits) next = await preparePortraits(next, controller.signal);
         if (!cancelled && inFlight === controller) { setState(previous => previous && same(previous, next) ? previous : next); setError(''); }
