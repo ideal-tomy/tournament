@@ -299,9 +299,10 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
    const progressed=selectTwenty(twentyClock(payload,data,activeBoardIds(courts),nowMs));
    if(payload.twenty&&payload.twenty.phase!=='C')payload.twenty={...payload.twenty,phase:progressed.phase};
    courts.spotlights=(courts.spotlights??[]).filter(s=>spotlightEnd(s)>nowMs);
-   const quiet=courts.boards.every(b=>b.matchId==null&&b.stage==='idle');
    const celebration=(courts.spotlights??[]).some(s=>spotlightBlocks(s,nowMs));
-   if(payload.championTeamId&&quiet&&!losersGateActive(payload,nowMs)&&!celebration){delete payload.courts;await award(payload.championTeamId);}
+   const playing=courts.boards.some(b=>b.stage==='call'||b.stage==='live');
+   // 優勝確定後は台を空きに戻さなくても、演出が終われば表彰へ進む（result のまま「大会終了」で止まらない）
+   if(payload.championTeamId&&!playing&&!losersGateActive(payload,nowMs)&&!celebration){delete payload.courts;await award(payload.championTeamId);}
    else {payload={...payload,courts,durationSec:0};nextScene='interval';}
   }else{
   for(const board of courts.boards){

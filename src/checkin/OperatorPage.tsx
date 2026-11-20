@@ -156,8 +156,13 @@ function MatchCard({ state, match = state.flow!.currentMatch!, choose, chosen }:
       ? <button type="button" className={`op-side${chosen === slot ? ' is-chosen' : ''}`} aria-pressed={chosen === slot} onClick={() => choose(slot)}>{body}</button>
       : <div className="op-side">{body}</div>;
   };
+  const roundLabel = match.callout === 'final-again'
+    ? 'FINAL AGAIN'
+    : match.callout === 'final' || match.final
+      ? 'FINAL'
+      : match.roundName ?? `Round ${match.round}`;
   return <section className="op-match" aria-label="現在の試合">
-    <p className="op-match-round">{match.final ? 'FINAL' : match.roundName ?? `Round ${match.round}`} · Match {match.id + 1}</p>
+    <p className="op-match-round">{roundLabel} · Match {match.id + 1}</p>
     <div className="op-match-sides">{side(sides[0], 0)}<span className="op-vs">VS</span>{side(sides[1], 1)}</div>
   </section>;
 }
@@ -176,12 +181,12 @@ function BoardCard({ state, board, busy, pick, fillable, blockedLabel, choices, 
     {match
       ? <MatchCard state={state} match={match} chosen={board.stage === 'live' ? pick ?? null : settled} choose={board.stage === 'live' ? onPick : undefined} />
       : <p className="op-note">組める試合が決まると、ここに入ります</p>}
-    {board.board === 1 && (board.stage === 'idle' || board.stage === 'result') && !board.showing && (
+    {board.board === 1 && (board.stage === 'idle' || board.stage === 'result') && !board.showing && !state.flow?.championTeamId && (
       fillable
         ? <p className="op-hint">次の試合は自動で入ります</p>
         : <button className="primary op-wait" disabled>{blockedLabel ?? 'まだ組める対戦がありません'}</button>
     )}
-    {board.board !== 1 && board.stage === 'idle' && !match && (fillable
+    {board.board !== 1 && board.stage === 'idle' && !match && !state.flow?.championTeamId && (fillable
       ? <button className="primary" disabled={busy} onClick={() => onCommand('court-next')}>次の試合を入れる</button>
       : <button className="primary op-wait" disabled>{blockedLabel ?? 'まだ組める対戦がありません'}</button>)}
     {board.stage === 'call' && <button className="primary" disabled={busy} onClick={() => onCommand('court-start')}>試合開始</button>}
@@ -190,12 +195,18 @@ function BoardCard({ state, board, busy, pick, fillable, blockedLabel, choices, 
       : pick == null
         ? <button className="primary" disabled>勝ったチームをタップ</button>
         : <button className="primary" disabled={busy} onClick={() => onCommand('court-winner', { winnerSlot: pick })}>{teamName(pick === 0 ? match.teamA : match.teamB)} の勝利で確定</button>)}
-    {board.board !== 1 && board.stage === 'result' && (board.showing
+    {board.board !== 1 && board.stage === 'result' && !state.flow?.championTeamId && (board.showing
       ? <button className="primary" disabled>会場で勝者演出中…</button>
       : fillable
         ? <button className="primary" disabled={busy} onClick={() => onCommand('court-next')}>この台に次の試合</button>
         : <button className="primary op-wait" disabled>{blockedLabel ?? 'まだ組める対戦がありません'}</button>)}
     {board.board === 1 && board.stage === 'result' && board.showing && <button className="primary" disabled>会場で勝者演出中…</button>}
+    {state.flow?.championTeamId && board.stage === 'result' && !board.showing && (
+      <button className="primary" disabled={busy} onClick={() => onCommand('court-next')}>表彰へ</button>
+    )}
+    {state.flow?.championTeamId && board.stage === 'result' && board.showing && (
+      <button className="primary" disabled>会場で勝者演出中…</button>
+    )}
     {(board.stage === 'idle' || board.stage === 'call') && choices.length > 0 && <details className="op-hint">
       <summary>別の試合にする</summary>
       {choices.map(choice => <button key={choice.id} className="op-link-button" disabled={busy} onClick={() => onChoose(choice.id)}>

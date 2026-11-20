@@ -33,20 +33,21 @@
 @keyframes losers-line-flash{from{left:-32%}to{left:102%}}
 .losers-sides>.losers-slot,.losers-sides>.losers-wait{min-width:0;max-width:100%}
 .losers-match.is-live,.losers-match.is-current{border-color:#FFFF33;box-shadow:0 0 0 1px rgba(255,255,51,.45)}
-.losers-match.is-pulse{animation:losers-frame-blink 5s ease-in-out infinite}
+.losers-match.is-pulse{animation:losers-frame-blink 1s ease-in-out infinite}
 @keyframes losers-frame-blink{
-  0%,100%{border-color:#FFFF33;box-shadow:0 0 0 0 rgba(134,239,172,0)}
-  50%{border-color:#bbf7d0;box-shadow:0 0 0 2px #86efac,0 0 16px rgba(134,239,172,.8)}
+  0%,100%{border-color:#ca8a04;box-shadow:0 0 0 0 rgba(254,240,138,0)}
+  50%{border-color:#fffef0;box-shadow:0 0 0 6px rgba(254,243,199,.95),0 0 22px rgba(255,255,200,.9)}
 }
 @media(prefers-reduced-motion:reduce){
-  .losers-match.is-pulse{animation:none;border-color:#86efac;box-shadow:0 0 0 2px #86efac}
+  .losers-match.is-pulse{animation:none;border-color:#fffef0;box-shadow:0 0 0 6px rgba(254,243,199,.95)}
   .losers-match.is-pulse .losers-sides::after{animation:none;content:none}
 }
 .losers-slot{display:flex;align-items:center;gap:8px;min-width:0;min-height:0}
 .losers-faces{display:flex;gap:4px;flex:none}
 .losers-faces img,.losers-face-empty{width:var(--face);height:var(--face);object-fit:cover;border-radius:6px;background:#1e293b}
-.losers-slot strong{min-width:0;overflow:hidden;color:#fff;font-size:clamp(.75rem, calc(var(--face) * .4), 1.55rem);font-weight:800;line-height:1.15;white-space:nowrap;text-overflow:ellipsis;word-break:keep-all}
-.losers-wait{margin:0;max-width:100%;overflow:hidden;color:#fff;font-size:clamp(.75rem, calc(var(--face) * .46), 1.6rem);font-weight:900;line-height:1.2;white-space:nowrap;text-overflow:ellipsis;word-break:keep-all}
+.losers-slot strong{min-width:0;color:#fff;font-size:clamp(.75rem, calc(var(--face) * .4), 1.55rem);font-weight:800;line-height:1.15;white-space:nowrap;word-break:keep-all}
+.losers-wait{margin:0;max-width:100%;display:grid;gap:2px;color:#fff;font-size:clamp(.7rem, calc(var(--face) * .42), 1.45rem);font-weight:900;line-height:1.15;word-break:keep-all}
+.losers-wait>span{display:block;white-space:nowrap}
 .losers-link{flex:0 0 2.75rem;height:100%;display:flex;flex-direction:column}
 .losers-link-pad{flex:none;height:var(--losers-head)}
 .losers-link svg{flex:1;width:100%;min-height:0}
@@ -58,6 +59,12 @@
 .losers-bracket-fade{animation:losers-bracket-in .4s ease-out both}
 @keyframes losers-bracket-in{from{opacity:0}to{opacity:1}}
 @media(prefers-reduced-motion:reduce){.losers-bracket-fade{animation:none}}
+.bracket-match-current rect{animation:bracket-frame-blink 1s ease-in-out infinite}
+@keyframes bracket-frame-blink{
+  0%,100%{stroke:#ca8a04;stroke-width:2.5;filter:none}
+  50%{stroke:#fffef0;stroke-width:4;filter:url(#bracket-glow-strong)}
+}
+@media(prefers-reduced-motion:reduce){.bracket-match-current rect{animation:none;stroke:#fffef0;stroke-width:4}}
 .audience-advance{position:relative;width:100%;height:100%;min-height:0}
 .audience-advance>.advance-before,.audience-advance>.advance-after,.audience-advance>.advance-stage,.audience-advance>.advance-full,.audience-advance>.advance-board,.audience-advance>.advance-overlay,.audience-advance>.advance-winner-out{position:absolute;inset:0}
 .audience-advance>.advance-full{opacity:0}

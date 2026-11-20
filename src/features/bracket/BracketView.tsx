@@ -10,6 +10,7 @@ import {
   type BracketKind,
   type StageData,
 } from './layout';
+import { venueCameraRounds, venueFocusRound } from './bracketCamera';
 import { bracketTheme, themeForBracket } from '../../styles/bracketTheme';
 import placeholderFace from '../../assets/placeholder_face.svg';
 
@@ -28,6 +29,10 @@ interface BracketViewProps {
   labelByTeamId: Record<string, string>;
   memberNamesByTeamId?: Record<string, string[]>;
   currentMatchId?: number | null;
+  /** 進行中の試合、または勝利確定後の次の枠 */
+  pulseMatchIds?: number[];
+  /** 会場のカメラが映す回戦。未指定なら進行から決める */
+  focusRound?: number | null;
   compact?: boolean;
   /** 棒上昇演出中は勝ち上がり線のハイライトを抑止 */
   suppressConnectorHighlight?: boolean;
@@ -55,6 +60,8 @@ export default function BracketView({
   labelByTeamId,
   memberNamesByTeamId = {},
   currentMatchId = null,
+  pulseMatchIds = [],
+  focusRound: focusRoundOverride = null,
   compact = false,
   suppressConnectorHighlight = false,
   layoutData,
@@ -68,6 +75,7 @@ export default function BracketView({
   mutedConnector = null,
 }: BracketViewProps) {
   const retain = new Set(retainMatchIds);
+  const pulseIds = new Set(pulseMatchIds);
   const layoutSource = layoutData ?? data;
   const leafRound = activeRound && boardSide === 'winners' ? activeLeafRound(data, 'winner') : 1;
   const focus =
@@ -84,7 +92,15 @@ export default function BracketView({
     return retain.has(m.matchId);
   });
   const framed = shown.length ? shown : L.matches;
-  const viewBox = viewBoxOverride ?? (leafRound > 1 ? `0 0 ${L.width} ${L.height}` : frameViewBox(framed));
+  const cameraSide = boardSide === 'losers' ? 'losers' : boardSide === 'grand_final' ? 'grand_final' : 'winners';
+  const focusRound = focusRoundOverride
+    ?? (boardSide === 'winners' || boardSide === 'losers'
+      ? venueFocusRound(data, cameraSide, { liveMatchIds: [currentMatchId], highlightMatchId: currentMatchId })
+      : leafRound);
+  const maxRound = framed.reduce((max, match) => Math.max(max, match.round), 1);
+  const cameraRoundSet = new Set(venueCameraRounds(focusRound, maxRound));
+  const cameraMatches = framed.filter((match) => cameraRoundSet.has(match.round));
+  const viewBox = viewBoxOverride ?? frameViewBox(cameraMatches.length ? cameraMatches : framed);
 
   const wbMatches = shown.filter((m) => m.bracket === 'winner');
   const lbMatches = shown.filter((m) => m.bracket === 'loser');
@@ -206,6 +222,7 @@ export default function BracketView({
       {shown.map((m) => {
         const theme = themeForBracket(m.bracket);
         const isCurrent = currentMatchId != null && m.matchId === currentMatchId;
+        const isPulse = isCurrent || pulseIds.has(m.matchId);
         const bm = data.match.find((x) => x.id === m.matchId);
         const isDone = bm != null && bm.status >= 4;
 
@@ -216,7 +233,7 @@ export default function BracketView({
             data-bracket={m.bracket}
             data-center-x={m.center.x}
             data-center-y={m.center.y}
-            className={isCurrent ? bracketTheme.current.pulseClass : undefined}
+            className={isPulse ? bracketTheme.current.pulseClass : undefined}
             opacity={omitCompleted ? undefined : isDone ? 0.45 : undefined}
           >
             <rect
@@ -226,10 +243,10 @@ export default function BracketView({
               height={m.box.h}
               fill={theme.fill}
               fillOpacity={isDone ? 0.9 : 0.75}
-              stroke={isCurrent ? bracketTheme.current.stroke : theme.stroke}
-              strokeWidth={isCurrent ? 2.5 : 1.5}
+              stroke={isPulse ? bracketTheme.current.stroke : theme.stroke}
+              strokeWidth={isPulse ? 3.5 : 1.5}
               rx={3}
-              filter={isCurrent ? 'url(#bracket-glow-strong)' : undefined}
+              filter={isPulse ? 'url(#bracket-glow-strong)' : undefined}
             />
             <line
               x1={m.box.x + m.box.w / 2}

@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from 'react';
 import { TOURNAMENT_EFFECTS } from '../../lib/tournamentEffects';
+import { splitLoserWaitSource, venueCameraRounds, venueFocusRound } from './bracketCamera';
 import type { StageData } from './layout';
 import { losersColumns, type LoserColumn, type LoserSlotStatus } from './losersBoard';
 
@@ -16,7 +17,15 @@ function Slot({
   label: string;
   slot: number;
 }) {
-  if (!teamId) return <p className="losers-wait" data-slot={slot}>待機【{source}】</p>;
+  if (!teamId) {
+    const [line, wait] = splitLoserWaitSource(source);
+    return (
+      <p className="losers-wait" data-slot={slot}>
+        <span>{line}</span>
+        <span>{wait}</span>
+      </p>
+    );
+  }
   return (
     <div className="losers-slot" data-slot={slot}>
       <span className="losers-faces">
@@ -81,43 +90,88 @@ function Links({ from, to, hotId, drawMatchId = null }: { from: LoserColumn; to:
   );
 }
 
+function boxOf(root: DOMRect, node: HTMLElement) {
+  const rect = node.getBoundingClientRect();
+  return { x: rect.left - root.left, y: rect.top - root.top, w: rect.width, h: rect.height };
+}
+
+function fitBoxes(
+  track: HTMLElement,
+  viewW: number,
+  viewH: number,
+  nodes: HTMLElement[],
+  pad = 16,
+) {
+  track.style.transform = 'none';
+  const root = track.getBoundingClientRect();
+  const boxes = nodes.map((node) => boxOf(root, node));
+  if (!boxes.length) return false;
+  const left = Math.min(...boxes.map((box) => box.x)) - pad;
+  const top = Math.min(...boxes.map((box) => box.y)) - pad;
+  const right = Math.max(...boxes.map((box) => box.x + box.w)) + pad;
+  const bottom = Math.max(...boxes.map((box) => box.y + box.h)) + pad;
+  const width = Math.max(1, right - left);
+  const height = Math.max(1, bottom - top);
+  const scale = Math.min(viewW / width, viewH / height);
+  track.style.transformOrigin = '0 0';
+  track.style.transform = `translate(${viewW / 2 - (left + width / 2) * scale}px, ${viewH / 2 - (top + height / 2) * scale}px) scale(${scale})`;
+  return true;
+}
+
 /** ルーザーズだけ、回戦の列と接続線で出す。ウィナーズの樹とは別の画面。 */
 export default function LosersColumnBoard({
   data,
   faceUrlByTeamId,
   labelByTeamId,
   liveMatchId = null,
+  liveMatchIds = [],
   calledMatchId = null,
+  calledMatchIds = [],
   highlightMatchId = null,
   frameMatchId = null,
   pulseMatchIds = [],
+  focusRound: focusRoundOverride = null,
 }: {
   data: StageData;
   faceUrlByTeamId: Record<string, string[]>;
   labelByTeamId: Record<string, string>;
   liveMatchId?: number | null;
+  liveMatchIds?: number[];
   calledMatchId?: number | null;
+  calledMatchIds?: number[];
   highlightMatchId?: number | null;
   /** この試合と、次の枠までの線だけを画面いっぱいに出す */
   frameMatchId?: number | null;
-  /** 終わった試合と、その次の試合。枠をゆっくり点滅させる */
+  /** 進行中の試合、または勝利確定後の次の枠 */
   pulseMatchIds?: number[];
+  /** 会場表のカメラが映す回戦。未指定なら進行状態から決める */
+  focusRound?: number | null;
 }) {
   const columns = losersColumns(data);
-  const focusId = frameMatchId ?? highlightMatchId ?? liveMatchId ?? calledMatchId;
+  const lives = [...new Set([liveMatchId, ...liveMatchIds].filter((id): id is number => id != null))];
+  const calls = [...new Set([calledMatchId, ...calledMatchIds].filter((id): id is number => id != null))];
+  const liveSet = new Set(lives);
+  const callSet = new Set(calls);
+  const focusId = frameMatchId ?? highlightMatchId ?? lives[0] ?? calls[0] ?? null;
   const pulseIds = new Set(pulseMatchIds);
+  const focusRound = focusRoundOverride ?? venueFocusRound(data, 'losers', {
+    liveMatchIds: lives,
+    calledMatchIds: calls,
+    highlightMatchId,
+  });
+  const cameraRoundList = venueCameraRounds(focusRound, columns[columns.length - 1]?.round ?? focusRound);
+  const cameraRoundsKey = cameraRoundList.join(',');
   const viewportRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
     const track = trackRef.current;
     if (!viewport || !track) return;
+    const rounds = cameraRoundsKey.split(',').map(Number).filter((round) => Number.isFinite(round));
     const place = () => {
       const viewW = viewport.clientWidth;
       const viewH = viewport.clientHeight;
-      const naturalW = track.scrollWidth;
-      const naturalH = track.scrollHeight;
-      if (!viewW || !viewH || !naturalW || !naturalH) return;
+      if (!viewW || !viewH) return;
       if (frameMatchId != null) {
         const source = track.querySelector<HTMLElement>(`[data-match-id="${frameMatchId}"]`);
         const round = source?.closest<HTMLElement>('.losers-round');
@@ -125,63 +179,45 @@ export default function LosersColumnBoard({
         const nextId = columns.flatMap((column) => column.matches).find((match) => match.id === frameMatchId)?.nextId;
         const target = nextId == null ? null : track.querySelector<HTMLElement>(`[data-match-id="${nextId}"]`);
         const cards = [source, target].filter((node): node is HTMLElement => node != null);
-        track.style.transform = 'none';
-        const root = track.getBoundingClientRect();
-        const boxOf = (node: HTMLElement) => {
-          const rect = node.getBoundingClientRect();
-          return { x: rect.left - root.left, y: rect.top - root.top, w: rect.width, h: rect.height };
-        };
-        const boxes = [
-          ...cards.map(boxOf),
+        const extras = [
           ...cards.flatMap((card) => {
             const vs = card.querySelector<HTMLElement>('.losers-vs');
-            return vs ? [boxOf(vs)] : [];
+            return vs ? [vs] : [];
           }),
+          ...(link ? [link] : []),
         ];
-        const linkBox = link ? boxOf(link) : null;
-        if (boxes.length) {
-          const left = Math.min(...boxes.map((box) => box.x), linkBox?.x ?? Infinity) - 16;
-          const top = Math.min(...boxes.map((box) => box.y)) - 16;
-          const right = Math.max(...boxes.map((box) => box.x + box.w), linkBox ? linkBox.x + linkBox.w : -Infinity) + 16;
-          const bottom = Math.max(...boxes.map((box) => box.y + box.h)) + 16;
-          const width = Math.max(1, right - left);
-          const height = Math.max(1, bottom - top);
-          const scale = Math.min(viewW / width, viewH / height);
-          track.style.transformOrigin = '0 0';
-          track.style.transform = `translate(${viewW / 2 - (left + width / 2) * scale}px, ${viewH / 2 - (top + height / 2) * scale}px) scale(${scale})`;
-          return;
-        }
+        if (fitBoxes(track, viewW, viewH, [...cards, ...extras])) return;
       }
-      if (focusId == null) {
-        const scale = Math.min(viewW / naturalW, viewH / naturalH);
-        track.style.transform = `translateX(0px) scale(${scale})`;
-        return;
-      }
-      const scale = Math.min(1, viewH / naturalH);
-      const column = track.querySelector<HTMLElement>(`[data-match-id="${focusId}"]`)?.closest<HTMLElement>('.losers-round');
-      const scaledW = naturalW * scale;
-      let x = 0;
-      if (column && scaledW > viewW) {
-        const center = (column.offsetLeft + column.offsetWidth / 2) * scale;
-        x = Math.max(0, Math.min(center - viewW / 2, scaledW - viewW));
-      }
-      track.style.transform = `translateX(${-x}px) scale(${scale})`;
+      const roundNodes = rounds
+        .map((round) => track.querySelector<HTMLElement>(`.losers-round[data-round="${round}"]`))
+        .filter((node): node is HTMLElement => node != null);
+      if (roundNodes.length && fitBoxes(track, viewW, viewH, roundNodes, 12)) return;
+      const naturalW = track.scrollWidth;
+      const naturalH = track.scrollHeight;
+      if (!naturalW || !naturalH) return;
+      const scale = Math.min(viewW / naturalW, viewH / naturalH);
+      track.style.transformOrigin = '0 0';
+      track.style.transform = `translateX(0px) scale(${scale})`;
     };
     place();
     const observer = new ResizeObserver(place);
     observer.observe(viewport);
     return () => observer.disconnect();
-  }, [columns, focusId, frameMatchId]);
+  }, [cameraRoundsKey, columns, focusId, focusRound, frameMatchId]);
   return (
     <div ref={viewportRef} className="losers-viewport" aria-label="ルーザーズ">
       <div ref={trackRef} className={`losers-track${frameMatchId == null ? '' : ' is-framed'}`}>
         {columns.map((column, columnIndex) => (
-          <div key={column.round} className="losers-round">
+          <div key={column.round} className="losers-round" data-round={column.round}>
             <section className="losers-col">
               <h3>{column.round}回戦</h3>
               <div className="losers-matches">
                 {column.matches.map((match, index) => {
-                  const state: LoserSlotStatus = match.id === liveMatchId ? 'live' : match.id === calledMatchId ? 'ready' : match.status;
+                  const state: LoserSlotStatus = liveSet.has(match.id)
+                    ? 'live'
+                    : callSet.has(match.id)
+                      ? 'ready'
+                      : match.status;
                   return (
                     <article
                       key={match.id}

@@ -162,4 +162,40 @@ describe('one continuous tournament with automatic scheduling',()=>{
   const responses=await Promise.all(commands.map(b=>s.request('/api/tournament/winner','POST',b)));expect(responses.map(r=>r.status).sort()).toEqual([200,409]);
   const result=await s.view();expect(result.scene).toBe('result');expect(result.version).toBe(state.version+1);
  });
+ it('opens award when a twenty-team champion is set while boards remain in result',async()=>{
+  const s=setup();await s.login();s.env.REHEARSAL_ENABLED='1';s.env.ALLOW_INSTANT_TIMING='1';
+  const preparedRun=await s.request('/api/rehearsal/prepare-progression','POST',{requestId:crypto.randomUUID(),format:'double_elimination',title:'終端確認',teams:20,courts:2});
+  expect(preparedRun.status).toBe(200);
+  const started=await preparedRun.json() as {eventId:string};
+  const suffix=`?run=${started.eventId}`;
+  const before=await s.request('/api/draw/state'+suffix).then(r=>r.json()) as View&{teams:{id:string}[];flow:{courts:{boards:unknown[]}|null;nextWaitReason:string|null}};
+  expect(before.scene).toBe('interval');
+  expect(before.teams.length).toBe(20);
+  expect(before.flow.nextWaitReason).not.toBe('大会終了');
+  const champion=before.teams[0].id;
+  const loser=before.teams[1].id;
+  const row=s.db.prepare('SELECT scene_payload FROM event_state WHERE event_id=?').get(started.eventId) as {scene_payload:string};
+  const payload=JSON.parse(row.scene_payload) as {championTeamId?:string|null;courts:{boards:{board:number;matchId:number|null;stage:string;startedAt:string|null;winnerTeamId?:string|null;loserTeamId?:string|null}[];spotlights?:unknown[];showBracket?:boolean;count:number}};
+  payload.championTeamId=champion;
+  payload.courts={
+   count:2,
+   showBracket:false,
+   spotlights:[],
+   boards:[
+    {board:1,matchId:63,stage:'result',startedAt:new Date().toISOString(),winnerTeamId:champion,loserTeamId:loser},
+    {board:2,matchId:62,stage:'result',startedAt:new Date().toISOString(),winnerTeamId:champion,loserTeamId:loser},
+   ],
+  };
+  s.db.prepare("UPDATE event_state SET scene='interval',scene_payload=? WHERE event_id=?").run(JSON.stringify(payload),started.eventId);
+  const stuck=await s.request('/api/draw/state'+suffix).then(r=>r.json()) as View&{flow:{nextWaitReason:string|null;courts:{boards:{stage:string}[]}|null}};
+  expect(stuck.flow.championTeamId).toBe(champion);
+  expect(stuck.flow.nextWaitReason).toBe('大会終了');
+  expect(stuck.flow.courts?.boards.map(b=>b.stage)).toEqual(['result','result']);
+  expect((await s.request('/api/tournament/court-next'+suffix,'POST',{requestId:crypto.randomUUID(),expectedVersion:stuck.version,board:1})).status).toBe(200);
+  const awarded=await s.request('/api/draw/state'+suffix).then(r=>r.json()) as View;
+  expect(awarded.scene).toBe('award');
+  expect(awarded.flow.championTeamId).toBe(champion);
+  expect(awarded.flow.courts).toBeNull();
+  expect(awarded.flow.ceremony).toBeTruthy();
+ });
 });

@@ -2,13 +2,14 @@ import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'reac
 import gsap from 'gsap';
 import BracketView, { frameViewBox } from '../features/bracket/BracketView';
 import LosersColumnBoard from '../features/bracket/LosersColumnBoard';
+import { venueFocusRound } from '../features/bracket/bracketCamera';
 import { toStageData } from '../features/bracket/stageData';
 import { resolveResultAdvance } from '../features/bracket/resultAdvance';
 import type { DrawState } from './DrawControl';
 import { portraitUrlFor } from './portraitCache';
 import { ratedName } from './presentationAdapter';
 
-/** 寄った画面のまま線をつなぎ、全体は3秒で出す。アップは50%から0.5秒で消す。 */
+/** 寄った画面のまま線をつなぎ、回戦の枠へ戻す。アップは50%から0.5秒で消す。 */
 const WINNER_ADVANCE_SEC = 6;
 
 function parseViewBox(value: string) {
@@ -90,7 +91,17 @@ export default function AnimatedBracketAdvance({
         const tight = source && target
           ? parseViewBox(focusViewBox(source.box, target.box, data.advance.source, data.advance.target))
           : null;
-        const wide = parseViewBox(frameViewBox(data.advance.layout.matches));
+        const roundView = root.current!.querySelector<SVGSVGElement>('.advance-full svg');
+        const wide = roundView
+          ? parseViewBox(roundView.getAttribute('viewBox') ?? frameViewBox(data.advance.layout.matches))
+          : parseViewBox(frameViewBox(
+            data.advance.layout.matches.filter((match) => {
+              const focus = venueFocusRound(data.after, side === 'losers' ? 'losers' : 'winners', {
+                highlightMatchId: data.advance!.sourceMatchId,
+              });
+              return match.round === focus || match.round === focus + 1;
+            }),
+          ));
         const stage = root.current!.querySelector<HTMLElement>('.advance-stage');
         const applyTight = () => {
           if (!tight || !stage) return;
@@ -159,16 +170,18 @@ export default function AnimatedBracketAdvance({
     ]),
   );
   const view = data.advance?.layout;
-  const wideViewBox = view ? frameViewBox(view.matches) : '0 0 1 1';
   const boardSide =
     state.flow?.boardSide ??
     (presentation.match.kind === 'loser' ? 'losers' : presentation.match.kind === 'grand_final' ? 'grand_final' : 'winners');
 
   const side = data.advance?.boardSide ?? boardSide;
   const losers = side === 'losers';
-  const pulseMatchIds = losers && frameLit && data.advance
-    ? [data.advance.sourceMatchId, data.advance.targetMatchId]
-    : [];
+  const focusRound = venueFocusRound(data.after, losers ? 'losers' : side === 'grand_final' ? 'grand_final' : 'winners', {
+    highlightMatchId: data.advance?.sourceMatchId ?? presentation.match.id,
+  });
+  const roundMatches = view?.matches.filter((match) => match.round === focusRound || match.round === focusRound + 1) ?? [];
+  const roundViewBox = roundMatches.length ? frameViewBox(roundMatches) : view ? frameViewBox(view.matches) : '0 0 1 1';
+  const pulseMatchIds = frameLit && data.advance ? [data.advance.targetMatchId] : [];
   return (
     <div ref={root} className="audience-advance" data-advance-from={data.advance?.sourceMatchId} data-advance-to={data.advance?.targetMatchId}>
       {losers ? (
@@ -188,6 +201,7 @@ export default function AnimatedBracketAdvance({
               faceUrlByTeamId={faceUrlByTeamId}
               labelByTeamId={labels}
               highlightMatchId={data.advance?.targetMatchId ?? data.advance?.sourceMatchId ?? presentation.match.id}
+              focusRound={focusRound}
               pulseMatchIds={pulseMatchIds}
             />
           </div>
@@ -203,11 +217,12 @@ export default function AnimatedBracketAdvance({
               faceUrlByTeamId={faceUrlByTeamId}
               labelByTeamId={labels}
               memberNamesByTeamId={names}
+              focusRound={focusRound}
               mutedConnector={data.advance ? { fromMatchId: data.advance.sourceMatchId, toMatchId: data.advance.targetMatchId } : null}
             />
           </div>
           {data.advance && (
-            <svg className="advance-overlay" viewBox={wideViewBox} preserveAspectRatio="xMidYMid meet" aria-label="勝者の勝ち上がり">
+            <svg className="advance-overlay" viewBox={roundViewBox} preserveAspectRatio="xMidYMid meet" aria-label="勝者の勝ち上がり">
               <path className="advance-line" pathLength={1} strokeDasharray={1} d={data.advance.path} fill="none" stroke="#86efac" strokeWidth={3} />
             </svg>
           )}
@@ -220,6 +235,9 @@ export default function AnimatedBracketAdvance({
             faceUrlByTeamId={faceUrlByTeamId}
             labelByTeamId={labels}
             memberNamesByTeamId={names}
+            focusRound={focusRound}
+            pulseMatchIds={pulseMatchIds}
+            currentMatchId={data.advance?.targetMatchId ?? null}
           />
         </div>
         </>

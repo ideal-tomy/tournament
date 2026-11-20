@@ -1,6 +1,8 @@
+import { Status } from 'brackets-model';
 import BracketView from '../features/bracket/BracketView';
 import LosersColumnBoard from '../features/bracket/LosersColumnBoard';
-import { losersColumns } from '../features/bracket/losersBoard';
+import { venueNextMatchId, venuePulseMatchIds } from '../features/bracket/bracketCamera';
+import { getMatchBracketKind } from '../features/progression/tiers';
 import { toStageData } from '../features/bracket/stageData';
 import { ratedName, toPresentationTeam } from './presentationAdapter';
 import type { CourtSpotlight, DrawState } from './DrawControl';
@@ -75,11 +77,25 @@ function GrandFinalFeature({ state }: { state: DrawState }) {
   );
 }
 
-function pulsePair(data: ReturnType<typeof toStageData>, matchId: number | null) {
-  if (matchId == null) return [];
-  const match = losersColumns(data).flatMap((column) => column.matches).find((item) => item.id === matchId);
-  if (!match) return [];
-  return match.nextId == null ? [match.id] : [match.id, match.nextId];
+function winnersFinalist(state: DrawState) {
+  if (!state.bracket || boardSideFor(state) !== 'winners') return null;
+  const data = toStageData(state.bracket);
+  const wb = data.match.filter((match) => getMatchBracketKind(data, match) === 'winner');
+  if (!wb.length || wb.some((match) => match.status < Status.Completed)) return null;
+  const alive = getActiveWinnersTeamIds(data);
+  if (alive.length !== 1) return null;
+  const final = [...wb].reverse().find((match) => match.opponent1?.id != null && match.opponent2?.id != null);
+  if (!final) return null;
+  const winnerId = alive[0];
+  const slotId = (slot: 0 | 1) => {
+    const opp = slot === 0 ? final.opponent1 : final.opponent2;
+    if (opp?.id == null) return null;
+    const person = data.participant.find((row) => row.id === opp.id);
+    return person?.name ? String(person.name) : null;
+  };
+  const loserId = [slotId(0), slotId(1)].find((id) => id && id !== winnerId) ?? null;
+  if (!loserId) return null;
+  return { winnerId, loserId };
 }
 
 export function SavedBracket({
@@ -96,13 +112,48 @@ export function SavedBracket({
   if (side === 'grand_final' && current?.teamA && current?.teamB) {
     return <GrandFinalFeature state={state} />;
   }
+  const finalist = winnersFinalist(state);
+  if (finalist) {
+    return (
+      <WinnerBoard
+        title="決勝進出"
+        label={`${existingTeam(state, finalist.winnerId).name} 決勝進出`}
+        team={existingTeam(state, finalist.winnerId)}
+        opponent={existingTeam(state, finalist.loserId)}
+        dropLabel="ルーザーへ→"
+        settled
+        audioEnabled={false}
+      />
+    );
+  }
   const boards = state.flow?.courts?.boards ?? [];
-  const liveMatchId = boards.find((board) => board.stage === 'live')?.match?.id ?? null;
-  const calledMatchId = boards.find((board) => board.stage === 'call')?.match?.id ?? null;
-  const resultMatchId = boards.find((board) => board.stage === 'result')?.match?.id ?? null;
-  const pulseMatchIds = side === 'losers'
-    ? [...new Set([liveMatchId, resultMatchId, state.flow?.lastMatchId].flatMap((id) => pulsePair(data, id ?? null)))]
-    : [];
+  const liveMatchIds = boards.flatMap((board) => (board.stage === 'live' && board.match ? [board.match.id] : []));
+  const calledMatchIds = boards.flatMap((board) => (board.stage === 'call' && board.match ? [board.match.id] : []));
+  const resultMatchIds = boards.flatMap((board) => (board.stage === 'result' && board.match ? [board.match.id] : []));
+  const pulseMatchIds = venuePulseMatchIds({
+    liveMatchIds,
+    resultMatchIds,
+    nextIdOf: (id) => venueNextMatchId(data, side === 'losers' ? 'losers' : side === 'grand_final' ? 'grand_final' : 'winners', id),
+  });
+  const faceUrlByTeamId = Object.fromEntries(
+    state.teams.map((team) => [
+      team.id,
+      team.memberIds.map((id) => {
+        const person = state.participants.find((entry) => entry.id === id);
+        return person ? portraitUrlFor(person) : '';
+      }),
+    ]),
+  );
+  const labelByTeamId = Object.fromEntries(state.teams.map((team) => [team.id, team.name]));
+  const memberNamesByTeamId = Object.fromEntries(
+    state.teams.map((team) => [
+      team.id,
+      team.memberIds.map((id) => {
+        const person = state.participants.find((entry) => entry.id === id);
+        return person ? ratedName(person) : '';
+      }),
+    ]),
+  );
   return (
     <div className={`persisted-bracket board-side-${side}`}>
       <h2>{side === 'losers' ? 'ルーザーズ' : side === 'grand_final' ? 'グランドファイナル' : 'ウィナーズ'}</h2>
@@ -110,19 +161,11 @@ export function SavedBracket({
         {side === 'losers' ? (
           <LosersColumnBoard
             data={data}
-            liveMatchId={liveMatchId}
-            calledMatchId={calledMatchId}
+            liveMatchIds={liveMatchIds}
+            calledMatchIds={calledMatchIds}
             pulseMatchIds={pulseMatchIds}
-            faceUrlByTeamId={Object.fromEntries(
-              state.teams.map((team) => [
-                team.id,
-                team.memberIds.map((id) => {
-                  const person = state.participants.find((entry) => entry.id === id);
-                  return person ? portraitUrlFor(person) : '';
-                }),
-              ]),
-            )}
-            labelByTeamId={Object.fromEntries(state.teams.map((team) => [team.id, team.name]))}
+            faceUrlByTeamId={faceUrlByTeamId}
+            labelByTeamId={labelByTeamId}
           />
         ) : (
         <BracketView
@@ -130,25 +173,11 @@ export function SavedBracket({
           boardSide={side}
           omitCompleted={side === 'winners' ? false : omitCompleted}
           activeRound={side === 'winners' && omitCompleted}
-          faceUrlByTeamId={Object.fromEntries(
-            state.teams.map((team) => [
-              team.id,
-              team.memberIds.map((id) => {
-                const p = state.participants.find((person) => person.id === id);
-                return p ? portraitUrlFor(p) : '';
-              }),
-            ]),
-          )}
-          labelByTeamId={Object.fromEntries(state.teams.map((team) => [team.id, team.name]))}
-          memberNamesByTeamId={Object.fromEntries(
-            state.teams.map((team) => [
-              team.id,
-              team.memberIds.map((id) => {
-                const p = state.participants.find((person) => person.id === id);
-                return p ? ratedName(p) : '';
-              }),
-            ]),
-          )}
+          currentMatchId={liveMatchIds[0] ?? calledMatchIds[0] ?? null}
+          pulseMatchIds={pulseMatchIds}
+          faceUrlByTeamId={faceUrlByTeamId}
+          labelByTeamId={labelByTeamId}
+          memberNamesByTeamId={memberNamesByTeamId}
         />
         )}
         {winnersRail(state)}

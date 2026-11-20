@@ -5,7 +5,8 @@ import './courts.css';
 const stageLabel: Record<CourtBoard['stage'], string> = { idle: '待機', call: '呼び出し中', live: '試合中', result: '勝者確定' };
 
 function progressLabel(match: FlowMatch): string {
-  if (match.final) return 'FINAL';
+  if (match.callout === 'final-again') return 'FINAL AGAIN';
+  if (match.callout === 'final' || match.final) return 'FINAL';
   if (match.roundName) return match.roundName;
   if (match.kind === 'loser') return `ルーザーズ ${match.round}回戦`;
   if (match.kind === 'grand_final') return 'グランドファイナル';

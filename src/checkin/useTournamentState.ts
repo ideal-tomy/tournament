@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from './api';
 import type { DrawState } from './DrawControl';
+import { ceremonyAutoStart } from './ceremonyAutoStart';
 import { firstBoardAutoFill } from './firstBoardAutoFill';
 import { preparePortraits } from './portraitCache';
 import { LOSERS_INTRO_TITLE_SEC } from '../features/presentation/losersIntroTiming';
@@ -41,9 +42,12 @@ export function useTournamentState(onAuthRequired: () => void, sessionVersion: n
       lifetime.signal.addEventListener('abort', abort, { once: true });
       try {
         let next = await api<DrawState>('/api/draw/state', { signal: controller.signal });
-        if (firstBoardAutoFill(next) && filled.current !== next.version) {
+        if ((ceremonyAutoStart(next) || firstBoardAutoFill(next)) && filled.current !== next.version) {
           try {
-            next = await api<DrawState>('/api/tournament/court-next', { method: 'POST', body: JSON.stringify({ requestId: crypto.randomUUID(), expectedVersion: next.version, board: 1 }), signal: controller.signal });
+            const board = next.flow?.courts?.boards.find((item) => item.stage === 'result')?.board
+              ?? next.flow?.courts?.boards.find((item) => item.board === 1)?.board
+              ?? 1;
+            next = await api<DrawState>('/api/tournament/court-next', { method: 'POST', body: JSON.stringify({ requestId: crypto.randomUUID(), expectedVersion: next.version, board }), signal: controller.signal });
             filled.current = null;
           } catch (reason) {
             if (!(reason instanceof ApiError) || !['VERSION_CONFLICT', 'SPOTLIGHT_PLAYING', 'LOSERS_INTRO_PLAYING'].includes(reason.code)) {
