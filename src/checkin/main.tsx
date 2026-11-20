@@ -17,6 +17,7 @@ function Workspace({ onAuthRequired, sessionVersion }: { onAuthRequired(): void;
   if (location.pathname === '/') return <HomePage />;
   if (location.pathname === '/start') return <StartPage onAuthRequired={onAuthRequired} />;
   if (location.pathname === '/venue-check') return <VenueCheckPage />;
+  if (!['/checkin', '/admin', '/display'].includes(location.pathname)) return <section className="card"><h1>ページが見つかりません</h1><a href="/">ホームへ戻る</a></section>;
   return <TournamentWorkspace onAuthRequired={onAuthRequired} sessionVersion={sessionVersion} />;
 }
 
