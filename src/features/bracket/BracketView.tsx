@@ -2,6 +2,7 @@ import {
   buildOrthogonalConnectorPath,
   activeLeafRound,
   computeBracketLayout,
+  fullBoardFocus,
   isConnectorHighlighted,
   resolveTeamId,
   slotPresence,
@@ -52,6 +53,10 @@ interface BracketViewProps {
   svgClassName?: string;
   /** この勝ち上がり線は、演出の光が描くので表側では点灯しない */
   mutedConnector?: { fromMatchId: number; toMatchId: number } | null;
+  /** ウィナーズ／ルーザーズ決勝からグランドファイナルへつなぐ座標 */
+  attachGrandFinal?: boolean;
+  /** 勝ち上がりの引き。回戦で切らず、表全体を描く */
+  fullBoard?: boolean;
 }
 
 export default function BracketView({
@@ -73,17 +78,28 @@ export default function BracketView({
   viewBox: viewBoxOverride,
   svgClassName,
   mutedConnector = null,
+  attachGrandFinal = false,
+  fullBoard = false,
 }: BracketViewProps) {
   const retain = new Set(retainMatchIds);
   const pulseIds = new Set(pulseMatchIds);
   const layoutSource = layoutData ?? data;
-  const leafRound = activeRound && boardSide === 'winners' ? activeLeafRound(data, 'winner') : 1;
-  const focus =
-    leafRound > 1
-      ? { leafRound }
-      : omitCompleted
-        ? { visibleMatchIds: visibleMatchIdsWhenOmitCompleted(data, boardSide, retainMatchIds) }
-        : undefined;
+  const leafKind = boardSide === 'losers' ? 'loser' : 'winner';
+  // 勝ち上がり演出は終わった試合の回戦を leaf にする。進行中は未了の一番下。
+  const leafRound =
+    activeRound && (boardSide === 'winners' || boardSide === 'losers')
+      ? (focusRoundOverride ?? activeLeafRound(data, leafKind))
+      : 1;
+  // ルーザーズ進行は1回戦からでも2列に空枠を残して詰める。ウィナーズは2回戦以降だけ leafRound。
+  const focus = fullBoard
+    ? fullBoardFocus(attachGrandFinal)
+    : boardSide === 'losers' && activeRound
+      ? { leafRound: Math.max(1, leafRound), attachGrandFinal }
+      : leafRound > 1 || attachGrandFinal
+        ? { leafRound, attachGrandFinal }
+        : omitCompleted
+          ? { visibleMatchIds: visibleMatchIdsWhenOmitCompleted(data, boardSide, retainMatchIds) }
+          : undefined;
   const L = computeBracketLayout(layoutSource, undefined, boardSide, focus);
   const shown = L.matches.filter((m) => {
     if (!omitCompleted) return true;
@@ -98,8 +114,14 @@ export default function BracketView({
       ? venueFocusRound(data, cameraSide, { liveMatchIds: [currentMatchId], highlightMatchId: currentMatchId })
       : leafRound);
   const maxRound = framed.reduce((max, match) => Math.max(max, match.round), 1);
+  // ルーザーズの全体表示は回戦で切らず表全体。進行中や勝ち上がり寄りのときだけ今と次の1列。
+  const useProgressCamera =
+    boardSide === 'winners'
+    || (boardSide === 'losers' && (activeRound || focusRoundOverride != null));
   const cameraRoundSet = new Set(venueCameraRounds(focusRound, maxRound));
-  const cameraMatches = framed.filter((match) => cameraRoundSet.has(match.round));
+  const cameraMatches = useProgressCamera
+    ? framed.filter((match) => cameraRoundSet.has(match.round))
+    : framed;
   const viewBox = viewBoxOverride ?? frameViewBox(cameraMatches.length ? cameraMatches : framed);
 
   const wbMatches = shown.filter((m) => m.bracket === 'winner');
@@ -126,7 +148,7 @@ export default function BracketView({
     lbMatches.length > 0 && {
       kind: 'loser' as BracketKind,
       x: midX(lbMatches),
-      y: bottomY(lbMatches) + 22,
+      y: boardSide === 'losers' ? topY(lbMatches) - 12 : bottomY(lbMatches) + 22,
       anchor: 'middle' as const,
     },
     gfMatches.length > 0 && {
@@ -262,16 +284,7 @@ export default function BracketView({
                 ? memberNamesByTeamId[teamId] ?? parseMemberNames(label)
                 : [];
               const presence = bm ? slotPresence(bm, s.slot) : teamId ? 'team' : 'empty';
-              const showWait = presence === 'waiting' && m.bracket === 'loser';
-              const otherWaiting = presence === 'team' && m.bracket === 'loser' && bm != null && slotPresence(bm, s.slot === 0 ? 1 : 0) === 'waiting';
-              const draw = otherWaiting
-                ? {
-                    x: m.box.x + (s.slot === 0 ? 2 : m.box.w * 0.34),
-                    y: s.rect.y,
-                    w: m.box.w * 0.64,
-                    h: s.rect.h,
-                  }
-                : s.rect;
+              const waiting = presence === 'waiting' && m.bracket === 'loser';
               const played = bm?.opponent1?.id != null && bm?.opponent2?.id != null;
               const slotWon =
                 played &&
@@ -304,16 +317,15 @@ export default function BracketView({
                     />
                   )}
                   <VerticalSlotContent
-                    x={draw.x}
-                    y={draw.y}
-                    w={draw.w}
-                    h={draw.h}
+                    x={s.rect.x}
+                    y={s.rect.y}
+                    w={s.rect.w}
+                    h={s.rect.h}
                     faces={faces}
                     memberNames={memberNames}
                     label={label}
                     isEmpty={presence !== 'team'}
-                    waiting={showWait}
-                    accent={theme.stroke}
+                    waiting={waiting}
                     compact={compact}
                     clipId={`${clipPrefix}-${m.matchId}-${s.slot}`}
                   />
@@ -350,7 +362,6 @@ function VerticalSlotContent({
   label: string;
   isEmpty: boolean;
   waiting?: boolean;
-  accent?: string;
   compact: boolean;
   clipId: string;
 }) {
@@ -359,12 +370,20 @@ function VerticalSlotContent({
   const faceGap = 1;
 
   if (waiting) {
-    const size = Math.max(8, Math.min(13, w / 4));
     return (
-      <text x={cx} y={y + h / 2} textAnchor="middle" fill="#fde68a" fontSize={size} fontWeight="700">
-        <tspan x={cx} dy={-size * 0.7}>対戦相手</tspan>
-        <tspan x={cx} dy={size * 1.3}>待ち</tspan>
-      </text>
+      <g>
+        <clipPath id={clipId}><rect x={x} y={y} width={w} height={h} /></clipPath>
+        <g clipPath={`url(#${clipId})`}>
+          <image
+            href={placeholderFace}
+            x={x + pad}
+            y={y + pad}
+            width={Math.max(1, w - pad * 2)}
+            height={Math.max(1, h - pad * 2)}
+            preserveAspectRatio="xMidYMid slice"
+          />
+        </g>
+      </g>
     );
   }
 

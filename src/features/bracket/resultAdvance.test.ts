@@ -1,7 +1,8 @@
 import {describe,it,expect} from 'vitest';
 import {buildSnapshotForTeamCount,createManagerFromSnapshot,exportSnapshot,toStageData} from './manager';
 import {applyResult} from '../progression/progression';
-import {resolveResultAdvance} from './resultAdvance';
+import {resolveLoserDropPlacement,resolveResultAdvance} from './resultAdvance';
+import {getMatchBracketKind} from '../progression/tiers';
 describe('actual committed bracket advance geometry',()=>{
  it.each([0,1] as const)('uses the actual winning side and destination for slot %i',async slot=>{
   const snapshot=await buildSnapshotForTeamCount(4),before=structuredClone(snapshot),manager=createManagerFromSnapshot(snapshot),data=toStageData(snapshot),match=data.match.find(m=>m.id===0)!;
@@ -17,5 +18,43 @@ describe('actual committed bracket advance geometry',()=>{
   const snapshot=await buildSnapshotForTeamCount(4);expect(resolveResultAdvance(toStageData(snapshot),toStageData(snapshot),0,'team-0')).toBeNull();
   const final=await buildSnapshotForTeamCount(2),before=structuredClone(final),manager=createManagerFromSnapshot(final);await applyResult(manager,toStageData(final),0,0,0);
   expect(resolveResultAdvance(toStageData(before),toStageData(await exportSnapshot(manager)),0,'team-0')).toBeNull();
+ });
+ it('ウィナーズ敗者の入り先だけを返し、線は持たない',async()=>{
+  const snapshot=await buildSnapshotForTeamCount(8),before=structuredClone(snapshot),manager=createManagerFromSnapshot(snapshot),data=toStageData(snapshot);
+  const match=data.match.find(m=>getMatchBracketKind(data,m)==='winner'&&m.id!=null)!;
+  const loserSlot=match.opponent1&&match.opponent2?1:0;
+  const loserId=(loserSlot===0?match.opponent1:match.opponent2)!.id!;
+  const loserTeam=data.participant.find(p=>p.id===loserId)!.name;
+  await applyResult(manager,data,match.id,loserSlot===0?1:0,0);
+  const after=await exportSnapshot(manager);
+  const drop=resolveLoserDropPlacement(toStageData(before),toStageData(after),match.id,loserTeam);
+  expect(drop).not.toBeNull();
+  expect(drop!.targetMatchId).toBeTypeOf('number');
+  expect([0,1]).toContain(drop!.targetSlot);
+  const placed=toStageData(after).match.find(m=>m.id===drop!.targetMatchId)!;
+  expect(getMatchBracketKind(toStageData(after),placed)).toBe('loser');
+  const opp=drop!.targetSlot===0?placed.opponent1:placed.opponent2;
+  expect(opp?.id).toBe(loserId);
+ });
+ it('ウィナーズ決勝とルーザーズ決勝はグランドファイナルへつなぐ',async()=>{
+  const snapshot=await buildSnapshotForTeamCount(8),manager=createManagerFromSnapshot(snapshot);
+  const linked:string[]=[];
+  for(let step=0;step<40;step++){
+   const before=await exportSnapshot(manager);
+   const data=toStageData(before);
+   const playable=data.match.find(m=>m.opponent1?.id!=null&&m.opponent2?.id!=null&&(m.status===2||m.status===3));
+   if(!playable)break;
+   const winnerId=playable.opponent1!.id!;
+   const team=data.participant.find(p=>p.id===winnerId)!.name;
+   const kind=getMatchBracketKind(data,playable);
+   await applyResult(manager,data,playable.id,0,playable.id);
+   const geometry=resolveResultAdvance(toStageData(before),toStageData(await exportSnapshot(manager)),playable.id,team);
+   if(kind==='winner'||kind==='loser'){
+    expect(geometry,`${kind} match ${playable.id}`).not.toBeNull();
+    if(geometry!.attachGrandFinal)linked.push(kind);
+   }
+  }
+  expect(linked).toContain('winner');
+  expect(linked).toContain('loser');
  });
 });

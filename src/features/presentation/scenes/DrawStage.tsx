@@ -90,10 +90,11 @@ export default function DrawStage({
 
         let cardIndex = 0;
         teams.forEach((members, teamIndex) => {
-          members.forEach(() => {
+          members.forEach((_, memberIndex) => {
             const card = cards[cardIndex];
             cardIndex += 1;
             if (!card) return;
+            const lastParticipant = teamIndex === teams.length - 1 && memberIndex === members.length - 1;
 
             const shell = card.querySelector<HTMLElement>('.draw-card-shell');
             const dart = card.querySelector<HTMLElement>('.draw-dart');
@@ -135,6 +136,8 @@ export default function DrawStage({
               .to(shell, { rotationY: 180, duration: seconds('cardFlip'), ease: 'power2.inOut' }, flip)
               .to(playerReveal, { autoAlpha: 1, duration: seconds('playerReveal'), ease: 'power2.out' }, flip + seconds('cardFlip'))
               .to(card, { autoAlpha: 0, scale: 0.96, duration: seconds('memberExit'), ease: 'power2.inOut' }, leave);
+            // 最後の紹介が終わったら、裏面とダーツを残さない。
+            if (lastParticipant) tl.set('.draw-reveal-layer', { autoAlpha: 0 }, leave);
           });
 
           const pairStage = pairStages[teamIndex];
@@ -160,20 +163,20 @@ export default function DrawStage({
             duration: seconds('summaryEnter'),
             ease: 'back.out(1.4)',
           }, summaryAt);
-        if (track && pageCount > 0) {
+        tl.set('.draw-reveal-layer', { autoAlpha: 0 }, summaryAt);
+        if (track && pageCount > 0 && gateSec > 0) {
           const pageWidth = () => track.querySelector<HTMLElement>('.draw-team-page')?.offsetWidth || summary?.clientWidth || window.innerWidth || 1920;
+          const travel = Math.max(seconds('summaryPageTravel') * pageCount, 0.1);
+          const scroll = Math.min(travel, gateSec);
           gsap.set(track, { x: 0 });
-          const loopTween = gsap.to(track, {
-            x: () => -pageCount * pageWidth(),
-            duration: Math.max(seconds('summaryPageTravel') * pageCount, 0.1),
+          tl.fromTo(track, { x: 0 }, {
+            x: () => -pageCount * pageWidth() * (scroll / travel),
+            duration: scroll,
             ease: 'none',
-            repeat: -1,
-          });
-          tl.add(loopTween, summaryAt + seconds('summaryEnter'));
-          tl.to({}, { duration: Math.max(0, gateSec) }, summaryAt + seconds('summaryEnter'));
-        } else {
-          tl.to({}, { duration: Math.max(0, gateSec) });
+            immediateRender: false,
+          }, summaryAt + seconds('summaryEnter'));
         }
+        tl.to({}, { duration: Math.max(0, gateSec) }, summaryAt + seconds('summaryEnter'));
       } else if (presentationMode === 'short') {
         tl.set(intro, { autoAlpha: 0 })
           .fromTo(
@@ -237,7 +240,7 @@ export default function DrawStage({
         </h2>
       </div>
 
-      <div className="absolute inset-0 z-20 flex items-center justify-center">
+      <div className="draw-reveal-layer absolute inset-0 z-20 flex items-center justify-center">
         {data.participants.map((participant) => (
           <RevealCard key={participant.id} participant={participant} compact={presentationMode !== 'full'} />
         ))}

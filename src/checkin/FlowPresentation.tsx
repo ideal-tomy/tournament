@@ -4,6 +4,7 @@ import LosersColumnBoard from '../features/bracket/LosersColumnBoard';
 import { venueNextMatchId, venuePulseMatchIds } from '../features/bracket/bracketCamera';
 import { getMatchBracketKind } from '../features/progression/tiers';
 import { toStageData } from '../features/bracket/stageData';
+import { resolveLoserDropPlacement } from '../features/bracket/resultAdvance';
 import { ratedName, toPresentationTeam } from './presentationAdapter';
 import type { CourtSpotlight, DrawState } from './DrawControl';
 import { portraitUrlFor } from './portraitCache';
@@ -100,9 +101,12 @@ function winnersFinalist(state: DrawState) {
 export function SavedBracket({
   state,
   omitCompleted = false,
+  activeRound: activeRoundOverride,
 }: {
   state: DrawState;
   omitCompleted?: boolean;
+  /** false なら進行カメラにしない（ルーザーズ導入の全体） */
+  activeRound?: boolean;
 }) {
   if (!state.bracket) return null;
   const data = toStageData(state.bracket);
@@ -134,6 +138,30 @@ export function SavedBracket({
     resultMatchIds,
     nextIdOf: (id) => venueNextMatchId(data, side === 'losers' ? 'losers' : side === 'grand_final' ? 'grand_final' : 'winners', id),
   });
+  // ウィナーズからの落下は線を描かず、ルーザーズ表に出たとき入り先だけ点滅する。
+  if (side === 'losers') {
+    const presentation = state.flow?.resultPresentation;
+    const loserId = state.flow?.loserTeamId;
+    if (presentation?.beforeBracket && loserId && presentation.match.kind === 'winner') {
+      const drop = resolveLoserDropPlacement(
+        toStageData(presentation.beforeBracket),
+        data,
+        presentation.match.id,
+        loserId,
+      );
+      if (drop && !pulseMatchIds.includes(drop.targetMatchId)) pulseMatchIds.push(drop.targetMatchId);
+    }
+    for (const board of boards) {
+      if (board.stage !== 'result' || !board.match || board.match.kind !== 'winner' || !board.loserTeamId || !presentation?.beforeBracket) continue;
+      const drop = resolveLoserDropPlacement(
+        toStageData(presentation.beforeBracket),
+        data,
+        board.match.id,
+        board.loserTeamId,
+      );
+      if (drop && !pulseMatchIds.includes(drop.targetMatchId)) pulseMatchIds.push(drop.targetMatchId);
+    }
+  }
   const faceUrlByTeamId = Object.fromEntries(
     state.teams.map((team) => [
       team.id,
@@ -160,24 +188,29 @@ export function SavedBracket({
         {side === 'losers' ? (
           <LosersColumnBoard
             data={data}
+            faceUrlByTeamId={faceUrlByTeamId}
+            labelByTeamId={labelByTeamId}
             liveMatchIds={liveMatchIds}
             calledMatchIds={calledMatchIds}
+            highlightMatchId={liveMatchIds[0] ?? calledMatchIds[0] ?? null}
+            pulseMatchIds={pulseMatchIds}
+            focusRound={activeRoundOverride === false ? 1 : null}
+          />
+        ) : (
+          <BracketView
+            data={data}
+            boardSide={side}
+            omitCompleted={side === 'winners' ? false : omitCompleted}
+            activeRound={
+              activeRoundOverride
+              ?? (side === 'winners' && omitCompleted)
+            }
+            currentMatchId={liveMatchIds[0] ?? calledMatchIds[0] ?? null}
             pulseMatchIds={pulseMatchIds}
             faceUrlByTeamId={faceUrlByTeamId}
             labelByTeamId={labelByTeamId}
+            memberNamesByTeamId={memberNamesByTeamId}
           />
-        ) : (
-        <BracketView
-          data={data}
-          boardSide={side}
-          omitCompleted={side === 'winners' ? false : omitCompleted}
-          activeRound={side === 'winners' && omitCompleted}
-          currentMatchId={liveMatchIds[0] ?? calledMatchIds[0] ?? null}
-          pulseMatchIds={pulseMatchIds}
-          faceUrlByTeamId={faceUrlByTeamId}
-          labelByTeamId={labelByTeamId}
-          memberNamesByTeamId={memberNamesByTeamId}
-        />
         )}
         {winnersRail(state)}
       </div>
@@ -202,7 +235,10 @@ function CourtSpotlightView({ state, spot }: { state: DrawState; spot: CourtSpot
   if (spot.kind === 'losers-intro') {
     return (
       <div key={`${spot.id}-bracket`} className="losers-bracket-fade relative h-full min-h-[60vh]">
-        <SavedBracket omitCompleted state={{ ...state, flow: { ...state.flow!, boardSide: 'losers' } }} />
+        <SavedBracket
+          omitCompleted
+          state={{ ...state, flow: { ...state.flow!, boardSide: 'losers' } }}
+        />
       </div>
     );
   }
@@ -328,6 +364,10 @@ export default function FlowPresentation({ state, controlledTime }: { state: Dra
     if (state.scene === 'interval') {
       const courts = state.flow?.courts;
       if (courts?.spotlight) return <CourtSpotlightView state={state} spot={courts.spotlight} />;
+      const playing = courts?.boards.some((board) => board.stage === 'call' || board.stage === 'live');
+      if (state.flow?.championTeamId && !playing) {
+        return <ChampionBoard settled audioEnabled={false} team={existingTeam(state, state.flow.championTeamId)} />;
+      }
       return courts?.showBracket ? <SavedBracket omitCompleted state={state} /> : <CourtBoards state={state} teamOf={(id) => existingTeam(state, id)} />;
     }
     if (state.scene === 'finished') return <ThanksBoard />;
@@ -350,13 +390,18 @@ export default function FlowPresentation({ state, controlledTime }: { state: Dra
       }
       if (step === 'podium') {
         return (
-          <PodiumBoard
-            key={state.sceneSeq}
-            first={existingTeam(state, placements?.first ?? state.flow?.championTeamId)}
-            second={placeTeams(state, placements?.second)}
-            third={placeTeams(state, placements?.third)}
-            {...timing}
-          />
+          <>
+            <ChampionBoard settled audioEnabled={false} team={existingTeam(state, placements?.first ?? state.flow?.championTeamId)} />
+            <div className="ceremony-over">
+              <PodiumBoard
+                key={state.sceneSeq}
+                first={existingTeam(state, placements?.first ?? state.flow?.championTeamId)}
+                second={placeTeams(state, placements?.second)}
+                third={placeTeams(state, placements?.third)}
+                {...timing}
+              />
+            </div>
+          </>
         );
       }
       return <ChampionBoard key={state.sceneSeq} team={existingTeam(state, state.flow?.championTeamId)} {...timing} />;
@@ -366,7 +411,10 @@ export default function FlowPresentation({ state, controlledTime }: { state: Dra
       if (state.scene === 'vs_card' && state.flow?.losersIntroPending && elapsed < LOSERS_INTRO_BRACKET_SEC) {
         return (
           <div key={`losers-bracket-${state.sceneSeq}`} className="losers-bracket-fade relative h-full min-h-[60vh]">
-            <SavedBracket omitCompleted state={{ ...state, flow: { ...state.flow!, boardSide: 'losers' } }} />
+            <SavedBracket
+              omitCompleted
+              state={{ ...state, flow: { ...state.flow!, boardSide: 'losers' } }}
+            />
           </div>
         );
       }

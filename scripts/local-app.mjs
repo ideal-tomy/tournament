@@ -83,7 +83,7 @@ try {
     await run(wrangler, ['d1', 'migrations', 'apply', 'DB', '--config', config, '--local', '--persist-to', storage]);
     await run(wrangler, ['d1', 'execute', 'DB', '--config', config, '--local', '--persist-to', storage, '--file', 'cloudflare/local/seed.sql']);
     if (mode !== 'setup') {
-      console.log(`\nCloudflare app: http://localhost:${port}/rehearsal\nAccess code: same as deploy (.checkin-access.local / cloudflare/local/.dev.vars).\nCreate a rehearsal first; open Admin/Display using the links with ?run=...\n`);
+      console.log(`\nCloudflare app: http://localhost:${port}/start\nAccess code: same as deploy (.checkin-access.local / cloudflare/local/.dev.vars).\nChoose or create a local tournament; open Admin/Display using the links with ?run=...\n`);
       if (mode === 'dev') {
         const watcher = start(resolve(root, 'node_modules/vite/bin/vite.js'), ['build', '--config', 'vite.checkin.config.ts', '--watch', '--emptyOutDir', 'false']);
         watcher.once('exit', code => { if (!stopping) stop(code || 1); });

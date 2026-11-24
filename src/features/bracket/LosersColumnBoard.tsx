@@ -1,111 +1,50 @@
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useMemo, useRef } from 'react';
 import { TOURNAMENT_EFFECTS } from '../../lib/tournamentEffects';
-import { splitLoserWaitSource, venueCameraRounds, venueFocusRound } from './bracketCamera';
+import { venueFocusRound } from './bracketCamera';
 import type { StageData } from './layout';
-import { losersColumns, type LoserColumn, type LoserSlotStatus } from './losersBoard';
+import {
+  computeLosersBoardLayout,
+  type LoserSlotStatus,
+  type LosersPlacedMatch,
+} from './losersBoard';
 
 function Slot({
   teamId,
-  source,
   faces,
   label,
   slot,
+  lost,
 }: {
   teamId: string | null;
-  source: string;
   faces: string[];
   label: string;
   slot: number;
+  lost: boolean;
 }) {
   if (!teamId) {
-    const [line, wait] = splitLoserWaitSource(source);
     return (
-      <p className="losers-wait" data-slot={slot}>
-        <span>{line}</span>
-        <span>{wait}</span>
-      </p>
+      <div className="losers-slot is-open" data-slot={slot}>
+        <span className="losers-faces">
+          <span className="losers-face-empty" />
+          <span className="losers-face-empty" />
+        </span>
+      </div>
     );
   }
   return (
-    <div className="losers-slot" data-slot={slot}>
+    <div className={`losers-slot${lost ? ' is-lost' : ''}`} data-slot={slot} data-team-id={teamId}>
       <span className="losers-faces">
         {faces.slice(0, 2).map((face, index) => (
           face ? <img key={`${face}-${index}`} src={face} alt="" /> : <span key={index} className="losers-face-empty" />
         ))}
       </span>
-      <strong>{label || teamId}</strong>
+      {label ? <span className="losers-team-name">{label}</span> : null}
     </div>
   );
-}
-
-function yOf(index: number, count: number) {
-  return ((index + 0.5) / count) * 100;
-}
-
-function drawPath(fromIndex: number, fromCount: number, toIndex: number, toCount: number) {
-  const y = yOf(fromIndex, fromCount);
-  const yNext = yOf(toIndex, toCount);
-  return Math.abs(y - yNext) < 0.01 ? `M 0 ${y} H 100` : `M 0 ${y} H 42 V ${yNext} H 100`;
-}
-
-function Links({ from, to, hotId, drawMatchId = null }: { from: LoserColumn; to: LoserColumn; hotId: number | null; drawMatchId?: number | null }) {
-  const nextIndex = new Map(to.matches.map((match, index) => [match.id, index]));
-  const groups = new Map<number, number[]>();
-  from.matches.forEach((match, index) => {
-    if (match.nextId == null || !nextIndex.has(match.nextId)) return;
-    const list = groups.get(match.nextId) ?? [];
-    list.push(index);
-    groups.set(match.nextId, list);
-  });
-  const paths = [...groups].map(([nextId, indexes]) => {
-    const target = nextIndex.get(nextId) ?? 0;
-    const ys = indexes.map((index) => yOf(index, from.matches.length));
-    const yNext = yOf(target, to.matches.length);
-    const hot = hotId === nextId || indexes.some((index) => from.matches[index]?.id === hotId);
-    if (ys.length === 1 && from.matches[indexes[0] ?? -1]?.id === drawMatchId) return null;
-    if (ys.length === 1) {
-      const y = ys[0];
-      const d = Math.abs(y - yNext) < 0.01 ? `M 0 ${y} H 100` : `M 0 ${y} H 42 V ${yNext} H 100`;
-      return { hot, d };
-    }
-    const top = Math.min(...ys, yNext);
-    const bottom = Math.max(...ys, yNext);
-    const arms = ys.map((y) => `M 0 ${y} H 42`).join(' ');
-    return { hot, d: `${arms} M 42 ${top} V ${bottom} M 42 ${yNext} H 100` };
-  });
-  return (
-    <div className="losers-link" aria-hidden="true">
-      <div className="losers-link-pad" />
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
-        {paths.flatMap((path) => (
-          path ? [<path key={path.d} d={path.d} className={path.hot ? 'is-hot' : undefined} />] : []
-        ))}
-        {from.matches.flatMap((match, index) => {
-          if (match.id !== drawMatchId || match.nextId == null || !nextIndex.has(match.nextId)) return [];
-          const d = drawPath(index, from.matches.length, nextIndex.get(match.nextId) ?? 0, to.matches.length);
-          return [<path key={`draw-${match.id}`} className="losers-draw-line" pathLength={1} strokeDasharray={1} strokeDashoffset={1} d={d} />];
-        })}
-      </svg>
-    </div>
-  );
-}
-
-function boxOf(root: DOMRect, node: HTMLElement) {
-  const rect = node.getBoundingClientRect();
-  return { x: rect.left - root.left, y: rect.top - root.top, w: rect.width, h: rect.height };
 }
 
 function formatTransform(tx: number, ty: number, scale: number) {
   return `translate(${tx.toFixed(2)}px, ${ty.toFixed(2)}px) scale(${scale.toFixed(4)})`;
-}
-
-function unionBox(root: DOMRect, nodes: HTMLElement[], pad: number) {
-  const boxes = nodes.map((node) => boxOf(root, node));
-  const left = Math.min(...boxes.map((box) => box.x)) - pad;
-  const top = Math.min(...boxes.map((box) => box.y)) - pad;
-  const right = Math.max(...boxes.map((box) => box.x + box.w)) + pad;
-  const bottom = Math.max(...boxes.map((box) => box.y + box.h)) + pad;
-  return { x: left, y: top, w: Math.max(1, right - left), h: Math.max(1, bottom - top) };
 }
 
 function clampPan(desired: number, view: number, scaled: number) {
@@ -114,52 +53,45 @@ function clampPan(desired: number, view: number, scaled: number) {
 }
 
 /**
- * 倍率は「隣り合う2列が入る大きさ」で固定する。
- * 試合が進んでも拡大せず、映す列の位置だけを変える。
+ * 幅に合わせて倍率を決め、進行中の段が上側に来るよう縦に送る。
+ * 見出しは 14px 未満にしない。
  */
-function computeCamera(track: HTMLElement, viewW: number, viewH: number, focusNodes: HTMLElement[]): string | null {
-  const previousTransform = track.style.transform;
-  const previousTransition = track.style.transition;
-  track.style.transition = 'none';
-  track.style.transform = 'none';
-  void track.offsetWidth;
-  try {
-    const naturalW = track.scrollWidth;
-    const naturalH = track.scrollHeight;
-    if (!naturalW || !naturalH) return null;
-    const root = track.getBoundingClientRect();
-    const rounds = [...track.querySelectorAll<HTMLElement>('.losers-round')];
-    const windows = rounds.length <= 1
-      ? [rounds]
-      : rounds.slice(0, -1).map((node, index) => [node, rounds[index + 1]]);
-    const windowFits = windows
-      .filter((nodes) => nodes.length > 0)
-      .map((nodes) => {
-        const box = unionBox(root, nodes, 12);
-        return Math.min(viewW / box.w, viewH / box.h);
-      });
-    const rawScale = windowFits.length ? Math.min(...windowFits) : Math.min(viewW / naturalW, viewH / naturalH);
-    const scale = Math.round(rawScale * 10000) / 10000;
-    const focus = focusNodes.length
-      ? unionBox(root, focusNodes, 12)
-      : { x: 0, y: 0, w: naturalW, h: naturalH };
-    const tx = clampPan(viewW / 2 - (focus.x + focus.w / 2) * scale, viewW, naturalW * scale);
-    const ty = clampPan(viewH / 2 - (focus.y + focus.h / 2) * scale, viewH, naturalH * scale);
-    return formatTransform(tx, ty, scale);
-  } finally {
-    track.style.transform = previousTransform;
-    track.style.transition = previousTransition;
-  }
+function computeCamera(
+  naturalW: number,
+  naturalH: number,
+  viewW: number,
+  viewH: number,
+  focusY: number | null,
+): string | null {
+  if (!naturalW || !naturalH || !viewW || !viewH) return null;
+  const fit = Math.min(viewW / naturalW, viewH / naturalH);
+  const scale = Math.min(1, Math.round(fit * 10000) / 10000);
+  const tx = clampPan((viewW - naturalW * scale) / 2, viewW, naturalW * scale);
+  const desiredTy = focusY == null
+    ? (viewH - naturalH * scale) / 2
+    : viewH * 0.08 - focusY * scale;
+  const ty = clampPan(desiredTy, viewH, naturalH * scale);
+  return formatTransform(tx, ty, scale);
 }
 
-function applyTrackTransform(track: HTMLElement, next: string, applied: { current: string }) {
-  if (applied.current === next) return;
-  track.style.transition = 'none';
-  track.style.transform = next;
-  applied.current = next;
+function matchStatus(
+  match: LosersPlacedMatch,
+  liveSet: Set<number>,
+  callSet: Set<number>,
+): LoserSlotStatus {
+  if (liveSet.has(match.id)) return 'live';
+  if (callSet.has(match.id)) return 'ready';
+  return match.status;
 }
 
-/** ルーザーズだけ、回戦の列と接続線で出す。ウィナーズの樹とは別の画面。 */
+function slotLost(data: StageData, matchId: number, slot: number): boolean {
+  const match = data.match.find((row) => row.id === matchId);
+  if (!match) return false;
+  const opp = slot === 0 ? match.opponent1 : match.opponent2;
+  return opp?.result === 'loss';
+}
+
+/** ルーザーズだけ、上から下へ回戦を積む。ウィナーズの樹とは別の画面。 */
 export default function LosersColumnBoard({
   data,
   faceUrlByTeamId,
@@ -172,6 +104,7 @@ export default function LosersColumnBoard({
   frameMatchId = null,
   pulseMatchIds = [],
   focusRound: focusRoundOverride = null,
+  drawFromMatchId = null,
 }: {
   data: StageData;
   faceUrlByTeamId: Record<string, string[]>;
@@ -181,111 +114,149 @@ export default function LosersColumnBoard({
   calledMatchId?: number | null;
   calledMatchIds?: number[];
   highlightMatchId?: number | null;
-  /** この試合の列へ移動する。拡大はしない */
+  /** この試合と行き先を明るくする */
   frameMatchId?: number | null;
   /** 進行中の試合、または勝利確定後の次の枠 */
   pulseMatchIds?: number[];
   /** 会場表のカメラが映す回戦。未指定なら進行状態から決める */
   focusRound?: number | null;
+  /** 勝ち上がり演出で伸ばす線の元試合 */
+  drawFromMatchId?: number | null;
 }) {
-  const columns = losersColumns(data);
+  const layout = useMemo(() => computeLosersBoardLayout(data), [data]);
   const lives = [...new Set([liveMatchId, ...liveMatchIds].filter((id): id is number => id != null))];
   const calls = [...new Set([calledMatchId, ...calledMatchIds].filter((id): id is number => id != null))];
   const liveSet = new Set(lives);
   const callSet = new Set(calls);
-  const focusId = frameMatchId ?? highlightMatchId ?? lives[0] ?? calls[0] ?? null;
   const pulseIds = new Set(pulseMatchIds);
   const focusRound = focusRoundOverride ?? venueFocusRound(data, 'losers', {
     liveMatchIds: lives,
     calledMatchIds: calls,
     highlightMatchId,
   });
-  const cameraRoundList = venueCameraRounds(focusRound, columns[columns.length - 1]?.round ?? focusRound);
-  const cameraRoundsKey = cameraRoundList.join(',');
-  const frameNextId =
-    frameMatchId == null
-      ? null
-      : columns.flatMap((column) => column.matches).find((match) => match.id === frameMatchId)?.nextId ?? null;
-  const cameraKey = `${cameraRoundsKey}|${focusRound}|${focusId ?? ''}|${frameMatchId ?? ''}|${frameNextId ?? ''}`;
+  const focusRow = layout.rounds.find((round) => round.round === focusRound) ?? layout.rounds[0] ?? null;
+  const drawLink = drawFromMatchId == null
+    ? null
+    : layout.connectors.find((connector) => connector.fromMatchId === drawFromMatchId) ?? null;
+  const cameraKey = `${layout.width}x${layout.height}|${focusRound}|${frameMatchId ?? ''}|${drawFromMatchId ?? ''}`;
   const viewportRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const appliedTransform = useRef('');
-  const cameraKeyRef = useRef(cameraKey);
+
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
     const track = trackRef.current;
     if (!viewport || !track) return;
-    const rounds = cameraRoundsKey.split(',').map(Number).filter((round) => Number.isFinite(round));
-    cameraKeyRef.current = cameraKey;
     const place = () => {
       const viewW = viewport.clientWidth;
       const viewH = viewport.clientHeight;
-      if (!viewW || !viewH) return;
-      const framed = frameMatchId == null
-        ? []
-        : [frameMatchId, frameNextId]
-          .filter((id): id is number => id != null)
-          .map((id) => track.querySelector<HTMLElement>(`[data-match-id="${id}"]`))
-          .filter((node): node is HTMLElement => node != null);
-      const roundNodes = rounds
-        .map((round) => track.querySelector<HTMLElement>(`.losers-round[data-round="${round}"]`))
-        .filter((node): node is HTMLElement => node != null);
-      const next = computeCamera(track, viewW, viewH, framed.length ? framed : roundNodes);
-      if (!next) return;
+      const next = computeCamera(
+        layout.width,
+        layout.height,
+        viewW,
+        viewH,
+        focusRow?.y ?? null,
+      );
+      if (!next || appliedTransform.current === next) return;
       track.style.transformOrigin = '0 0';
-      applyTrackTransform(track, next, appliedTransform);
+      track.style.transition = 'none';
+      track.style.transform = next;
+      appliedTransform.current = next;
     };
     place();
     const observer = new ResizeObserver(() => place());
     observer.observe(viewport);
     return () => observer.disconnect();
-  }, [cameraKey, cameraRoundsKey, frameMatchId, frameNextId]);
+  }, [cameraKey, focusRow, layout.height, layout.width]);
+
+  if (layout.rounds.length === 0) {
+    return (
+      <div className="losers-viewport" aria-label="ルーザーズ">
+        <p className="losers-empty">ルーザーズの試合はまだありません</p>
+      </div>
+    );
+  }
+
   return (
     <div ref={viewportRef} className="losers-viewport" aria-label="ルーザーズ">
-      <div ref={trackRef} className={`losers-track${frameMatchId == null ? '' : ' is-framed'}`}>
-        {columns.map((column, columnIndex) => (
-          <div key={column.round} className="losers-round" data-round={column.round}>
-            <section className="losers-col">
-              <h3>{column.round}回戦</h3>
-              <div className="losers-matches">
-                {column.matches.map((match, index) => {
-                  const state: LoserSlotStatus = liveSet.has(match.id)
-                    ? 'live'
-                    : callSet.has(match.id)
-                      ? 'ready'
-                      : match.status;
-                  return (
-                    <article
-                      key={match.id}
-                      className={`losers-match${state === 'live' ? ' is-live' : ''}${match.id === highlightMatchId ? ' is-current' : ''}${pulseIds.has(match.id) ? ' is-pulse' : ''}`}
-                      data-match-id={match.id}
-                      style={{ ['--n' as string]: column.matches.length, top: `${yOf(index, column.matches.length)}%` }}
-                    >
-                      <div className="losers-vs" aria-hidden="true">
-                        <img src={TOURNAMENT_EFFECTS.effects.vsMark} alt="" />
-                      </div>
-                      <div className="losers-sides">
-                        {match.slots.map((slot, slotIndex) => (
-                          <Slot
-                            key={slotIndex}
-                            slot={slotIndex}
-                            teamId={slot.teamId}
-                            source={slot.source}
-                            faces={slot.teamId ? faceUrlByTeamId[slot.teamId] ?? [] : []}
-                            label={slot.teamId ? labelByTeamId[slot.teamId] ?? '' : ''}
-                          />
-                        ))}
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-            {columnIndex < columns.length - 1 && (
-              <Links from={column} to={columns[columnIndex + 1]} hotId={frameMatchId == null ? focusId : null} drawMatchId={frameMatchId} />
-            )}
+      <div
+        ref={trackRef}
+        className={`losers-track${frameMatchId == null ? '' : ' is-framed'}`}
+        style={{ width: layout.width, height: layout.height }}
+      >
+        <svg
+          className="losers-lines"
+          viewBox={`0 0 ${layout.width} ${layout.height}`}
+          width={layout.width}
+          height={layout.height}
+          aria-hidden="true"
+        >
+          {layout.connectors.map((connector) => {
+            const hot = connector.fromMatchId === drawFromMatchId
+              || connector.fromMatchId === frameMatchId
+              || connector.toMatchId === frameMatchId
+              || connector.toMatchId === highlightMatchId;
+            const drawing = drawLink && connector.fromMatchId === drawFromMatchId;
+            return (
+              <path
+                key={`${connector.fromMatchId}-${connector.toMatchId}`}
+                d={connector.path}
+                className={drawing ? 'losers-draw-line is-hot' : hot ? 'is-hot' : undefined}
+              />
+            );
+          })}
+        </svg>
+
+        {layout.rounds.map((row) => (
+          <div key={row.round} className="losers-round-row" data-round={row.round} style={{ top: row.y }}>
+            <h3 className="losers-round-label">
+              <span className="losers-round-num">{row.round}回戦</span>
+            </h3>
+            {row.matches.map((match) => {
+              const state = matchStatus(match, liveSet, callSet);
+              const framed = match.id === frameMatchId || match.id === drawFromMatchId;
+              return (
+                <article
+                  key={match.id}
+                  className={`losers-match${state === 'live' ? ' is-live' : ''}${match.id === highlightMatchId ? ' is-current' : ''}${pulseIds.has(match.id) ? ' is-pulse' : ''}${framed ? ' is-framed-match' : ''}${state === 'done' ? ' is-done' : ''}`}
+                  data-match-id={match.id}
+                  style={{ left: match.x, top: 36, width: match.w, height: match.h }}
+                >
+                  <div className="losers-vs" aria-hidden="true">
+                    <img src={TOURNAMENT_EFFECTS.effects.vsMark} alt="" />
+                  </div>
+                  <div className="losers-sides">
+                    {match.slots.map((slot, slotIndex) => (
+                      <Slot
+                        key={slotIndex}
+                        slot={slotIndex}
+                        teamId={slot.teamId}
+                        faces={slot.teamId ? faceUrlByTeamId[slot.teamId] ?? [] : []}
+                        label={slot.teamId ? labelByTeamId[slot.teamId] ?? '' : ''}
+                        lost={slotLost(data, match.id, slotIndex)}
+                      />
+                    ))}
+                  </div>
+                </article>
+              );
+            })}
           </div>
         ))}
+
+        {layout.grandFinal && (
+          <div
+            className="losers-gf"
+            data-match-id={-1}
+            style={{
+              left: layout.grandFinal.x,
+              top: layout.grandFinal.y,
+              width: layout.grandFinal.w,
+              height: layout.grandFinal.h,
+            }}
+          >
+            グランドファイナルへ
+          </div>
+        )}
       </div>
     </div>
   );

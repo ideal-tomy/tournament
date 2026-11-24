@@ -1,5 +1,7 @@
 # ドキュメント案内
 
+> 2026-11-21：ホームの通しリハーサル画面 `/rehearsal` は現行アプリから除外されています。以下の旧資料にある同画面の操作、公開URL、正本・最新などの表現は当時の記録です。現行の大会開始は `/start`、個別演出の確認は `/venue-check` を使用してください。環境や公開先の指定は実行前に確認してください。整理対象と検証状況は [整理実施計画](./本番向け整理実施計画_20261121.md) を参照。
+
 **会場当日の基本フロー（スマホ受付・運営・モニター連動）:** [DAY_OF_EVENT.md](./DAY_OF_EVENT.md)
 
 更新版の環境整理・全Route分類・既存Worker棚卸し・スマホ受付の入口は [ENVIRONMENT_CONSOLIDATION.md](ENVIRONMENT_CONSOLIDATION.md)。[Worker一覧](environment-verification/WORKERS.md)には稼働versionとbindingを記録。

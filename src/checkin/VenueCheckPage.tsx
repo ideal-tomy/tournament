@@ -10,7 +10,7 @@ import LosersColumnBoard from '../features/bracket/LosersColumnBoard';
 import { computeBracketLayout } from '../features/bracket/layout';
 import AnimatedBracketAdvance from './AnimatedBracketAdvance';
 import type { DrawState } from './DrawControl';
-import { buildVenueAdvances, type VenueAdvance } from './venueAdvance';
+import { buildVenueAdvances, buildVenueAdvancesToEnd, type VenueAdvance } from './venueAdvance';
 import { appendPairCelebration } from '../features/presentation/backdrop/appendPresentationBackdrop';
 import ChampionBoard from '../features/presentation/ceremony/ChampionBoard';
 import type { CeremonyTeam } from '../features/presentation/ceremony/CeremonyFrame';
@@ -116,9 +116,22 @@ function BracketBoard({
     <div className="persisted-bracket">
       <h2>{side === 'losers' ? 'ルーザーズ' : 'ウィナーズ'}</h2>
       <div className="persisted-bracket-body">
-        {side === 'losers'
-          ? <LosersColumnBoard data={data} faceUrlByTeamId={maps.faceUrlByTeamId} labelByTeamId={maps.labelByTeamId} />
-          : <BracketView data={data} boardSide={side} omitCompleted={side === 'winners' ? false : omitCompleted} activeRound={side === 'winners' && omitCompleted} {...maps} />}
+        {side === 'losers' ? (
+          <LosersColumnBoard
+            data={data}
+            faceUrlByTeamId={maps.faceUrlByTeamId}
+            labelByTeamId={maps.labelByTeamId}
+            focusRound={omitCompleted ? null : 1}
+          />
+        ) : (
+          <BracketView
+            data={data}
+            boardSide={side}
+            omitCompleted={false}
+            activeRound={omitCompleted}
+            {...maps}
+          />
+        )}
       </div>
     </div>
   );
@@ -130,6 +143,7 @@ function LosersIntroSequence({ teams, replay }: { teams: FixtureTeam[]; replay: 
   useEffect(() => {
     let cancelled = false;
     setData(null);
+    setElapsed(0);
     buildVenueAdvances(teams.map((team) => team.id), 16).then((steps) => {
       const entered = steps.find((step) => computeBracketLayout(toStageData(step.after), undefined, 'losers').matches.length > 0);
       if (!cancelled && entered) setData(toStageData(entered.after));
@@ -137,6 +151,7 @@ function LosersIntroSequence({ teams, replay }: { teams: FixtureTeam[]; replay: 
     return () => { cancelled = true; };
   }, [replay, teams]);
   useEffect(() => {
+    if (!data) return;
     setElapsed(0);
     const started = performance.now();
     let frame = 0;
@@ -147,9 +162,9 @@ function LosersIntroSequence({ teams, replay }: { teams: FixtureTeam[]; replay: 
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [replay]);
+  }, [data, replay]);
+  if (!data) return <p role="status">ルーザーズに入った組を組んでいます…</p>;
   if (elapsed < LOSERS_INTRO_BRACKET_SEC) {
-    if (!data) return <p role="status">ルーザーズに入った組を組んでいます…</p>;
     return (
       <div className="losers-bracket-fade relative h-full min-h-[60vh]">
         <BracketBoard data={data} teams={teams} side="losers" omitCompleted />
@@ -272,19 +287,34 @@ function advanceState(teams: FixtureTeam[], step: VenueAdvance): DrawState {
   } as DrawState;
 }
 
+function losersStepNote(step: VenueAdvance, index: number, total: number): string {
+  const end = index >= total - 1 ? ' · ルーザーズはここまで' : '';
+  return `${step.label} · ${step.teamA}${end}`;
+}
+
 function AdvancePlay({ teams, replay, onNote, kind }: { teams: FixtureTeam[]; replay: number; onNote(note: string): void; kind?: 'winner' | 'loser' }) {
   const [steps, setSteps] = useState<VenueAdvance[]>([]);
   const [index, setIndex] = useState(0);
   const [error, setError] = useState('');
+  const [paused, setPaused] = useState(false);
   useEffect(() => {
     let cancelled = false;
     setIndex(0);
     setSteps([]);
-    buildVenueAdvances(teams.map((team) => team.id), kind === 'loser' ? 28 : 6).then((next) => {
-      const picked = kind ? next.filter((step) => step.kind === kind).slice(0, 4) : next;
+    setPaused(false);
+    const load = kind === 'loser'
+      ? buildVenueAdvancesToEnd(teams.map((team) => team.id)).then((next) => next.filter((step) => step.kind === 'loser'))
+      : buildVenueAdvances(teams.map((team) => team.id), 6).then((next) => (kind ? next.filter((step) => step.kind === kind) : next));
+    load.then((picked) => {
       if (!cancelled) {
         if (picked.length === 0) setError('その場面の試合を組めませんでした。');
-        else setSteps(picked);
+        else {
+          const total = picked.length;
+          setSteps(picked.map((step, stepIndex) => {
+            const place = step.kind === 'loser' ? 'ルーザーズ' : step.kind === 'grand_final' ? 'グランドファイナル' : 'ウィナーズ';
+            return { ...step, label: `${place} ${step.round}回戦 · ${stepIndex + 1}/${total}` };
+          }));
+        }
       }
     }).catch((reason) => {
       if (!cancelled) setError(reason instanceof Error ? reason.message : '進行を組めませんでした。');
@@ -292,24 +322,39 @@ function AdvancePlay({ teams, replay, onNote, kind }: { teams: FixtureTeam[]; re
     return () => { cancelled = true; };
   }, [kind, replay, teams]);
   useEffect(() => {
-    if (index >= steps.length - 1) return undefined;
+    if (paused || index >= steps.length - 1) return undefined;
     const timer = window.setTimeout(() => setIndex((value) => value + 1), 7200);
     return () => window.clearTimeout(timer);
-  }, [index, steps.length]);
+  }, [index, steps.length, paused]);
   const step = steps[index];
   const state = useMemo(() => (step ? advanceState(teams, step) : null), [step, teams]);
-  useEffect(() => { onNote(step ? `${step.label} · ${step.teamA}` : ''); }, [onNote, step]);
+  useEffect(() => {
+    if (!step) {
+      onNote('');
+      return;
+    }
+    onNote(kind === 'loser' ? losersStepNote(step, index, steps.length) : `${step.label} · ${step.teamA}`);
+  }, [onNote, step, kind, index, steps.length]);
   if (error) return <p role="alert">{error}</p>;
   if (!step || !state) return <p role="status">進行を組んでいます…</p>;
   const winner = teams.find((team) => team.id === step.winnerTeamId);
   const loser = teams.find((team) => team.id === step.loserTeamId);
   if (!winner || !loser) return null;
   return (
-    <AnimatedBracketAdvance
-      key={`${replay}-${step.matchId}`}
-      state={state}
-      winnerOverlay={<WinnerBoard contained settled team={ceremony(winner)} opponent={ceremony(loser)} dropLabel={step.kind === 'winner' ? 'ルーザーへ→' : '敗退→'} />}
-    />
+    <>
+      {kind === 'loser' && (
+        <div className="venue-check-nav" role="navigation" aria-label="ルーザーズ進行">
+          <button type="button" disabled={index <= 0} onClick={() => { setPaused(true); setIndex((value) => Math.max(0, value - 1)); }}>前へ</button>
+          <button type="button" disabled={index >= steps.length - 1} onClick={() => { setPaused(true); setIndex((value) => Math.min(steps.length - 1, value + 1)); }}>次へ</button>
+          <button type="button" onClick={() => setPaused((value) => !value)}>{paused ? '再生' : '一時停止'}</button>
+        </div>
+      )}
+      <AnimatedBracketAdvance
+        key={`${replay}-${step.matchId}-${index}`}
+        state={state}
+        winnerOverlay={<WinnerBoard contained settled team={ceremony(winner)} opponent={ceremony(loser)} dropLabel={step.kind === 'winner' ? 'ルーザーへ→' : '敗退→'} />}
+      />
+    </>
   );
 }
 

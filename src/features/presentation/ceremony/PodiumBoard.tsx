@@ -93,7 +93,8 @@ export default function PodiumBoard({ first, second, third, ...intro }: Ceremony
   const introEnd = cursor;
   useCeremonyIntro(stageRef, introEnd, (tl, cue) => {
     tl.set('.pd-block', { scaleY: 0, transformOrigin: '50% 100%' })
-      .set('.pd-flight', { autoAlpha: 0 });
+      .set('.pd-flight, .pd-bg, .cer-vignette', { autoAlpha: 0 })
+      .to('.pd-bg, .cer-vignette', { autoAlpha: 1, duration: 0.8, ease: 'none' }, 0.2);
     timings.forEach(({ place, appearAt, hit, settleAt }) => {
       const flight = `.pd-flight-${place.rank}`;
       const zoom = closeUp(place, teams[place.rank]);
@@ -137,7 +138,6 @@ export default function PodiumBoard({ first, second, third, ...intro }: Ceremony
           })}
         </div>
         <div className="pd-block" style={{ left: place.center - COLUMN / 2, top: blockTop, width: COLUMN, height: place.height }}>
-          <p className="pd-rank">{place.rank}</p>
           <p className="pd-label">{place.label}</p>
         </div>
       </section>;

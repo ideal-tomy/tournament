@@ -1,4 +1,6 @@
 .cer-fit{position:fixed;inset:0;overflow:hidden;background:#04050a}
+.ceremony-over{position:fixed;inset:0;z-index:2}
+.ceremony-over .cer-fit,.ceremony-over .cer-stage{background:transparent}
 .cer-fit.is-contained{position:absolute;background:transparent}
 .cer-stage{position:absolute;left:50%;top:50%;width:1920px;height:1080px;transform-origin:center center;overflow:hidden;background:#04050a;color:#f8fafc}
 .cer-layer{position:absolute;inset:0;pointer-events:none}
@@ -86,11 +88,11 @@
 .pd-place-2 .pd-card,.pd-place-3 .pd-card{opacity:.92;filter:saturate(.9)}
 .pd-flash{position:absolute;inset:0;z-index:5;background:#fff;opacity:0;visibility:hidden;pointer-events:none}
 @keyframes pd-name-flash{0%,100%{filter:drop-shadow(0 0 8px rgba(251,191,36,.35))}50%{filter:drop-shadow(0 0 28px rgba(253,224,138,.95)) brightness(1.18)}}
-.pd-block{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:14px;box-sizing:border-box;border:2px solid rgba(253,224,138,.75);border-bottom:0;background:linear-gradient(180deg,rgba(120,83,20,.92),rgba(30,20,6,.95));box-shadow:0 0 40px rgba(251,191,36,.25)}
+.pd-block{position:absolute;display:flex;align-items:center;justify-content:center;box-sizing:border-box;border:2px solid rgba(253,224,138,.75);border-bottom:0;background:linear-gradient(180deg,rgba(120,83,20,.92),rgba(30,20,6,.95));box-shadow:0 0 40px rgba(251,191,36,.25)}
 .pd-place-1 .pd-block{background:linear-gradient(180deg,rgba(202,138,4,.95),rgba(66,40,4,.96))}
-.pd-rank{margin:0;font-size:96px;font-weight:900;line-height:1;color:#fde68a;text-shadow:0 4px 0 #000}
-.pd-label{margin:6px 0 0;font-size:30px;font-weight:900;letter-spacing:.2em;padding-left:.2em;color:#fef3c7;text-shadow:0 2px 0 #000}
-.pd-place-3 .pd-rank{font-size:72px}
+.pd-label{margin:0;font-size:92px;font-weight:900;line-height:1;letter-spacing:.08em;white-space:nowrap;word-break:keep-all;color:#fde68a;text-shadow:0 4px 0 #000}
+.pd-place-1 .pd-label{font-size:128px}
+.pd-place-3 .pd-label{font-size:76px}
 
 /* Thanks: shown after the tournament is closed. */
 .th-board{background:#020306}

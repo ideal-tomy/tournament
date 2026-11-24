@@ -253,6 +253,13 @@ function connectorPoints(
       to: { x: to.center.x, y: to.box.y },
     };
   }
+  // 行き先が下（ルーザーズ）なら下辺から出て上辺へ。ウィナーズは上へ伸びる。
+  if (to.box.y >= from.box.y + from.box.h - 0.01) {
+    return {
+      from: { x: from.center.x, y: from.box.y + from.box.h },
+      to: { x: to.center.x, y: to.box.y },
+    };
+  }
   return {
     from: { x: from.center.x, y: from.box.y },
     to: { x: to.center.x, y: to.box.y + to.box.h },
@@ -301,23 +308,30 @@ function computeCenterXMap(
   allMetas: MatchMeta[],
   cfg: LayoutConfig,
   offsetX: number,
+  /** 行番号の空きを詰め、見えている試合を左から並べる（ルーザーズ） */
+  packLeaves = false,
 ): Map<number, number> {
   const centerXByMatchId = new Map<number, number>();
   if (items.length === 0) return centerXByMatchId;
 
   const minRound = Math.min(...items.map((m) => m.round));
   const byRound = groupByRound(items);
-  const leafItems = byRound.find((b) => b.round === minRound)?.items ?? [];
+  const leafItems = [...(byRound.find((b) => b.round === minRound)?.items ?? [])].sort(
+    (a, b) => a.row - b.row || a.match.number - b.match.number,
+  );
   const leafStep = cfg.boxW + cfg.matchGap;
 
-  for (const meta of leafItems) {
-    centerXByMatchId.set(meta.match.id, offsetX + meta.row * leafStep + cfg.boxW / 2);
-  }
+  leafItems.forEach((meta, index) => {
+    const slot = packLeaves ? index : meta.row;
+    centerXByMatchId.set(meta.match.id, offsetX + slot * leafStep + cfg.boxW / 2);
+  });
 
   const maxRound = Math.max(...items.map((m) => m.round));
   for (let round = minRound + 1; round <= maxRound; round++) {
-    const roundItems = byRound.find((b) => b.round === round)?.items ?? [];
-    for (const meta of roundItems) {
+    const roundItems = [...(byRound.find((b) => b.round === round)?.items ?? [])].sort(
+      (a, b) => a.row - b.row || a.match.number - b.match.number,
+    );
+    roundItems.forEach((meta, index) => {
       const feeders = feedersForAdvance(meta, allMetas).filter((f) =>
         items.some((i) => i.match.id === f.match.id),
       );
@@ -330,11 +344,13 @@ function computeCenterXMap(
         cx = (xs[0] + xs[1]) / 2;
       } else if (xs.length === 1) {
         cx = xs[0];
+      } else if (packLeaves) {
+        cx = offsetX + index * leafStep + cfg.boxW / 2;
       } else {
         cx = offsetX + meta.row * leafStep + cfg.boxW / 2;
       }
       centerXByMatchId.set(meta.match.id, cx);
-    }
+    });
   }
 
   return centerXByMatchId;
@@ -409,29 +425,53 @@ function baselineMatchIds(metas: MatchMeta[], hidden: Set<number>): Set<number> 
   return ids;
 }
 
+type TreeGrowth = 'up' | 'down';
+
 function placeTreeSection(
   items: MatchMeta[],
   allMetas: MatchMeta[],
   cfg: LayoutConfig,
-  baseBottom: number,
+  baseEdge: number,
   roundOffset: (round: number) => number,
   offsetX: number,
   hidden: Set<number>,
   baseline: Set<number>,
+  growth: TreeGrowth = 'up',
+  packLeaves = false,
 ): MatchLayout[] {
   if (items.length === 0) return [];
 
   const minRound = Math.min(...items.map((m) => m.round));
   const maxRound = Math.max(...items.map((m) => m.round));
-  const centerXByMatchId = computeCenterXMap(items, allMetas, cfg, offsetX);
+  const centerXByMatchId = computeCenterXMap(items, allMetas, cfg, offsetX, packLeaves);
   const boxHFor = (round: number) => (round === minRound ? cfg.boxH : cfg.compactBoxH);
+  const layouts: MatchLayout[] = [];
+
+  if (growth === 'down') {
+    // ルーザーズ: 初戦を上端に置き、回戦が進むほど下へ積む。
+    const tierTopAt = new Map<number, number>();
+    let tierTop = baseEdge + (roundOffset(minRound) - minRound) * (cfg.boxH + cfg.roundGap);
+    for (let round = minRound; round <= maxRound; round += 1) {
+      tierTopAt.set(roundOffset(round), tierTop);
+      tierTop += boxHFor(round) + cfg.roundGap;
+    }
+    for (const meta of items) {
+      if (hidden.has(meta.match.id)) continue;
+      const cx = centerXByMatchId.get(meta.match.id);
+      if (cx == null) continue;
+      const isLeaf = meta.round === minRound;
+      const boxY = tierTopAt.get(roundOffset(meta.round)) ?? baseEdge;
+      layouts.push(buildMatchLayout(meta, cx, boxY, cfg, isLeaf));
+    }
+    return layouts;
+  }
+
   const tierBottomAt = new Map<number, number>();
-  let tierBottom = baseBottom - (roundOffset(minRound) - minRound) * (cfg.boxH + cfg.roundGap);
+  let tierBottom = baseEdge - (roundOffset(minRound) - minRound) * (cfg.boxH + cfg.roundGap);
   for (let round = minRound; round <= maxRound; round += 1) {
     tierBottomAt.set(roundOffset(round), tierBottom);
     tierBottom -= boxHFor(round) + cfg.roundGap;
   }
-  const layouts: MatchLayout[] = [];
 
   for (const meta of items) {
     if (hidden.has(meta.match.id)) continue;
@@ -441,7 +481,7 @@ function placeTreeSection(
     const isLeaf = onBaseline || meta.round === minRound;
     const tierRound = onBaseline ? minRound : meta.round;
     const boxH = isLeaf ? cfg.boxH : boxHFor(meta.round);
-    const bottom = tierBottomAt.get(roundOffset(tierRound)) ?? baseBottom;
+    const bottom = tierBottomAt.get(roundOffset(tierRound)) ?? baseEdge;
     const boxY = bottom - boxH;
     layouts.push(buildMatchLayout(meta, cx, boxY, cfg, isLeaf));
   }
@@ -454,8 +494,15 @@ export type BracketBoardSide = 'winners' | 'losers' | 'grand_final' | 'all';
 export interface BracketLayoutFocus {
   /** 終了試合を除外したあとの残りだけで座標を組み直す（カメラ寄せ） */
   visibleMatchIds?: Set<number>;
-  /** この回戦を一番下の大きいカードにし、初戦と同じ画面幅の中央へ置く */
+  /** この回戦を大きいカードにし、初戦と同じ画面幅の中央へ置く。ウィナーズは下端、ルーザーズは上端 */
   leafRound?: number;
+  /** ウィナーズ／ルーザーズの決勝からグランドファイナルへつなぐ。行き先の枠を同じ盤に足す */
+  attachGrandFinal?: boolean;
+}
+
+/** 勝ち上がり演出が描く盤。回戦では切らず、表全体を同じ座標にする。 */
+export function fullBoardFocus(attachGrandFinal: boolean): BracketLayoutFocus | undefined {
+  return attachGrandFinal ? { attachGrandFinal: true } : undefined;
 }
 
 /** まだ終わっていない一番下の回戦。全部終わっていれば最終回戦。 */
@@ -463,6 +510,8 @@ export function activeLeafRound(data: StageData, bracket: BracketKind = 'winner'
   const rounds = new Map<number, BMMatch[]>();
   for (const meta of buildMatchMetas(data)) {
     if (meta.bracket !== bracket) continue;
+    // ルーザーズは人が入った試合だけを進行の段にする。
+    if (bracket === 'loser' && !hasEntrant(meta)) continue;
     const list = rounds.get(meta.round) ?? [];
     list.push(meta.match);
     rounds.set(meta.round, list);
@@ -492,6 +541,18 @@ export function visibleMatchIdsWhenOmitCompleted(
   );
 }
 
+function translateMatch(match: MatchLayout, dx: number, dy: number) {
+  if (dx === 0 && dy === 0) return;
+  match.box = { ...match.box, x: match.box.x + dx, y: match.box.y + dy };
+  match.center = { x: match.center.x + dx, y: match.center.y + dy };
+  const moveSlot = (slot: SlotLayout): SlotLayout => ({
+    ...slot,
+    rect: { ...slot.rect, x: slot.rect.x + dx, y: slot.rect.y + dy },
+    center: { x: slot.center.x + dx, y: slot.center.y + dy },
+  });
+  match.slots = [moveSlot(match.slots[0]), moveSlot(match.slots[1])];
+}
+
 export function computeBracketLayout(
   data: StageData,
   cfg: LayoutConfig = DEFAULT_LAYOUT,
@@ -505,12 +566,25 @@ export function computeBracketLayout(
   const inFocus = (id: number) => focusSet == null || focusSet.has(id);
   const showWb = boardSide === 'all' || boardSide === 'winners';
   const showLb = boardSide === 'all' || boardSide === 'losers';
-  const showGf = boardSide === 'all' || boardSide === 'grand_final';
+  const showGf = boardSide === 'all' || boardSide === 'grand_final' || Boolean(focus?.attachGrandFinal);
+  const leafRound = focus?.leafRound;
+  // ルーザーズ単独は今の回戦と次の1列。空枠も残して詰める。
+  const packLosers = boardSide === 'losers';
+  const losersFrame =
+    packLosers && leafRound != null
+      ? { min: leafRound, max: leafRound + 1 }
+      : null;
   const wbMetas = showWb
     ? metas.filter((m) => m.bracket === 'winner' && inFocus(m.match.id))
     : [];
   const lbMetas = showLb
-    ? metas.filter((m) => m.bracket === 'loser' && visibleIds.has(m.match.id) && inFocus(m.match.id) && hasEntrant(m))
+    ? metas.filter((m) => {
+        if (m.bracket !== 'loser' || !visibleIds.has(m.match.id) || !inFocus(m.match.id)) return false;
+        if (losersFrame) {
+          return m.round >= losersFrame.min && m.round <= losersFrame.max;
+        }
+        return hasEntrant(m);
+      })
     : [];
   const gfMetas = showGf
     ? metas.filter((m) => m.bracket === 'grand_final' && visibleIds.has(m.match.id) && inFocus(m.match.id))
@@ -533,16 +607,23 @@ export function computeBracketLayout(
       ? Math.max(...groupByRound(lbMetas).map((g) => g.items.length), 1)
       : 0;
 
-  const wbWidth = wbLeafCount * cfg.boxW + (wbLeafCount - 1) * cfg.matchGap;
+  const wbWidth = showWb ? wbLeafCount * cfg.boxW + (wbLeafCount - 1) * cfg.matchGap : 0;
   const lbWidth =
     lbLeafCount > 0 ? lbLeafCount * cfg.boxW + (lbLeafCount - 1) * cfg.matchGap : 0;
   const wbLeft = cfg.padding;
-  const lbLeft = wbLeft + wbWidth + (lbWidth > 0 ? cfg.sectionGap : 0);
-  const leafRound = focus?.leafRound;
-  const stage = leafRound != null && leafRound > 1 && showWb ? computeBracketLayout(data, cfg, boardSide) : null;
+  const lbLeft = showWb
+    ? wbLeft + wbWidth + (lbWidth > 0 ? cfg.sectionGap : 0)
+    : cfg.padding;
+  const stageForLeaf =
+    leafRound != null && leafRound > 1 && showWb
+      ? computeBracketLayout(data, cfg, boardSide)
+      : null;
+  const stage = stageForLeaf;
   let placedWb = wbMetas;
+  let placedLb = lbMetas;
   let wbOffset = wbLeft;
-  if (stage && leafRound != null) {
+  let lbOffset = lbLeft;
+  if (stage && leafRound != null && showWb) {
     placedWb = wbMetas.filter((meta) => meta.round >= leafRound);
     const leafItems = placedWb.filter((meta) => meta.round === leafRound);
     const rows = leafItems.map((meta) => meta.row);
@@ -551,19 +632,50 @@ export function computeBracketLayout(
     const span = (maxRow - minRow) * (cfg.boxW + cfg.matchGap) + cfg.boxW;
     wbOffset = (stage.width - span) / 2 - minRow * (cfg.boxW + cfg.matchGap);
   }
+  if (packLosers && leafRound != null) {
+    placedLb = lbMetas;
+    const leafItems = [...placedLb.filter((meta) => meta.round === leafRound)].sort(
+      (a, b) => a.row - b.row || a.match.number - b.match.number,
+    );
+    const span =
+      leafItems.length > 0
+        ? leafItems.length * cfg.boxW + (leafItems.length - 1) * cfg.matchGap
+        : cfg.boxW;
+    const boardWidth = Math.max(lbLeft + span + cfg.padding, lbLeft + lbWidth + cfg.padding);
+    lbOffset = Math.max(cfg.padding, (boardWidth - span) / 2);
+  }
 
   const baseBottom =
     cfg.padding + (maxRound + gfMaxRound + 1) * (cfg.boxH + cfg.roundGap);
+  const baseTop = cfg.padding;
   const hidden = byePlaceholderIds(metas);
   const baselineScope = focusSet ? metas.filter((m) => inFocus(m.match.id)) : metas;
   // 下段揃えはウィナーズの不戦勝用。ルーザーズの途中枠を初戦の段へ下ろさない。
   const baseline = baselineMatchIds(baselineScope.filter((m) => m.bracket !== 'loser'), hidden);
 
+  // 会場のルーザーズ単独表示だけ下向き。WB+LB 同居（all）は従来どおり同じ下端から上へ。
+  const lbGrowth: TreeGrowth = boardSide === 'losers' ? 'down' : 'up';
+  const lbEdge = lbGrowth === 'down' ? baseTop : baseBottom;
   const matches: MatchLayout[] = [
-    ...placeTreeSection(placedWb, metas, cfg, baseBottom, (r) => r, wbOffset, hidden, baseline),
-    ...placeTreeSection(lbMetas, metas, cfg, baseBottom, (r) => r, lbLeft, hidden, baseline),
-    ...placeTreeSection(gfMetas, metas, cfg, baseBottom, (r) => maxRound + r, wbLeft, hidden, baseline),
+    ...placeTreeSection(placedWb, metas, cfg, baseBottom, (r) => r, wbOffset, hidden, baseline, 'up'),
+    ...placeTreeSection(placedLb, metas, cfg, lbEdge, (r) => r, lbOffset, hidden, baseline, lbGrowth, packLosers),
+    ...placeTreeSection(gfMetas, metas, cfg, baseBottom, (r) => maxRound + r, wbLeft, hidden, baseline, 'up'),
   ];
+
+  if (focus?.attachGrandFinal && (boardSide === 'winners' || boardSide === 'losers')) {
+    const feederBracket = boardSide === 'losers' ? 'loser' : 'winner';
+    const source = matches
+      .filter((match) => match.bracket === feederBracket)
+      .reduce<MatchLayout | null>((best, match) => (!best || match.round > best.round ? match : best), null);
+    const grandFinal = matches.find((match) => match.bracket === 'grand_final' && match.round === 1);
+    if (source && grandFinal) {
+      const dx = source.center.x - grandFinal.center.x;
+      const dy = boardSide === 'losers'
+        ? source.box.y + source.box.h + cfg.roundGap - grandFinal.box.y
+        : source.box.y - cfg.roundGap - grandFinal.box.h - grandFinal.box.y;
+      translateMatch(grandFinal, dx, dy);
+    }
+  }
 
   const byId: Record<number, MatchLayout> = {};
   for (const m of matches) byId[m.matchId] = m;

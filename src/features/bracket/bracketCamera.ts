@@ -1,7 +1,6 @@
 import { Status } from 'brackets-model';
-import { computeBracketLayout, type BracketKind, type StageData } from './layout';
+import { computeBracketLayout, findParentMatch, type BracketKind, type StageData } from './layout';
 import { getMatchBracketKind, getMatchRoundLabel } from '../progression/tiers';
-import { losersColumns } from './losersBoard';
 
 export type VenueBoardSide = 'winners' | 'losers' | 'grand_final';
 
@@ -77,7 +76,9 @@ export function venuePulseMatchIds(input: {
 }
 
 export function losersNextId(data: StageData, matchId: number): number | null {
-  return losersColumns(data).flatMap((column) => column.matches).find((match) => match.id === matchId)?.nextId ?? null;
+  const next = findParentMatch(data, matchId);
+  if (!next || getMatchBracketKind(data, next) !== 'loser') return null;
+  return next.id;
 }
 
 export function winnersNextId(data: StageData, matchId: number): number | null {
