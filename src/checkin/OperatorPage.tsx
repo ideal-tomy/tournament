@@ -6,6 +6,7 @@ import { makeBalancedTeams } from '../features/draw/draw';
 import { generatedTeamName, VENUE_TEAM_NAME_MAX } from '../features/draw/teamName';
 import { formatLabel } from './eventFormat';
 import { courtStandbyLabel } from './courtStandby';
+import { ceremonyAutoStart } from './ceremonyAutoStart';
 import { bracketSize, mountainCount } from '../features/bracket/slotPlacement';
 
 type Command = { path: string; body: Record<string, unknown> };
@@ -198,9 +199,6 @@ function BoardCard({ state, board, busy, pick, fillable, blockedLabel, choices, 
         ? <button className="primary" disabled>勝ったチームをタップ</button>
         : <button className="primary" disabled={busy} onClick={() => onCommand('court-winner', { winnerSlot: pick })}>{teamName(pick === 0 ? match.teamA : match.teamB)} の勝利で確定</button>)}
     {board.stage === 'result' && board.showing && !state.flow?.championTeamId && <button className="primary" disabled>会場で勝者演出中…</button>}
-    {state.flow?.championTeamId && board.stage === 'result' && !board.showing && (
-      <button className="primary" disabled={busy} onClick={() => onCommand('court-next')}>表彰へ</button>
-    )}
     {state.flow?.championTeamId && board.stage === 'result' && board.showing && (
       <button className="primary" disabled>会場で勝者演出中…</button>
     )}
@@ -324,6 +322,10 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
     </ActionBar>;
   } else if (state.scene === 'interval' && f?.courts) {
     const courts = f.courts;
+    const finalBoard = courts.boards.find(board => board.match?.final && (board.stage === 'call' || board.stage === 'live' || board.stage === 'result'));
+    const singleFinal = finalBoard && courts.boards.every(board => board.board === finalBoard.board || ((board.stage === 'idle' || board.stage === 'result') && !board.showing));
+    const shownBoards = singleFinal ? [finalBoard] : courts.boards;
+    const ceremonyReady = ceremonyAutoStart(state);
     const next = f.nextMatch;
     const nextSides = next
       ? [state.teams.find(team => team.id === next.teamA), state.teams.find(team => team.id === next.teamB)]
@@ -354,13 +356,14 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
         </details>}
       </section>
       <button className="op-link-button" disabled={busy} onClick={() => void flow('courts-view', { show: !courts.showBracket })}>{courts.showBracket ? '会場を台の表示に戻す' : '会場にトーナメント表を出す'}</button>
-      {courts.boards.map(board => <BoardCard key={board.board} state={state} board={board} busy={busy}
+      {shownBoards.map(board => <BoardCard key={board.board} state={state} board={board} busy={busy}
         fillable={Boolean(next)} blockedLabel={f.nextWaitReason ?? null}
         choices={f.twenty?.manual ? f.twenty.choices.find(choice => choice.board === board.board)?.matches ?? [] : []}
         pick={board.match ? picks[board.match.id] : undefined}
         onPick={slot => board.match && setPicks(value => ({ ...value, [board.match!.id]: value[board.match!.id] === slot ? undefined : slot }))}
         onChoose={matchId => void flow('court-pick', { board: board.board, matchId })}
         onCommand={(action, extra) => void flow(action, { board: board.board, ...extra })} />)}
+      {f.championTeamId && <button className="primary" disabled={busy || !ceremonyReady} onClick={() => void flow('court-next', { board: finalBoard?.board ?? courts.boards.find(board => board.stage === 'result')?.board ?? 1 })}>{ceremonyReady ? '順位発表' : '勝者演出中…'}</button>}
     </div>;
   } else if (f?.phase === 'bracket_update') {
     body = <p className="op-note">勝ち上がりを表示しています</p>;
@@ -381,11 +384,11 @@ export default function OperatorPage({ onAuthRequired, sessionVersion }: { onAut
     </ActionBar>;
   } else if (state.scene === 'result') {
     body = <div className="op-big"><span>勝者</span><strong className="op-team-name">{teamName(f?.winnerTeamId)}</strong></div>;
-    bar = gate(f?.canAdvance, '次へ', 'WINNER表示中…', () => void flow('advance'));
+    bar = gate(f?.canAdvance, f?.championTeamId ? '順位発表' : '次へ', 'WINNER表示中…', () => void flow('advance'));
   } else if (state.scene === 'award') {
     const step = f?.ceremony ?? 'champion', places = f?.placements;
     const shown = step === 'third' ? places?.third : step === 'second' ? places?.second : step === 'champion' ? [f?.championTeamId ?? ''] : [];
-    const next = step === 'third' ? (places?.second.length ? '2位へ' : '優勝へ') : step === 'second' ? '優勝へ' : step === 'champion' ? '表彰台へ' : '大会を終える';
+    const next = step === 'third' ? (places?.second.length ? '2位へ' : '優勝へ') : step === 'second' ? '優勝へ' : step === 'champion' ? '表彰' : '大会を終える';
     body = step === 'podium'
       ? <ol className="op-pairs" aria-label="表彰台">{([[1, [places?.first ?? f?.championTeamId ?? '']], [2, places?.second ?? []], [3, places?.third ?? []]] as const).filter(([, ids]) => ids.length).map(([rank, ids]) => <li key={rank} className="op-pair"><span className="op-pair-no">{rank}</span><span>{ids.map(teamName).join(' ／ ')}</span></li>)}</ol>
       : <div className="op-big"><span>{ceremonyLabel[step]}</span><strong className="op-team-name">{(shown ?? []).map(teamName).join(' ／ ')}</strong></div>;

@@ -7,6 +7,9 @@ export function firstBoardAutoFill(state: DrawState) {
   const courts = flow?.courts;
   if (!flow || !courts || !flow.nextMatch || flow.championTeamId) return null;
   if ((flow.losersIntroRemainingSec ?? 0) > 0) return null;
+  // 決勝の再試合は直前の決勝と同じ台で待ち、別の台に先取りさせない。
+  const finalBoard = courts.boards.find((board) => board.match?.final && board.stage === 'result');
+  if (finalBoard) return finalBoard.showing ? null : finalBoard.board;
   return courts.boards.find((board) => !board.showing &&
     ((board.stage === 'idle' && board.match == null) || board.stage === 'result'))?.board ?? null;
 }

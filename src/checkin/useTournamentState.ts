@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from './api';
 import type { DrawState } from './DrawControl';
-import { ceremonyAutoStart } from './ceremonyAutoStart';
 import { firstBoardAutoFill } from './firstBoardAutoFill';
 import { preparePortraits } from './portraitCache';
 /** Which board beat is on screen, and which boards still wait for theirs. Advances with time, not version. */
@@ -41,11 +40,9 @@ export function useTournamentState(onAuthRequired: () => void, sessionVersion: n
       try {
         let next = await api<DrawState>('/api/draw/state', { signal: controller.signal });
         const fillBoard = firstBoardAutoFill(next);
-        if ((ceremonyAutoStart(next) || fillBoard != null) && filled.current !== next.version) {
+        if (fillBoard != null && filled.current !== next.version) {
           try {
-            const board = fillBoard ?? next.flow?.courts?.boards.find((item) => item.stage === 'result')?.board
-              ?? next.flow?.courts?.boards.find((item) => item.board === 1)?.board
-              ?? 1;
+            const board = fillBoard;
             next = await api<DrawState>('/api/tournament/court-next', { method: 'POST', body: JSON.stringify({ requestId: crypto.randomUUID(), expectedVersion: next.version, board }), signal: controller.signal });
             filled.current = null;
           } catch (reason) {
@@ -55,7 +52,7 @@ export function useTournamentState(onAuthRequired: () => void, sessionVersion: n
             }
           }
         }
-        if (automaticAdvance && next.flow?.canAdvance) next = await api<DrawState>('/api/tournament/advance', { method: 'POST', body: JSON.stringify({ requestId: crypto.randomUUID(), expectedVersion: next.version }), signal: controller.signal });
+        if (automaticAdvance && next.flow?.canAdvance && next.scene !== 'award' && !(next.scene === 'result' && next.flow.championTeamId)) next = await api<DrawState>('/api/tournament/advance', { method: 'POST', body: JSON.stringify({ requestId: crypto.randomUUID(), expectedVersion: next.version }), signal: controller.signal });
         if (portraits) next = await preparePortraits(next, controller.signal);
         if (!cancelled && inFlight === controller) { setState(previous => previous && same(previous, next) ? previous : next); setError(''); }
       } catch (reason) {

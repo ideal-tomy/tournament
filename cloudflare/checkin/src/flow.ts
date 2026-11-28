@@ -284,6 +284,7 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
     }else{
      if(board.stage!=='result'&&board.stage!=='idle')throw new ClientError('SCENE_NOT_FINISHED',409);
      if(boardShowing(courts,board.board,nowMs))throw new ClientError('SPOTLIGHT_PLAYING',409);
+     if(payload.championTeamId&&((courts.spotlights??[]).some(s=>spotlightBlocks(s,nowMs))||courts.boards.some(b=>b.stage==='call'||b.stage==='live')))throw new ClientError('SCENE_NOT_FINISHED',409);
      if(board.winnerTeamId)restingTeamIds.add(board.winnerTeamId);
      if(board.loserTeamId)restingTeamIds.add(board.loserTeamId);
      Object.assign(board,{matchId:null,stage:'idle',startedAt:null,winnerTeamId:null,loserTeamId:null});
@@ -308,8 +309,8 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
    courts.spotlights=dropFinishedSpotlights(payload,courts,nowMs);
    const celebration=(courts.spotlights??[]).some(s=>spotlightBlocks(s,nowMs));
    const playing=courts.boards.some(b=>b.stage==='call'||b.stage==='live');
-   // 優勝確定後は台を空きに戻さなくても、演出が終われば表彰へ進む（result のまま「大会終了」で止まらない）
-   if(payload.championTeamId&&!playing&&!celebration){delete payload.courts;await award(payload.championTeamId);}
+   // 順位発表は運営による明示的な操作で開始する。
+   if(action==='court-next'&&payload.championTeamId&&!playing&&!celebration){delete payload.courts;await award(payload.championTeamId);}
    else {payload={...payload,courts,durationSec:0};nextScene='interval';}
   }else{
   for(const board of courts.boards){

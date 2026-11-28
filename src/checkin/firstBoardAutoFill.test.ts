@@ -50,4 +50,10 @@ describe('firstBoardAutoFill', () => {
     expect(firstBoardAutoFill(state({ courts: { ...courts, boards: [first, { ...second, showing: true }] } }))).toBeNull();
     expect(firstBoardAutoFill(state({ courts, championTeamId: 'winner' }))).toBeNull();
   });
+  it('決勝の再試合は空いている別の台ではなく決勝を行った台に入れる', () => {
+    const final = board({ board: 2, stage: 'result', matchId: 7, match: { id: 7, final: true } as CourtBoard['match'] });
+    const courts = { count: 2, showBracket: false, spotlight: null, boards: [board(), final] };
+    expect(firstBoardAutoFill(state({ courts }))).toBe(2);
+    expect(firstBoardAutoFill(state({ courts: { ...courts, boards: [board(), { ...final, showing: true }] } }))).toBeNull();
+  });
 });

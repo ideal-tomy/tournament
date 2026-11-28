@@ -192,7 +192,10 @@ describe('one continuous tournament with automatic scheduling',()=>{
   expect(stuck.flow.championTeamId).toBe(champion);
   expect(stuck.flow.nextWaitReason).toBe('大会終了');
   expect(stuck.flow.courts?.boards.map(b=>b.stage)).toEqual(['result','result']);
-  expect((await s.request('/api/tournament/court-next'+suffix,'POST',{requestId:crypto.randomUUID(),expectedVersion:stuck.version,board:1})).status).toBe(200);
+  expect((await s.request('/api/tournament/courts-view'+suffix,'POST',{requestId:crypto.randomUUID(),expectedVersion:stuck.version,show:true})).status).toBe(200);
+  const waiting=await s.request('/api/draw/state'+suffix).then(r=>r.json()) as View;
+  expect(waiting.scene).toBe('interval');
+  expect((await s.request('/api/tournament/court-next'+suffix,'POST',{requestId:crypto.randomUUID(),expectedVersion:waiting.version,board:1})).status).toBe(200);
   const awarded=await s.request('/api/draw/state'+suffix).then(r=>r.json()) as View;
   expect(awarded.scene).toBe('award');
   expect(awarded.flow.championTeamId).toBe(champion);
