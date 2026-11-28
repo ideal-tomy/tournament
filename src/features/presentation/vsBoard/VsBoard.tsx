@@ -112,7 +112,7 @@ export default function VsBoard({
               { autoAlpha: 1, x: 0, scale: 1, duration: 0.38, ease: 'power4.out' },
               0.72,
             );
-            cue('finalBattleAgain', 0.88);
+            cue('finalBattleAgain', 1.15);
             tl.fromTo('.vsb-flash', { autoAlpha: 0, scale: 0.55 }, { autoAlpha: 0.85, scale: 1.05, duration: 0.1, ease: 'expo.out' }, 0.88)
               .to('.vsb-flash', { autoAlpha: 0, scale: 1.45, duration: 0.35 }, 0.98);
           }
@@ -121,6 +121,7 @@ export default function VsBoard({
           cue(callout === 'final' ? 'finalBattle' : 'semifinal', 0.35);
         }
       }
+      cue('fight', 1.2);
       cue('pairImpact', 1.2);
       const at = reduced || settled ? INTRO_END : audioEnabled ? 0 : Math.min(INTRO_END, Math.max(0, startAt));
       if (at > 0.02) {

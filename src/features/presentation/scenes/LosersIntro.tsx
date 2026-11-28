@@ -1,17 +1,16 @@
 import { useLayoutEffect, useRef } from 'react';
 import gsap from 'gsap';
 import CeremonyFrame from '../ceremony/CeremonyFrame';
-import { playPresentationAudio } from '../backdrop/playPresentationAudio';
 import { LOSERS_INTRO_TITLE_SEC } from '../losersIntroTiming';
 
 /** Full-screen beat before the losers bracket board. Missing audio fails silently. */
 export default function LosersIntro({
   startAt = 0,
-  audioEnabled = false,
   contained = false,
   durationSec = LOSERS_INTRO_TITLE_SEC,
 }: {
   startAt?: number;
+  /** 開幕の声の素材はない。呼び出し側の指定は受け取るだけ。 */
   audioEnabled?: boolean;
   contained?: boolean;
   durationSec?: number;
@@ -28,13 +27,12 @@ export default function LosersIntro({
         .fromTo('.li-scene', { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.4 }, 0)
         .to('.li-title', { autoAlpha: 1, scale: 1, duration: 0.7, ease: 'expo.out' }, 0.2)
         .to('.li-sub', { autoAlpha: 1, y: 0, duration: 0.45 }, 0.7)
-        .call(() => { playPresentationAudio('losersOpen', audioEnabled); }, [], 0.25)
         .to({}, { duration: hold }, 0);
       tl.seek(Math.min(hold, Math.max(0, startAt)), false);
       if (startAt < hold - 0.05) tl.play();
     }, stage);
     return () => ctx.revert();
-  }, [startAt, audioEnabled, hold]);
+  }, [startAt, hold]);
 
   return (
     <CeremonyFrame stageRef={stageRef} contained={contained} className="li-board" label="ルーザーズ開始">

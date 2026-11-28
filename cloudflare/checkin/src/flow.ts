@@ -2,9 +2,11 @@ import { Status } from 'brackets-model';
 import { createManagerFromSnapshot, exportSnapshot, toStageData, type BracketSnapshot } from '../../../src/features/bracket/manager';
 import { applyResult, explainCourtFillWait, getBoardSide, getChapterMatches, getCourtFillMatches, getChampionTeamId, getFinalPlacements, getNextMatch, getSlotTeamUuid, getMatchBracketKind, getMatchRoundLabel, isTwentyDe, reassignCall, selectTwenty, type BoardSide, type FinalPlacements, type TwentyCandidate, type TwentyPhase } from '../../../src/features/progression/progression';
 import type { BMMatch } from '../../../src/features/bracket/layout';
+import { estimateDrawDurationSec } from '../../../src/features/presentation/drawAnimationTiming';
 import { openingTourDurationSec } from '../../../src/features/presentation/openingTourTiming';
 import { LOSERS_INTRO_BRACKET_SEC } from '../../../src/features/presentation/losersIntroTiming';
 import { calloutForRound } from '../../../src/features/presentation/vsBoard/callout';
+import { WINNER_ADVANCE_SEC } from '../../../src/features/presentation/advanceTiming';
 import { rehearsalTiming } from '../../../src/lib/rehearsalTiming';
 import { eventProfile } from './profile';
 import { ClientError, hash, requestId, type CheckinEnv, type Statement } from './domain';
@@ -22,9 +24,9 @@ function spotlightBlocks(s:Spotlight,now:number){
  return now<spotlightEnd(s);
 }
 const boardShowing=(courts:Courts,board:number,now:number)=>(courts.spotlights??[]).some(s=>s.board===board&&spotlightBlocks(s,now));
-function enqueueSpotlight(courts:Courts,item:Omit<Spotlight,'at'>,now:number){
+function enqueueSpotlight(payload:Payload,courts:Courts,item:Omit<Spotlight,'at'>,now:number){
  if(item.durationSec<=0)return;
- const pending=(courts.spotlights??[]).filter(s=>spotlightEnd(s)>now);
+ const pending=dropFinishedSpotlights(payload,courts,now);
  courts.spotlights=[...pending,{...item,at:new Date(Math.max(now,...pending.map(spotlightEnd))).toISOString()}];
 }
 type CourtAction='courts-open'|'court-start'|'court-winner'|'court-next'|'court-pick'|'courts-parallel'|'courts-view';
@@ -35,7 +37,17 @@ export type CeremonyStep='third'|'second'|'champion'|'podium';
 export function ceremonySteps(placements:FinalPlacements):CeremonyStep[]{
  return [...(placements.third.length?['third' as const]:[]),...(placements.second.length?['second' as const]:[]),'champion','podium'];
 }
-interface Payload {courts?:Courts;twenty?:{phase:TwentyPhase;openedAt:string;endedAt:Record<string,string>};flow?:number;durationSec?:number;ceremony?:CeremonyStep;placements?:FinalPlacements;matchId?:number;teamA?:string|null;teamB?:string|null;winnerTeamId?:string|null;loserTeamId?:string|null;championTeamId?:string|null;lastMatchId?:number;drawSessionId?:string;resultPresentation?:ResultPresentation;losersIntroPlayed?:boolean;losersIntroPending?:boolean;losersIntroUntil?:string|null}
+interface Payload {courts?:Courts;twenty?:{phase:TwentyPhase;openedAt:string;endedAt:Record<string,string>};flow?:number;durationSec?:number;participantCount?:number;teamCount?:number;ceremony?:CeremonyStep;placements?:FinalPlacements;matchId?:number;teamA?:string|null;teamB?:string|null;winnerTeamId?:string|null;loserTeamId?:string|null;championTeamId?:string|null;lastMatchId?:number;drawSessionId?:string;resultPresentation?:ResultPresentation;revealedMatchIds?:number[];losersIntroPlayed?:boolean;losersIntroPending?:boolean;losersIntroUntil?:string|null}
+function rememberRevealed(payload:Payload,ids:number[]){
+ if(!ids.length)return;
+ payload.revealedMatchIds=[...new Set([...(payload.revealedMatchIds??[]),...ids])];
+}
+/** 演出が終わった勝者スポットライトの試合を記録し、キューからは外す。 */
+function dropFinishedSpotlights(payload:Payload,courts:Courts,now:number){
+ const done=(courts.spotlights??[]).filter(s=>s.kind==='winner'&&spotlightEnd(s)<=now).map(s=>s.matchId);
+ rememberRevealed(payload,done);
+ return (courts.spotlights??[]).filter(s=>spotlightEnd(s)>now);
+}
 const twentyClock=(payload:Payload,data:ReturnType<typeof toStageData>,reserved:ReadonlySet<number>,nowMs:number)=>({
  data,storedPhase:payload.twenty?.phase??'A' as TwentyPhase,reservedMatchIds:reserved,
  endedAt:new Map(Object.entries(payload.twenty?.endedAt??{}).map(([id,iso])=>[Number(id),Date.parse(iso)])),
@@ -119,7 +131,8 @@ export async function flowView(env:CheckinEnv,projection?:Awaited<ReturnType<typ
   courtFillQueue:(courtQueue?.matches??getCourtFillMatches(data,takenForPreview,restingPreview).matches).slice(0,5).map(describe),
   deferredRest:!!courtQueue?.deferredRest,
  }:null;
- return {phase:updatingBracket?'bracket_update':scene.scene,currentMatch,boardSide,losersIntroPlayed:!!payload.losersIntroPlayed,losersIntroPending:!!payload.losersIntroPending,losersIntroRemainingSec,courts,resultPresentation:payload.resultPresentation??null,nextMatch,nextWaitReason:waitReason,twenty,progressionDebug,winnerTeamId:payload.winnerTeamId??null,loserTeamId:payload.loserTeamId??null,championTeamId:payload.championTeamId??null,lastMatchId:payload.lastMatchId??null,
+ const revealedMatchIds=[...new Set([...(payload.revealedMatchIds??[]),...(court?.spotlights??[]).filter(s=>s.kind==='winner'&&spotlightEnd(s)<=now).map(s=>s.matchId)])];
+ return {phase:updatingBracket?'bracket_update':scene.scene,currentMatch,boardSide,losersIntroPlayed:!!payload.losersIntroPlayed,losersIntroPending:!!payload.losersIntroPending,losersIntroRemainingSec,revealedMatchIds,courts,resultPresentation:payload.resultPresentation??null,nextMatch,nextWaitReason:waitReason,twenty,progressionDebug,winnerTeamId:payload.winnerTeamId??null,loserTeamId:payload.loserTeamId??null,championTeamId:payload.championTeamId??null,lastMatchId:payload.lastMatchId??null,
   ceremony:scene.scene==='award'?payload.ceremony??'champion':null,placements:payload.placements??(payload.championTeamId?{first:payload.championTeamId,second:[],third:[]}:null),
   canStart:scene.scene==='vs_card'&&elapsed(scene)>=(payload.durationSec??0)&&!!currentMatch?.teamA&&!!currentMatch?.teamB,
   canGameStart:scene.scene==='bracket'&&!updatingBracket&&elapsed(scene)>=(payload.durationSec??2),
@@ -178,6 +191,9 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
 }
  if(action==='announce'){
   if(!view?.canAnnounce)throw new ClientError('INVALID_FLOW_PHASE',409);
+  const participants=Number(payload.participantCount??0);
+  const teams=Number(payload.teamCount??0);
+  if(participants>0)payload.durationSec=estimateDrawDurationSec(participants,'full',teams||undefined,timingPreset);
   nextScene='draw';
  }else if(action==='game-start'){
   if(!view?.canGameStart||current!=null)throw new ClientError('GAME_NOT_READY',409);
@@ -239,9 +255,9 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
      Object.assign(board,{stage:'live',startedAt:now});status='running';
      if(getMatchBracketKind(data,match)==='loser'&&!payload.losersIntroPlayed){
       payload={...payload,losersIntroPlayed:true};
-      enqueueSpotlight(courts,{id:`${commandId}-losers-intro`,board:0,kind:'losers-intro',matchId:match.id,durationSec:losersBracketSec},nowMs);
+      enqueueSpotlight(payload,courts,{id:`${commandId}-losers-intro`,board:0,kind:'losers-intro',matchId:match.id,durationSec:losersBracketSec},nowMs);
      }
-     enqueueSpotlight(courts,{id:commandId,board:board.board,kind:'vs',matchId:match.id,durationSec:timing.vsLead+timing.vsHold},nowMs);
+     enqueueSpotlight(payload,courts,{id:commandId,board:board.board,kind:'vs',matchId:match.id,durationSec:timing.vsLead+timing.vsHold},nowMs);
     }else if(action==='court-winner'){
      if(board.stage!=='live'||!match||match.status!==Status.Running)throw new ClientError('MATCH_NOT_LIVE',409);
      if(boardShowing(courts,board.board,nowMs))throw new ClientError('SPOTLIGHT_PLAYING',409);
@@ -256,7 +272,8 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
       const champion=await getChampionTeamId(manager);
       if(champion)payload.championTeamId=champion;
      }
-     enqueueSpotlight(courts,{id:commandId,board:board.board,kind:'winner',matchId:match.id,durationSec:timing.winner+timing.bracket,winnerSec:timing.winner,winnerTeamId,loserTeamId,resultPresentation:{beforeBracket,match:shown,winnerTeamId}},nowMs);
+     const advanceSec=timing.bracket>0?WINNER_ADVANCE_SEC:0;
+     enqueueSpotlight(payload,courts,{id:commandId,board:board.board,kind:'winner',matchId:match.id,durationSec:timing.winner+advanceSec,winnerSec:timing.winner,winnerTeamId,loserTeamId,resultPresentation:{beforeBracket,match:shown,winnerTeamId}},nowMs);
      // instant: Display に「両台WINNERで止まる」時間を作らない（court-next を同一トランザクションで済ませる）
      if(instant){
       if(board.winnerTeamId)restingTeamIds.add(board.winnerTeamId);
@@ -288,7 +305,7 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
    }
    const progressed=selectTwenty(twentyClock(payload,data,activeBoardIds(courts),nowMs));
    if(payload.twenty&&payload.twenty.phase!=='C')payload.twenty={...payload.twenty,phase:progressed.phase};
-   courts.spotlights=(courts.spotlights??[]).filter(s=>spotlightEnd(s)>nowMs);
+   courts.spotlights=dropFinishedSpotlights(payload,courts,nowMs);
    const celebration=(courts.spotlights??[]).some(s=>spotlightBlocks(s,nowMs));
    const playing=courts.boards.some(b=>b.stage==='call'||b.stage==='live');
    // 優勝確定後は台を空きに戻さなくても、演出が終われば表彰へ進む（result のまま「大会終了」で止まらない）
@@ -307,7 +324,7 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
   const fill=getCourtFillMatches(data,taken,restingTeamIds);
   const waiting=fill.matches.filter(m=>!isFinalMatch(snapshot,m));
   for(const b of courts.boards)if(b.matchId==null){const m=waiting.shift();if(m)Object.assign(b,{matchId:m.id,stage:'call',startedAt:now});}
-  courts.spotlights=(courts.spotlights??[]).filter(s=>spotlightEnd(s)>nowMs);
+  courts.spotlights=dropFinishedSpotlights(payload,courts,nowMs);
   if(courts.boards.some(b=>b.matchId!=null)){payload={...payload,courts,durationSec:0};nextScene='interval';}
   else if(action==='courts-open')throw new ClientError('NO_PLAYABLE_MATCH',409);
   else{payload={...payload,durationSec:timing.bracket};delete payload.courts;delete payload.lastMatchId;nextScene='bracket';}
@@ -318,8 +335,9 @@ export async function flowCommand(env:CheckinEnv,action:FlowAction,body:Record<s
   else if(currentScene.scene==='result'){
    const champion=payload.championTeamId??await getChampionTeamId(createManagerFromSnapshot(snapshot));
    if(champion)await award(champion);
-   else {nextScene='bracket';payload.durationSec=timing.bracket;}
+   else {nextScene='bracket';payload.durationSec=timing.bracket>0?WINNER_ADVANCE_SEC:timing.bracket;}
   }else if(currentScene.scene==='bracket'&&view.phase==='bracket_update'){
+   if(payload.lastMatchId!=null)rememberRevealed(payload,[payload.lastMatchId]);
    const champion=await getChampionTeamId(createManagerFromSnapshot(snapshot));
    if(champion)await award(champion);else nextMatch();
   }else if(currentScene.scene==='award'){

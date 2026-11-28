@@ -5,13 +5,14 @@ import type { DrawPresentationData } from '../../draw/presentationTypes';
 import { TOURNAMENT_EFFECTS as FX } from '../../../lib/tournamentEffects';
 import { groupDrawParticipants, shouldShowBackOnlyEffect } from '../drawVisualState';
 import type { RehearsalTimingPreset } from '../../../lib/rehearsalTiming';
-import { drawSeconds, estimateTeamSummaryMs, type DrawAnimationTimingKey } from '../drawAnimationTiming';
+import { drawResumeSeconds, drawSeconds, estimateTeamSummaryMs, type DrawAnimationTimingKey } from '../drawAnimationTiming';
 import RatedName from '../ceremony/RatedName';
 import VenueTeamNameplate from '../ceremony/VenueTeamNameplate';
 import PairConfirmed from './PairConfirmed';
 import PresentationBackdrop from '../backdrop/PresentationBackdrop';
 import { appendPairCelebration, pairCardsMeetOffset, startBackdropLoops } from '../backdrop/appendPresentationBackdrop';
 import { cueCatchUpOffset, playPresentationAudio, syncedCueAt, type PresentationCue } from '../backdrop/playPresentationAudio';
+import { whenCardRevealReady } from './cardRevealReady';
 export interface DrawStageProps { timingPreset?:RehearsalTimingPreset; eventId:string; sceneSeq:number; presentationMode:PresentationMode; audioEnabled:boolean; forceComplete?:boolean; restoreCompleted?:boolean; data:DrawPresentationData; startAtSeconds?:number; onComplete?():Promise<void>|void }
 
 export default function DrawStage({
@@ -64,6 +65,7 @@ export default function DrawStage({
       const shortGrid = root.querySelector<HTMLElement>('.draw-short-grid');
       const intro = root.querySelector<HTMLElement>('.draw-intro');
       const seconds=(key:DrawAnimationTimingKey)=>drawSeconds(key,timingPreset);
+      const resumeAt = drawResumeSeconds(startAtSeconds, timingPreset);
       const tl = gsap.timeline({ onComplete: () => void finish() });
       // seek() with events replays every passed callback at once; keep restores silent.
       let restoring = false;
@@ -78,6 +80,8 @@ export default function DrawStage({
       gsap.set(pairStages, { autoAlpha: 0, scale: 1 });
       gsap.set(summary, { autoAlpha: 0, scale: 0.92 });
       gsap.set(shortGrid, { autoAlpha: 0 });
+      let marquee: gsap.core.Tween | null = null;
+      let marqueeStart = Number.POSITIVE_INFINITY;
 
       if (presentationMode === 'full') {
         tl.fromTo(
@@ -87,6 +91,21 @@ export default function DrawStage({
         )
           .to({}, { duration: seconds('introHold') })
           .to(intro, { autoAlpha: 0, duration: seconds('introExit') });
+        tl.call(cue('challenger'), [], schedule('challenger', seconds('introEnter')));
+        const cardsAt = tl.duration();
+        const cardGate = { open: cardsAt <= 0 || resumeAt >= cardsAt, holding: false };
+        if (!cardGate.open) {
+          tl.call(() => {
+            if (cardGate.open || cancelled) return;
+            cardGate.holding = true;
+            tl.pause();
+          }, [], cardsAt);
+          void whenCardRevealReady(Math.max(seconds('introHold') * 1000, 1200), root).then(() => {
+            if (cancelled) return;
+            cardGate.open = true;
+            if (cardGate.holding) tl.resume();
+          });
+        }
 
         let cardIndex = 0;
         teams.forEach((members, teamIndex) => {
@@ -156,6 +175,8 @@ export default function DrawStage({
         const track = summary?.querySelector<HTMLElement>('.draw-team-marquee-track');
         const pageCount = Math.max(1, Math.ceil(teams.length / 4));
         const gateSec = estimateTeamSummaryMs(teams.length, timingPreset) / 1000 - seconds('summaryEnter');
+        const pageSec = seconds('summaryPageTravel');
+        marqueeStart = summaryAt + seconds('summaryEnter');
         tl.call(cue('cardOpen'), [], schedule('cardOpen', summaryAt))
           .to(summary, {
             autoAlpha: 1,
@@ -164,19 +185,20 @@ export default function DrawStage({
             ease: 'back.out(1.4)',
           }, summaryAt);
         tl.set('.draw-reveal-layer', { autoAlpha: 0 }, summaryAt);
-        if (track && pageCount > 0 && gateSec > 0) {
+        if (track && pageCount > 0 && pageSec > 0) {
           const pageWidth = () => track.querySelector<HTMLElement>('.draw-team-page')?.offsetWidth || summary?.clientWidth || window.innerWidth || 1920;
-          const travel = Math.max(seconds('summaryPageTravel') * pageCount, 0.1);
-          const scroll = Math.min(travel, gateSec);
           gsap.set(track, { x: 0 });
-          tl.fromTo(track, { x: 0 }, {
-            x: () => -pageCount * pageWidth() * (scroll / travel),
-            duration: scroll,
+          marquee = gsap.fromTo(track, { x: 0 }, {
+            x: () => -pageCount * pageWidth(),
+            duration: Math.max(pageSec * pageCount, 0.1),
             ease: 'none',
+            repeat: -1,
+            paused: true,
             immediateRender: false,
-          }, summaryAt + seconds('summaryEnter'));
+          });
+          tl.call(() => { marquee?.play(0); }, [], marqueeStart);
         }
-        tl.to({}, { duration: Math.max(0, gateSec) }, summaryAt + seconds('summaryEnter'));
+        tl.to({}, { duration: Math.max(0, gateSec) }, marqueeStart);
       } else if (presentationMode === 'short') {
         tl.set(intro, { autoAlpha: 0 })
           .fromTo(
@@ -196,8 +218,8 @@ export default function DrawStage({
           .to({}, { duration: seconds('liteHold') });
       }
       startBackdropLoops(root, presentationMode);
-      if (startAtSeconds > 0) {
-        const elapsed = Math.min(startAtSeconds, tl.duration());
+      if (resumeAt > 0) {
+        const elapsed = Math.min(resumeAt, tl.duration());
         restoring = true;
         tl.seek(elapsed, false);
         restoring = false;
@@ -206,6 +228,12 @@ export default function DrawStage({
             const offset = cueCatchUpOffset(item.at, elapsed, item.name);
             if (offset != null) playPresentationAudio(item.name, true, offset);
           }
+        }
+        if (marquee && elapsed >= marqueeStart) {
+          const into = elapsed - marqueeStart;
+          const lap = marquee.duration();
+          marquee.play(0);
+          if (lap > 0) marquee.seek(into % lap);
         }
       }
     }, root);

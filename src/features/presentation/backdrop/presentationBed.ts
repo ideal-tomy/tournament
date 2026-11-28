@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { TOURNAMENT_EFFECTS as FX } from '../../../lib/tournamentEffects';
+import { flushPresentationCues, resumePresentationVoices, setPresentationAudioBlockedHandler, setPresentationVoiceHandler } from './playPresentationAudio';
 
 /** 開始フェード、周回のクロスフェード、場面の切り替え。秒。 */
 export const BED_FADE_IN_SEC = 0.8;
@@ -83,6 +84,9 @@ class LoopingBed {
   private watch: number | null = null;
   private cancelLevel: (() => void) | null = null;
   private cancelCross: (() => void) | null = null;
+  private cancelDuck: (() => void) | null = null;
+  private duckGain = 1;
+  private duckTimer: number | null = null;
 
   constructor(
     private readonly url: string,
@@ -99,6 +103,24 @@ class LoopingBed {
 
   unlockFromGesture() {
     this.kick();
+  }
+
+  /** アナウンスのあいだ、BGMを約4割まで下げる。 */
+  duck(seconds: number) {
+    if (this.stopped) return;
+    this.cancelDuck?.();
+    this.cancelDuck = null;
+    this.duckGain = 0.42;
+    this.apply();
+    if (this.duckTimer != null) window.clearTimeout(this.duckTimer);
+    this.duckTimer = window.setTimeout(() => {
+      this.duckTimer = null;
+      const from = this.duckGain;
+      this.cancelDuck = animateVolume((amount) => {
+        this.duckGain = from + (1 - from) * amount;
+        this.apply();
+      }, 0.5, () => { this.cancelDuck = null; });
+    }, Math.max(0.2, seconds) * 1000);
   }
 
   fadeOut(seconds: number) {
@@ -130,7 +152,7 @@ class LoopingBed {
   }
 
   private apply() {
-    for (const voice of this.voices) setVolume(voice, BED_VOLUME * this.level * (this.gain.get(voice) ?? 0));
+    for (const voice of this.voices) setVolume(voice, BED_VOLUME * this.duckGain * this.level * (this.gain.get(voice) ?? 0));
   }
 
   private readonly tick = () => {
@@ -188,12 +210,23 @@ class LoopingBed {
 
 let current: BedTrack | null = null;
 let active: LoopingBed | null = null;
+let retiring: LoopingBed | null = null;
 let gestureNeeded = false;
 let gestureBound = false;
 const listeners = new Set<(needsGesture: boolean) => void>();
 const warmed: HTMLAudioElement[] = [];
 const warmedUrls = new Set<string>();
-const resumeFromGesture = () => unlockPresentationBed();
+const resumeFromGesture = () => {
+  resumePresentationVoices();
+  unlockPresentationBed();
+};
+
+let voiceGestureBound = false;
+function bindVoiceGesture() {
+  if (voiceGestureBound || typeof window === 'undefined') return;
+  voiceGestureBound = true;
+  window.addEventListener('pointerdown', () => resumePresentationVoices());
+}
 
 function setGestureNeeded(needed: boolean) {
   if (gestureNeeded === needed) return;
@@ -232,28 +265,38 @@ export function prefetchPresentationBeds() {
   warm(BED_URL.opening);
 }
 
+function retire(previous: LoopingBed | null) {
+  if (!previous || previous === retiring) return;
+  retiring?.fadeOut(0);
+  retiring = previous;
+}
+
 export function setPresentationBed(next: BedTrack | null) {
-  if (next === current) return;
+  if (next === current && (next == null || active)) return;
   const previous = active;
   current = next;
-  if (previous) previous.fadeOut(BED_SCENE_CROSSFADE_SEC);
   if (!next) {
+    previous?.fadeOut(BED_SCENE_CROSSFADE_SEC);
+    retiring?.fadeOut(BED_SCENE_CROSSFADE_SEC);
     active = null;
+    retiring = null;
     setGestureNeeded(false);
     return;
   }
   bindGesture();
+  retire(previous);
   const created = new LoopingBed(
     BED_URL[next],
     previous ? BED_SCENE_CROSSFADE_SEC : BED_FADE_IN_SEC,
     next === 'pair' ? BED_PAIR_LOOP_CROSSFADE_SEC : BED_LOOP_CROSSFADE_SEC,
     () => {
-      if (active === created) {
-        setGestureNeeded(false);
-        unbindGesture();
-        if (next === 'opening' && typeof window.setTimeout === 'function') {
-          window.setTimeout(() => warm(BED_URL.pair), 8000);
-        }
+      if (active !== created) return;
+      retiring?.fadeOut(BED_SCENE_CROSSFADE_SEC);
+      retiring = null;
+      setGestureNeeded(false);
+      unbindGesture();
+      if (next === 'opening' && typeof window.setTimeout === 'function') {
+        window.setTimeout(() => warm(BED_URL.pair), 8000);
       }
     },
     () => {
@@ -263,9 +306,24 @@ export function setPresentationBed(next: BedTrack | null) {
   active = created;
 }
 
-export function unlockPresentationBed() {
-  active?.unlockFromGesture();
+export function duckPresentationBed(seconds: number) {
+  active?.duck(seconds);
+  retiring?.duck(seconds);
 }
+
+export function unlockPresentationBed() {
+  resumePresentationVoices();
+  active?.unlockFromGesture();
+  flushPresentationCues();
+}
+
+setPresentationAudioBlockedHandler(() => {
+  bindGesture();
+  bindVoiceGesture();
+  setGestureNeeded(true);
+});
+setPresentationVoiceHandler(duckPresentationBed);
+bindVoiceGesture();
 
 export function subscribePresentationBed(listener: (needsGesture: boolean) => void) {
   listeners.add(listener);

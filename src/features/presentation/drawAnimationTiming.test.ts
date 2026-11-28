@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
   DRAW_ANIMATION_TIMING,
+  drawResumeSeconds,
   drawSeconds,
+  drawTiming,
   estimateDrawDurationMs,
   estimateDrawDurationSec,
+  firstCardEndSec,
 } from './drawAnimationTiming';
 
 describe('draw animation timing', () => {
   it('keeps the requested impact and confirmation timings', () => {
+    expect(DRAW_ANIMATION_TIMING.introHold).toBe(5000);
+    expect(drawTiming('fast').introHold).toBe(150);
     expect(DRAW_ANIMATION_TIMING.cardSettle).toBe(600);
     expect(DRAW_ANIMATION_TIMING.dartFlight).toBe(600);
     expect(DRAW_ANIMATION_TIMING.impactHold).toBe(1600);
@@ -16,6 +21,16 @@ describe('draw animation timing', () => {
     expect(DRAW_ANIMATION_TIMING.revealHold).toBe(2000);
     expect(DRAW_ANIMATION_TIMING.pairConfirmHold).toBe(7000);
     expect(DRAW_ANIMATION_TIMING.transitionToNext).toBe(800);
+  });
+
+  it('replays the first card from the start when the display joins mid-intro', () => {
+    expect(firstCardEndSec('show')).toBeGreaterThan(8);
+    expect(drawResumeSeconds(0)).toBe(0);
+    expect(drawResumeSeconds(1.5)).toBe(0);
+    expect(drawResumeSeconds(firstCardEndSec('show') - 0.01)).toBe(0);
+    expect(drawResumeSeconds(firstCardEndSec('show'))).toBe(firstCardEndSec('show'));
+    expect(drawResumeSeconds(40)).toBe(40);
+    expect(drawResumeSeconds(3, 'instant')).toBe(3);
   });
 
   it('converts milliseconds to GSAP seconds', () => {

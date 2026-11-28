@@ -48,10 +48,11 @@ export const TOURNAMENT_EFFECTS = {
     pairImpact: audioFile('audiopapkin-sound-design-elements-impact-sfx-ps-130-420088.mp3'),
     opening: audioFile('オープニング.mp3'),
     pair: audioFile('ペア.mp3'),
-    losersOpen: audioFile('losers-open.mp3'),
-    semifinal: audioFile('semifinal.mp3'),
-    finalBattle: audioFile('final-battle.mp3'),
-    finalBattleAgain: audioFile('final-battle-again.mp3'),
+    challenger: audioFile('announce-challenger-en-jp.mp3'),
+    fight: audioFile('announce-fight-en.mp3'),
+    semifinal: audioFile('announce-semifinal-round-sf.mp3'),
+    finalBattle: audioFile('announce-final-round-sf.mp3'),
+    finalBattleAgain: audioFile('announce-final-again-round-sf.mp3'),
   },
 } as const;
 
@@ -68,3 +69,14 @@ export const TOURNAMENT_EFFECT_IMAGE_URLS = TOURNAMENT_EFFECT_ASSET_URLS.filter(
 export const TOURNAMENT_EFFECT_AUDIO_URLS = TOURNAMENT_EFFECT_ASSET_URLS.filter((url) =>
   url.endsWith('.mp3'),
 );
+
+/** ペア発表の1人目が、ダーツ、反転、顔の順で使う画像。 */
+export const CARD_REVEAL_IMAGE_URLS = [
+  TOURNAMENT_EFFECTS.cards.back,
+  TOURNAMENT_EFFECTS.cards.front,
+  TOURNAMENT_EFFECTS.cards.impactMark,
+  TOURNAMENT_EFFECTS.darts.main,
+  TOURNAMENT_EFFECTS.darts.motionStreak,
+  TOURNAMENT_EFFECTS.effects.impactFlash,
+  TOURNAMENT_EFFECTS.effects.blueRing,
+];

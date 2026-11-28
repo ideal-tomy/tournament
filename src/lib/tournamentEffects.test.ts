@@ -7,13 +7,13 @@ import {
 
 describe('tournament effect asset catalog', () => {
   it('contains every formal asset exactly once', () => {
-    expect(TOURNAMENT_EFFECT_ASSET_URLS).toHaveLength(36);
-    expect(new Set(TOURNAMENT_EFFECT_ASSET_URLS).size).toBe(36);
+    expect(TOURNAMENT_EFFECT_ASSET_URLS).toHaveLength(37);
+    expect(new Set(TOURNAMENT_EFFECT_ASSET_URLS).size).toBe(37);
   });
 
   it('separates images and audio', () => {
     expect(TOURNAMENT_EFFECT_IMAGE_URLS).toHaveLength(23);
-    expect(TOURNAMENT_EFFECT_AUDIO_URLS).toHaveLength(12);
+    expect(TOURNAMENT_EFFECT_AUDIO_URLS).toHaveLength(13);
     expect(TOURNAMENT_EFFECT_AUDIO_URLS).toEqual(expect.arrayContaining([
       '/tournament-effects/audio/dart-fly.mp3',
       '/tournament-effects/audio/dragon-studio-hard-heavy-impact-515256.mp3',
@@ -21,10 +21,12 @@ describe('tournament effect asset catalog', () => {
       '/tournament-effects/audio/audiopapkin-sound-design-elements-impact-sfx-ps-130-420088.mp3',
       `/tournament-effects/audio/${encodeURIComponent('オープニング.mp3')}`,
       `/tournament-effects/audio/${encodeURIComponent('ペア.mp3')}`,
-      '/tournament-effects/audio/losers-open.mp3',
-      '/tournament-effects/audio/semifinal.mp3',
-      '/tournament-effects/audio/final-battle.mp3',
-      '/tournament-effects/audio/final-battle-again.mp3',
+      '/tournament-effects/audio/announce-challenger-en-jp.mp3',
+      '/tournament-effects/audio/announce-fight-en.mp3',
+      '/tournament-effects/audio/announce-semifinal-round-sf.mp3',
+      '/tournament-effects/audio/announce-final-round-sf.mp3',
+      '/tournament-effects/audio/announce-final-again-round-sf.mp3',
     ]));
+    expect(TOURNAMENT_EFFECT_AUDIO_URLS.some((url) => url.endsWith('losers-open.mp3'))).toBe(false);
   });
 });

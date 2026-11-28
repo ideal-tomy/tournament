@@ -1,7 +1,7 @@
 import {describe,it,expect} from 'vitest';
 import {buildSnapshotForTeamCount,createManagerFromSnapshot,exportSnapshot,toStageData} from './manager';
 import {applyResult} from '../progression/progression';
-import {resolveLoserDropPlacement,resolveResultAdvance} from './resultAdvance';
+import {maskUnrevealedAdvances,resolveLoserDropPlacement,resolveResultAdvance} from './resultAdvance';
 import {getMatchBracketKind} from '../progression/tiers';
 describe('actual committed bracket advance geometry',()=>{
  it.each([0,1] as const)('uses the actual winning side and destination for slot %i',async slot=>{
@@ -57,4 +57,36 @@ describe('actual committed bracket advance geometry',()=>{
   expect(linked).toContain('winner');
   expect(linked).toContain('loser');
  });
+ it('まだ演出していない勝者は次の枠から外し、元の試合と演出済みの勝者は残す',async()=>{
+  const snapshot=await buildSnapshotForTeamCount(8),manager=createManagerFromSnapshot(snapshot);
+  const first=toStageData(await exportSnapshot(manager));
+  const opening=first.match.find(m=>m.opponent1?.id!=null&&m.opponent2?.id!=null&&m.status<4)!;
+  await applyResult(manager,first,opening.id,0,opening.id);
+  const mid=await exportSnapshot(manager);
+  const secondData=toStageData(mid);
+  const next=secondData.match.find(m=>m.id!==opening.id&&m.opponent1?.id!=null&&m.opponent2?.id!=null&&m.status<4)!;
+  await applyResult(manager,secondData,next.id,0,next.id);
+  const after=toStageData(await exportSnapshot(manager));
+  const firstWinner=getWinner(after,opening.id);
+  const secondWinner=getWinner(after,next.id);
+  const masked=maskUnrevealedAdvances(after,new Set([opening.id]));
+  expect(playerIds(masked,opening.id)).toEqual(playerIds(after,opening.id));
+  expect(playerIds(masked,next.id)).toEqual(playerIds(after,next.id));
+  expect(placedIds(masked)).toContain(firstWinner);
+  expect(placedIds(masked)).not.toContain(secondWinner);
+  expect(placedIds(after)).toContain(secondWinner);
+ });
 });
+
+function getWinner(data:ReturnType<typeof toStageData>,matchId:number){
+ const match=data.match.find(m=>m.id===matchId)!;
+ return match.opponent1?.result==='win'?match.opponent1.id:match.opponent2?.id;
+}
+function playerIds(data:ReturnType<typeof toStageData>,matchId:number){
+ const match=data.match.find(m=>m.id===matchId)!;
+ return [match.opponent1?.id??null,match.opponent2?.id??null];
+}
+function placedIds(data:ReturnType<typeof toStageData>){
+ const sources=new Set(data.match.filter(m=>m.status>=4).map(m=>m.id));
+ return data.match.filter(m=>!sources.has(m.id)).flatMap(m=>[m.opponent1?.id,m.opponent2?.id]).filter((id):id is number=>id!=null);
+}

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { setup } from './testSupport';
+import {WINNER_ADVANCE_SEC} from '../../../src/features/presentation/advanceTiming';
 import {toStageData,type BracketSnapshot} from '../../../src/features/bracket/manager';
 import {getChapterMatches,getCourtFillMatches,getMatchBracketKind,getMatchRoundLabel} from '../../../src/features/progression/progression';
 interface View {scene:string;version:number;sceneSeq:number;participants:{id:string;rating:number|null}[];session:{id:string}|null;flow:{ceremony:string|null;placements:{first:string;second:string[];third:string[]}|null;phase:string;nextMatch:unknown|null;currentMatch:{id:number;teamA:string;teamB:string;kind:string;round:number}|null;championTeamId:string|null;canStart:boolean;canAdvance:boolean;canGameStart:boolean;completedMatches:number};bracket:unknown;teams:{id:string}[]}
@@ -98,7 +99,7 @@ describe('one continuous tournament with automatic scheduling',()=>{
   expect(c!.spotlight).toMatchObject({kind:'vs',board:2});expect((await s.command('court-next',{board:1})).response.status).toBe(409);
   later(9);({v,c}=await courts());expect(c!.spotlight).toMatchObject({kind:'winner',board:1,winnerSec:9});expect(c!.spotlight!.resultPresentation!.match.id).toBe(c!.boards[0].matchId);
   later(9);({v,c}=await courts());expect(c!.boards[1].stage).toBe('live');expect(c!.spotlight).toMatchObject({kind:'winner',board:1});expect(c!.spotlight!.elapsed).toBeGreaterThan(9);
-  later(6);({v,c}=await courts());expect(c!.boards[1].stage).toBe('live');expect(c!.spotlight).toBeNull();
+  later(WINNER_ADVANCE_SEC);({v,c}=await courts());expect(c!.boards[1].stage).toBe('live');expect(c!.spotlight).toBeNull();
   expect(s.db.prepare("SELECT COUNT(*) n FROM matches WHERE status='in_progress'").get()!.n).toBe(1);
   expect((await s.request('/api/tournament/court-winner','POST',scored.body)).status).toBe(200);expect((await s.view()).version).toBe(v.version);
   const fillIds=(view:View,courtsState:Courts,exceptBoard?:number)=>{

@@ -1,10 +1,14 @@
+import { Status } from 'brackets-model';
 import {
   buildOrthogonalConnectorPath,
   computeBracketLayout,
   findParentMatch,
   fullBoardFocus,
+  getLoserParticipantId,
+  getWinnerParticipantId,
   isConnectorHighlighted,
   resolveTeamId,
+  type BMMatch,
   type BracketBoardSide,
   type StageData,
 } from './layout';
@@ -23,6 +27,36 @@ function layoutFocusForAdvance(data: StageData, boardSide: BracketBoardSide, mat
   const attachGrandFinal =
     (boardSide === 'winners' || boardSide === 'losers') && findParentMatch(data, matchId) == null;
   return fullBoardFocus(attachGrandFinal);
+}
+
+function blankSlot(match: BMMatch, slot: 0 | 1) {
+  if (slot === 0) match.opponent1 = { id: null };
+  else match.opponent2 = { id: null };
+}
+
+/**
+ * 演出が終わっていない試合の勝者・敗者を、次の枠から外す。
+ * 元の試合枠の勝敗はそのまま。進行データの勝敗は変えない。
+ */
+export function maskUnrevealedAdvances(data: StageData, revealMatchIds: ReadonlySet<number>): StageData {
+  const hidden = new Set<number>();
+  const sources = new Set<number>();
+  for (const match of data.match) {
+    if (match.status < Status.Completed || revealMatchIds.has(match.id)) continue;
+    sources.add(match.id);
+    const winner = getWinnerParticipantId(match);
+    const loser = getLoserParticipantId(match);
+    if (winner != null) hidden.add(winner);
+    if (loser != null) hidden.add(loser);
+  }
+  if (!hidden.size) return data;
+  const next = structuredClone(data);
+  for (const match of next.match) {
+    if (sources.has(match.id)) continue;
+    if (match.opponent1?.id != null && hidden.has(match.opponent1.id)) blankSlot(match, 0);
+    if (match.opponent2?.id != null && hidden.has(match.opponent2.id)) blankSlot(match, 1);
+  }
+  return next;
 }
 
 /** Locate a committed winner's actual source and destination. No bracket decisions are made here. */

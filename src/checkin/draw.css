@@ -84,10 +84,10 @@
   .bracket-match-current .bracket-frame-halo{animation:none;stroke-opacity:.7}
 }
 .audience-advance{position:relative;width:100%;height:100%;min-height:0}
-.audience-advance>.advance-before,.audience-advance>.advance-after,.audience-advance>.advance-stage,.audience-advance>.advance-full,.audience-advance>.advance-board,.audience-advance>.advance-overlay,.audience-advance>.advance-winner-out{position:absolute;inset:0}
-.audience-advance>.advance-full{opacity:0}
-.advance-full>.advance-board{position:absolute;inset:0;width:100%;height:100%}
-.advance-stage>.advance-board,.advance-stage>.advance-overlay{position:absolute;inset:0;width:100%;height:100%}
+.audience-advance>.advance-before,.audience-advance>.advance-after,.audience-advance>.advance-stage,.audience-advance>.advance-rise,.audience-advance>.advance-arrived,.audience-advance>.advance-full,.audience-advance>.advance-board,.audience-advance>.advance-overlay,.audience-advance>.advance-winner-out{position:absolute;inset:0}
+.audience-advance>.advance-full,.audience-advance>.advance-arrived{opacity:0}
+.advance-full>.advance-board,.advance-rise>.advance-board,.advance-arrived>.advance-board{position:absolute;inset:0;width:100%;height:100%}
+.advance-stage>.advance-board,.advance-stage>.advance-overlay,.advance-rise>.advance-board,.advance-rise>.advance-overlay,.advance-arrived>.advance-board,.advance-arrived>.advance-overlay{position:absolute;inset:0;width:100%;height:100%}
 .audience-advance>.advance-overlay{width:100%;height:100%;pointer-events:none}
 .audience-advance>.advance-winner-out{pointer-events:none}
 .venue-check-menu{max-width:760px;margin:32px auto;padding:0 20px}

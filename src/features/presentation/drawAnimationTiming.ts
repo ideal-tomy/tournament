@@ -7,7 +7,8 @@ import type { RehearsalTimingPreset } from '../../lib/rehearsalTiming';
  */
 export const DRAW_ANIMATION_TIMING = {
   introEnter: 500,
-  introHold: 350,
+  /** ペア発表のあと、チーム編成を止めて出す。このあいだに1人目のカードを展開する。 */
+  introHold: 5000,
   introExit: 350,
   cardEnter: 500,
   cardSettle: 600,
@@ -68,7 +69,7 @@ export function drawTiming(preset:RehearsalTimingPreset='show') {
   return preset==='fast'?{...DRAW_ANIMATION_TIMING,introHold:150,cardSettle:200,impactHold:450,revealHold:500,pairConfirmHold:1400,summaryHold:1200,summaryPageHold:900,summaryPageSlide:500,summaryPageTravel:4000}:DRAW_ANIMATION_TIMING;
 }
 
-/** 縦2横4の巡回。20チーム前後は2周、それより多いと1周半。 */
+/** 終了時刻用。画面の帯は4組で1ページだが、ここでは8組で1画面のままにする。移動距離には使わない。 */
 export function estimateTeamSummaryMs(teamCount: number, preset: RehearsalTimingPreset = 'show'): number {
   const t = drawTiming(preset);
   const pages = Math.max(1, Math.ceil(Math.max(0, teamCount) / 8));
@@ -78,6 +79,26 @@ export function estimateTeamSummaryMs(teamCount: number, preset: RehearsalTiming
 }
 export function drawSeconds(key: DrawAnimationTimingKey,preset:RehearsalTimingPreset='show'): number {
   return drawTiming(preset)[key] / 1000;
+}
+
+/** 導入が終わり、1人目の退場まで。この前に画面が付いたら途中のコマへ飛ばない。 */
+export function firstCardEndSec(preset: RehearsalTimingPreset = 'show'): number {
+  const t = drawTiming(preset);
+  return (
+    t.introEnter + t.introHold + t.introExit
+    + t.cardEnter + t.cardSettle + t.dartFlight + t.impactBurst + t.impactHold
+    + t.cardFlip + t.playerReveal + t.revealHold + t.memberExit
+  ) / 1000;
+}
+
+/**
+ * 会場画面は顔写真の展開で数秒遅れて付く。
+ * 1人目の途中なら、経過時間へ飛ばず先頭から再生して、ダーツから顔までを通す。
+ */
+export function drawResumeSeconds(elapsed: number, preset: RehearsalTimingPreset = 'show'): number {
+  if (!Number.isFinite(elapsed) || elapsed <= 0) return 0;
+  if (elapsed < firstCardEndSec(preset)) return 0;
+  return elapsed;
 }
 
 export function estimateDrawDurationMs(

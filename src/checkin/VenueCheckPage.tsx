@@ -17,10 +17,14 @@ import type { CeremonyTeam } from '../features/presentation/ceremony/CeremonyFra
 import PodiumBoard from '../features/presentation/ceremony/PodiumBoard';
 import ThanksBoard from '../features/presentation/ceremony/ThanksBoard';
 import WinnerBoard from '../features/presentation/ceremony/WinnerBoard';
+import { WINNER_ADVANCE_SEC } from '../features/presentation/advanceTiming';
 import {
   LOSERS_INTRO_BRACKET_SEC,
 } from '../features/presentation/losersIntroTiming';
+import type { DrawPresentationData } from '../features/draw/presentationTypes';
+import { drawSeconds, estimateDrawDurationMs, estimateTeamSummaryMs } from '../features/presentation/drawAnimationTiming';
 import OpeningBracketTour from '../features/presentation/scenes/OpeningBracketTour';
+import DrawStage from '../features/presentation/scenes/DrawStage';
 import PairConfirmed from '../features/presentation/scenes/PairConfirmed';
 import VsBoard, { type VsCallout } from '../features/presentation/vsBoard/VsBoard';
 
@@ -35,7 +39,9 @@ interface FixtureTeam {
 
 const VIEWS = [
   ['tour', '開幕のトーナメント'],
-  ['advance', '進行'],
+  ['draw', 'ペア発表（1人目）'],
+  ['teams', 'チーム一覧の周回'],
+  ['advance', '勝ち上がり（線と顔）'],
   ['winners', 'ウィナーズ'],
   ['losers', 'ルーザーズの進行'],
   ['pair', 'ペア確定'],
@@ -81,6 +87,26 @@ async function albumFaces(): Promise<string[]> {
     return URL.createObjectURL(portrait);
   }));
   return loaded.filter((url): url is string => url != null);
+}
+
+function drawPresentation(teams: FixtureTeam[]): DrawPresentationData {
+  return {
+    sessionId: 'venue-check',
+    teamSize: 2,
+    teamLabels: teams.map((team) => team.name),
+    participants: teams.flatMap((team) => team.members.map((name, index) => ({
+      id: `${team.id}-${index}`,
+      displayName: name,
+      faceUrl: team.faces[index] ?? face,
+    }))),
+  };
+}
+
+/** チーム一覧の帯が動き始める直後。カード紹介を飛ばして周回だけ見る。 */
+function teamsLoopStart(teamCount: number): number {
+  const total = estimateDrawDurationMs(teamCount * 2, 'full', teamCount, 'show') / 1000;
+  const summary = estimateTeamSummaryMs(teamCount, 'show') / 1000;
+  return Math.max(0, total - summary + drawSeconds('summaryEnter', 'show') + 0.15);
 }
 
 function ceremony(team: FixtureTeam): CeremonyTeam {
@@ -226,7 +252,7 @@ function PairHold({ team }: { team: FixtureTeam }) {
   );
 }
 
-function advanceState(teams: FixtureTeam[], step: VenueAdvance): DrawState {
+function advanceState(teams: FixtureTeam[], step: VenueAdvance, revealedMatchIds: number[]): DrawState {
   const participants = teams.flatMap((team) => team.members.map((name, index) => {
     const photo = team.faces[index] ?? face;
     return {
@@ -253,7 +279,7 @@ function advanceState(teams: FixtureTeam[], step: VenueAdvance): DrawState {
     version: 1,
     sceneSeq: 1,
     elapsedSeconds: 0,
-    durationSec: 6,
+    durationSec: WINNER_ADVANCE_SEC,
     canComplete: false,
     session: null,
     participants,
@@ -275,6 +301,7 @@ function advanceState(teams: FixtureTeam[], step: VenueAdvance): DrawState {
       },
       winnerTeamId: step.winnerTeamId,
       loserTeamId: step.loserTeamId,
+      revealedMatchIds,
       championTeamId: null,
       lastMatchId: step.matchId,
       canGameStart: false,
@@ -323,11 +350,12 @@ function AdvancePlay({ teams, replay, onNote, kind }: { teams: FixtureTeam[]; re
   }, [kind, replay, teams]);
   useEffect(() => {
     if (paused || index >= steps.length - 1) return undefined;
-    const timer = window.setTimeout(() => setIndex((value) => value + 1), 7200);
+    const timer = window.setTimeout(() => setIndex((value) => value + 1), (WINNER_ADVANCE_SEC + 1.2) * 1000);
     return () => window.clearTimeout(timer);
   }, [index, steps.length, paused]);
   const step = steps[index];
-  const state = useMemo(() => (step ? advanceState(teams, step) : null), [step, teams]);
+  const revealedMatchIds = useMemo(() => steps.slice(0, index).map((item) => item.matchId), [steps, index]);
+  const state = useMemo(() => (step ? advanceState(teams, step, revealedMatchIds) : null), [step, teams, revealedMatchIds]);
   useEffect(() => {
     if (!step) {
       onNote('');
@@ -342,13 +370,11 @@ function AdvancePlay({ teams, replay, onNote, kind }: { teams: FixtureTeam[]; re
   if (!winner || !loser) return null;
   return (
     <>
-      {kind === 'loser' && (
-        <div className="venue-check-nav" role="navigation" aria-label="ルーザーズ進行">
-          <button type="button" disabled={index <= 0} onClick={() => { setPaused(true); setIndex((value) => Math.max(0, value - 1)); }}>前へ</button>
-          <button type="button" disabled={index >= steps.length - 1} onClick={() => { setPaused(true); setIndex((value) => Math.min(steps.length - 1, value + 1)); }}>次へ</button>
-          <button type="button" onClick={() => setPaused((value) => !value)}>{paused ? '再生' : '一時停止'}</button>
-        </div>
-      )}
+      <div className="venue-check-nav" role="navigation" aria-label={kind === 'loser' ? 'ルーザーズ進行' : '勝ち上がり進行'}>
+        <button type="button" disabled={index <= 0} onClick={() => { setPaused(true); setIndex((value) => Math.max(0, value - 1)); }}>前へ</button>
+        <button type="button" disabled={index >= steps.length - 1} onClick={() => { setPaused(true); setIndex((value) => Math.min(steps.length - 1, value + 1)); }}>次へ</button>
+        <button type="button" onClick={() => setPaused((value) => !value)}>{paused ? '再生' : '一時停止'}</button>
+      </div>
       <AnimatedBracketAdvance
         key={`${replay}-${step.matchId}-${index}`}
         state={state}
@@ -376,6 +402,22 @@ function Scene({ view, data, teams, replay, onNote }: { view: ViewId; data: Stag
       />
     );
   }
+  if (view === 'draw' || view === 'teams') {
+    return (
+      <div className="live-draw-stage">
+        <DrawStage
+          key={replay}
+          eventId="venue-check"
+          sceneSeq={replay}
+          data={drawPresentation(teams)}
+          presentationMode="full"
+          timingPreset="show"
+          audioEnabled
+          startAtSeconds={view === 'teams' ? teamsLoopStart(teams.length) : 0}
+        />
+      </div>
+    );
+  }
   if (view === 'advance') return <AdvancePlay key={replay} teams={teams} replay={replay} onNote={onNote} />;
   if (view === 'losers') return <AdvancePlay key={replay} teams={teams} replay={replay} onNote={onNote} kind="loser" />;
   if (view === 'winners') return <BracketBoard data={data} teams={teams} side={view} />;
@@ -388,7 +430,7 @@ function Scene({ view, data, teams, replay, onNote }: { view: ViewId; data: Stag
   if (view === 'podium') return <PodiumBoard key={replay} first={ceremony(left)} second={ceremony(right)} third={ceremony(third)} />;
   const callout: VsCallout | null = view === 'semi' ? 'semifinal' : view === 'final' ? 'final' : view === 'again' ? 'final-again' : null;
   const roundLabel = view === 'semi' ? '準決勝' : view === 'final' ? '決勝' : view === 'again' ? '決勝' : '1回戦';
-  return <VsBoard key={replay} left={ceremony(left)} right={ceremony(fourth)} roundLabel={roundLabel} callout={callout} />;
+  return <VsBoard key={replay} audioEnabled left={ceremony(left)} right={ceremony(fourth)} roundLabel={roundLabel} callout={callout} />;
 }
 
 function Stage({ label, note, onReplay, children }: { label: string; note?: string; onReplay(): void; children: ReactNode }) {
@@ -438,6 +480,7 @@ export default function VenueCheckPage() {
         <p className="eyebrow">40人 · ダブルイリミネーション</p>
         <h1>表示を確認する</h1>
         <p>仮の20組です。顔は保存済みの写真を使います。各演出は別の窓で開きます。受付の入力や、進行中の大会には影響しません。</p>
+        <p>ペア発表は1人目から、チーム一覧は周回の途中から開きます。VS以降はアナウンスが鳴ります。勝ち上がりは前へ・次へで、まだ演出前の線と顔を止められます。</p>
         {error && <p role="alert">{error}</p>}
         <ul>
           {VIEWS.map(([id, label]) => (
