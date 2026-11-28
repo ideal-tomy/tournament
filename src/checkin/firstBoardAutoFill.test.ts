@@ -25,7 +25,7 @@ function state(flow: Partial<NonNullable<DrawState['flow']>> = {}, first = board
       canScore: false,
       canAdvance: false,
       completedMatches: 1,
-      courts: { count: 2, showBracket: false, spotlight: null, boards: [first, { ...board(), board: 2 }] },
+      courts: { count: 2, showBracket: false, spotlight: null, boards: [first, board({ board: 2, stage: 'live', matchId: 5 })] },
       ...flow,
     },
   } as DrawState;
@@ -33,13 +33,21 @@ function state(flow: Partial<NonNullable<DrawState['flow']>> = {}, first = board
 
 describe('firstBoardAutoFill', () => {
   it('台1が空いていて次の試合があるときだけ入れる', () => {
-    expect(firstBoardAutoFill(state())).toBe(true);
-    expect(firstBoardAutoFill(state({ nextMatch: null }))).toBe(false);
-    expect(firstBoardAutoFill(state({ losersIntroRemainingSec: 4 }))).toBe(false);
-    expect(firstBoardAutoFill(state({}, board({ showing: true, stage: 'result', matchId: 3, match: { id: 3 } as CourtBoard['match'] })))).toBe(false);
-    expect(firstBoardAutoFill(state({}, board({ stage: 'call', matchId: 3, match: { id: 3 } as CourtBoard['match'] })))).toBe(false);
-    expect(firstBoardAutoFill(state({}, board({ stage: 'live', matchId: 3, match: { id: 3 } as CourtBoard['match'] })))).toBe(false);
-    expect(firstBoardAutoFill(state({}, board({ stage: 'result', matchId: 3, match: { id: 3 } as CourtBoard['match'], showing: false })))).toBe(true);
-    expect(firstBoardAutoFill({ ...state(), scene: 'vs_card' })).toBe(false);
+    expect(firstBoardAutoFill(state())).toBe(1);
+    expect(firstBoardAutoFill(state({ nextMatch: null }))).toBeNull();
+    expect(firstBoardAutoFill(state({ losersIntroRemainingSec: 4 }))).toBeNull();
+    expect(firstBoardAutoFill(state({}, board({ showing: true, stage: 'result', matchId: 3, match: { id: 3 } as CourtBoard['match'] })))).toBeNull();
+    expect(firstBoardAutoFill(state({}, board({ stage: 'call', matchId: 3, match: { id: 3 } as CourtBoard['match'] })))).toBeNull();
+    expect(firstBoardAutoFill(state({}, board({ stage: 'live', matchId: 3, match: { id: 3 } as CourtBoard['match'] })))).toBeNull();
+    expect(firstBoardAutoFill(state({}, board({ stage: 'result', matchId: 3, match: { id: 3 } as CourtBoard['match'], showing: false })))).toBe(1);
+    expect(firstBoardAutoFill({ ...state(), scene: 'vs_card' })).toBeNull();
+  });
+  it('台1が使用中でも台2の演出終了後に割り当て、演出中は待つ', () => {
+    const first = board({ stage: 'live', matchId: 1 });
+    const second = board({ board: 2, stage: 'result', matchId: 2 });
+    const courts = { count: 2, showBracket: false, spotlight: null, boards: [first, second] };
+    expect(firstBoardAutoFill(state({ courts }))).toBe(2);
+    expect(firstBoardAutoFill(state({ courts: { ...courts, boards: [first, { ...second, showing: true }] } }))).toBeNull();
+    expect(firstBoardAutoFill(state({ courts, championTeamId: 'winner' }))).toBeNull();
   });
 });

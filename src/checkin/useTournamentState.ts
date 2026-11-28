@@ -40,9 +40,10 @@ export function useTournamentState(onAuthRequired: () => void, sessionVersion: n
       lifetime.signal.addEventListener('abort', abort, { once: true });
       try {
         let next = await api<DrawState>('/api/draw/state', { signal: controller.signal });
-        if ((ceremonyAutoStart(next) || firstBoardAutoFill(next)) && filled.current !== next.version) {
+        const fillBoard = firstBoardAutoFill(next);
+        if ((ceremonyAutoStart(next) || fillBoard != null) && filled.current !== next.version) {
           try {
-            const board = next.flow?.courts?.boards.find((item) => item.stage === 'result')?.board
+            const board = fillBoard ?? next.flow?.courts?.boards.find((item) => item.stage === 'result')?.board
               ?? next.flow?.courts?.boards.find((item) => item.board === 1)?.board
               ?? 1;
             next = await api<DrawState>('/api/tournament/court-next', { method: 'POST', body: JSON.stringify({ requestId: crypto.randomUUID(), expectedVersion: next.version, board }), signal: controller.signal });
